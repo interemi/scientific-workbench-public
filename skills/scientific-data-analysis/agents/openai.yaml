@@ -1,0 +1,6 @@
+interface:
+  display_name: "Scientific Data Analysis"
+  short_description: "Analyze FITS, legacy spectra, tables, documents, and LaTeX workflows"
+  default_prompt: "Use $scientific-data-analysis to inspect scientific data or document bundles, route legacy spectroscopy coursework carefully, explain the results, and build a reproducible workflow in English or Spanish."
+policy:
+  allow_implicit_invocation: true

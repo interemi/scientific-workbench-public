@@ -1,0 +1,150 @@
+SCIENTIFIC-DATA-ANALYSIS
+Release v2.2 evaluation-hardening / v2.1 compact-router / v2.0 integrated skill + ScientificWorkbench / v1.9 contract-freeze / v1.8 app-ready backend / v1.7 real-world / v1.6 stable baseline
+
+Compatibility anchors for historical gates: Release v1.7 stable / v1.6 stable baseline; v1.7 is the installed stable.
+
+What this release means:
+- The core scope is defined and documented.
+- The runtime is quieter and more reproducible than in earlier iterations.
+- The product layer is more polished, with more consistent outputs and cleaner handoff bundles.
+- The installation story is now explicit for macOS, Windows, and Linux.
+- The environment doctor can distinguish core readiness from optional extras.
+- The skill remains science-first, especially for astronomy and technical analysis.
+- v2.0 aligns the installed skill with ScientificWorkbench as a native macOS product surface: the app reads the installed public registry, executes the skill through deterministic commands, consumes JSON envelopes and run bundles, displays typed artifacts and previews, tracks job state, and preserves controlled `WARNING`/`BLOCKED_CONTROLADO` outcomes.
+- The stable base now includes explicit cross-domain workflows for mixed tables and mixed document intake.
+- The stable base now also includes compact photometric-calibration and detector-noise planning helpers inspired by standard photometry and detector texts, without turning the core into an oversized instrument package.
+- The stable base now also includes a narrower golden path for reduced ASCII spectra, existing notebooks, and coursework-style reports.
+- The validation path now also exercises those cross-domain workflows plus reusable non-science deliverable scaffolds.
+- The skill now ships with `deploy/` wrappers, packaged `examples/`, and a portable smoke test for moving it to other machines more safely.
+- Privacy-sensitive runtime details in normal JSON outputs are now sanitized more aggressively for safer sharing and publication.
+- TEAREDUCE is now consolidated as an optional backend with four practical routes (`bias`, `flat`, `cr2images`, `wavecalib`) plus a dedicated short smoke-test wrapper.
+- The `datanalysis` contract is more honest now: it explicitly validates notebook runtime pieces such as `plotly`, `nbclient`, and kernel execution, while distinguishing a restricted sandbox from a broken environment.
+- Post-audit hardening adds focused regressions, Li ASCII EW support, clearer failed-input behavior, and standard JSON envelopes for several supporting tools without changing the skill's core shape.
+- v1.2 closes the recent coursework and document-handoff maturation: professor-notebook fidelity, Pages/DOCX marked edits, macOS PDF fallback, exact visual handoff, and a focused v1.2 release regression gate.
+- v1.3 closes the full-capability audit follow-up without changing the architecture: DuckDB skips unsafe stem aliases such as `table`, the SB2 public `fit` command works, legacy RV input validation emits blocked JSON, and the reduced ASCII spectra coursework route passes the full smoke path again.
+- v1.4 adds companion routing without changing the scientific architecture: `companion_route_check.py` recommends local installed companion skills/plugins for narrow handoff steps while keeping email, Google Drive, and Zotero outside this release's routing policy.
+- The post-v1.4 astronomy route now adds a narrow FITS RGB batch helper for derived visual products: grouped FITS inventory, per-filter stacks, WCS-aware channel alignment, pseudo-RGB labeling, manifests, and alignment QA.
+- The optional external astronomy route now adds controlled bridges for STILTS/TOPCAT and Aperture Photometry Tool: explicit preflight, reproducible commands, logs, manifests, APT source-list preparation, and APT output parsing without making Java tools mandatory.
+- v1.5 closes the capability-coverage loop: `capability_probe_matrix.py` now probes every public `smoke none` entry that is safe to exercise, including visual RGB FITS export, and `audit_v1_5_release_regression.py` rejects real failures or unprobed public entries.
+- Historical marker: Release v1.5 stable is the capability-coverage baseline that v1.6 audits and hardens.
+- v1.6 closes the 59-capability audit pass generated from `Capacidades scientific-data-analysis v1.6.pdf`: every public registry entry was exercised through happy, realistic, edge, and broken cases where applicable; accepted P0/P1/P2 fixes were retested; and each phase closure synced editable changes into the installed skill only after validation.
+- v1.7 is the installed stable real-world applicability release. Its focus is classification of all public capabilities, non-astro intake, measurement/noise/QA transfer, astronomy-born pattern boundaries, professional/personal package playbooks, and a user-facing v1.7 guide.
+- v1.8 is the app-ready backend release: JSON envelopes, run-bundle contract, app-readiness matrix, dry-run router, app-like regressions, and a clear boundary that ScientificWorkbench sync remains future work.
+- v1.9 is the stable contract-freeze and app-facing hardening release: artifact type names are frozen, app-facing errors are cleaner, app hints and next actions are richer, exposure modes are locked, v2.0 deferrals are protected, and app-like regression coverage is broader.
+- v2.0 is the installed integrated release when post-sync validation passes: the ScientificWorkbench app is validated against the installed skill path, parser/artifact/job-history/workflow tests pass, and packaged/headless app smokes run against the same skill contract.
+- v2.1 is the compact-router release: SKILL.md stays short while generated surface details and historical routing live in references.
+- v2.2 is the evaluation-hardening release: plugin-eval baseline findings are addressed by keeping transient outputs and generated caches out of the active bundle, replacing bulky historical routing with a compatibility stub, expanding visible regression wrappers, and updating the guide to v2.2 without changing the registry or ScientificWorkbench.
+
+What this release does promise:
+- A stable core stack for FITS, tables, notebooks, documents, LaTeX, copied presentations, and reproducible handoffs.
+- A stable core path for first-order photometric calibration and detector/SNR planning.
+- A stable core path for reduced ASCII spectra plus existing notebooks and final coursework bundles.
+- Reusable cross-domain paths for operational tabular review and document intake without touching originals.
+- Graceful degradation when optional tools are missing.
+- A portable installation path using requirements-core.txt, requirements-full.txt, or environment.yml.
+- A doctor script for checking machine readiness.
+- More consistent summaries, manifests, handoff indexes, and copied-deck bundles.
+- A tested v1.2 route for professor-provided notebooks: input() handling, sidecar checks, question/answer mapping, Plotly portability, static fallback warnings, and cleanup policy.
+- A tested v1.2 route for documents and presentations: Pages-exported DOCX marked-fragment edits, PDF visual fallback on macOS, scientific asset manifests, and exact visual-equivalent handoff.
+- A tested v1.3 capability-hardening route for the concrete audit failures found while exercising every public entrypoint.
+- A tested v1.4 companion-routing route for local handoffs to pdf, document, presentation, spreadsheet, notebook, browser/visual, screenshot, audio, image, and frontend companions when they are justified.
+- A narrow, tested FITS RGB batch route for visual products when a tree of multiband FITS images needs reproducible PNGs, stacks, manifests, and alignment reports.
+- A controlled optional route for STILTS catalog conversion/filtering/sky crossmatch/VOTable validation and APT batch photometry handoff when those Java tools are installed and configured.
+- A tested v1.5 capability-coverage route for public capabilities without direct smoke tests, with controlled `WARNING`/`BLOCKED_CONTROLADO` outcomes separated from real `FAIL` states.
+- A tested v1.6 hardening route for all 59 public capabilities, with final phase closures validated in both the editable and installed skill trees.
+- A v1.7 stable documentation route that explains which capabilities are general, cross-domain adaptable, domain-specific, legacy-specific, or maintainer-only, with examples for academic, professional, and personal use.
+- Explicit not-applicable criteria so narrow astronomy, legacy, or maintainer tools are not marketed as general-purpose tools.
+- A v1.8/v1.9/v2.0 backend and app contract route: stable envelopes, typed artifacts, run bundles, app hints, next actions, error kinds, exposure modes, job metadata, app-side previews, and dual release gates spanning the installed skill plus ScientificWorkbench.
+
+Registry-backed public surface snapshot:
+BEGIN GENERATED PUBLIC SURFACE SNAPSHOT
+This snapshot is generated from public_surface_registry.yaml.
+Compact text form: see references/public-surface-snapshot.md for descriptions.
+
+core / routing:
+- datanalysis_env.py status [golden_path, stable, smoke none]
+- datanalysis_healthcheck.py [golden_path, stable, smoke none]
+- env_doctor.py [golden_path, stable, smoke core]
+- companion_route_check.py [supporting_tool, stable, smoke none]
+- external_astro_tools_preflight.py [supporting_tool, optional, smoke none]
+
+astronomy observational:
+- astrometry_net_workbench.py preflight [golden_path, stable, smoke full]
+- echelle_multispec_inventory.py [golden_path, narrow, smoke core]
+- inspect_fits.py [golden_path, stable, smoke core]
+- legacy_spectroscopy_envcheck.py [golden_path, narrow, smoke none]
+- photometric_solution.py [golden_path, stable, smoke core]
+- photometry_noise_budget.py [golden_path, stable, smoke core]
+- radial_velocity_workbench.py inspect [golden_path, stable, smoke core]
+- teareduce_router.py [golden_path, optional, smoke none]
+- apt_workbench.py [supporting_tool, optional, smoke none]
+- astrometry_net_workbench.py verify-existing-wcs [supporting_tool, stable, smoke full]
+- fits_rgb_batch.py [supporting_tool, stable, smoke none]
+- fxcor_iraf_workbench.py prepare-session [supporting_tool, narrow, smoke none]
+- fxcor_iraf_workbench.py run-auto [supporting_tool, narrow, smoke none]
+- istarmod_workbench.py inspect-tree [supporting_tool, narrow, smoke none]
+- istarmod_workbench.py prepare-copy [supporting_tool, narrow, smoke none]
+- legacy_external_reference_check.py [supporting_tool, narrow, smoke none]
+- legacy_rv_coursework_workbench.py analyze [supporting_tool, narrow, smoke none]
+- legacy_spectroscopy_report_builder.py populate [supporting_tool, narrow, smoke none]
+- legacy_spectroscopy_report_builder.py scaffold [supporting_tool, narrow, smoke none]
+- li6708_equivalent_width_workbench.py measure [supporting_tool, stable, smoke core]
+- radial_velocity_workbench.py validate-manifest [supporting_tool, stable, smoke none]
+- rgb_visual_fits_export.py [supporting_tool, stable, smoke none]
+- sb2_double_gaussian_workbench.py fit [supporting_tool, narrow, smoke none]
+- stilts_workbench.py [supporting_tool, optional, smoke none]
+
+documents + reporting:
+- document_intake_workbench.py [golden_path, stable, smoke core]
+- latex_workbench.py review [golden_path, stable, smoke full]
+- latex_workbench.py scaffold [golden_path, stable, smoke full]
+- scientific_writeup_review.py [golden_path, stable, smoke core]
+- deliverable_factory.py scaffold [supporting_tool, stable, smoke core]
+- iwork_workbench.py [supporting_tool, optional, smoke none]
+- keynote_export.py [supporting_tool, platform_bound, smoke none]
+- latex_workbench.py compile [supporting_tool, stable, smoke full]
+- office_roundtrip.py docx-style-inventory [supporting_tool, stable, smoke none]
+- office_roundtrip.py docx-styled-replace [supporting_tool, stable, smoke none]
+- presentation_workbench.py existing-deck-style-audit [supporting_tool, stable, smoke full]
+- presentation_workbench.py inspect [supporting_tool, stable, smoke full]
+- quicklook_bridge.py [supporting_tool, platform_bound, smoke full]
+- semantic_diff.py [supporting_tool, stable, smoke core]
+
+notebooks + cross-domain:
+- bootstrap_analysis_notebook.py [golden_path, stable, smoke core]
+- cross_domain_data_workbench.py [golden_path, stable, smoke core]
+- notebook_workbench.py execute-copy [golden_path, stable, smoke full]
+- profile_table.py [golden_path, stable, smoke core]
+- spectra_ascii_coursework_workbench.py [golden_path, stable, smoke full]
+- timeseries_forecasting_workbench.py [golden_path, stable, smoke none]
+- catalog_workbench.py crossmatch-sky [supporting_tool, stable, smoke core]
+- coursework_notebook_fidelity_check.py [supporting_tool, stable, smoke none]
+- duckdb_workbench.py [supporting_tool, optional, smoke none]
+- inspect_data_container.py [supporting_tool, stable, smoke core]
+- notebook_branch_compare.py [supporting_tool, stable, smoke none]
+- physical_qa.py [supporting_tool, stable, smoke none]
+END GENERATED PUBLIC SURFACE SNAPSHOT
+
+What this release does not promise:
+- Perfect parity across all operating systems for every helper.
+- Full GUI-equivalent behavior for every proprietary format.
+- TEAREDUCE availability by default.
+- Observatory-grade instrument-specific pipelines out of the box.
+- Full CCD reduction or calibration verification inside the RGB batch helper; it labels uncertain calibration state rather than pretending it is solved.
+- STILTS, TOPCAT, APT, Java, or APT preferences availability by default.
+- Hidden automation of TOPCAT or APT GUI sessions.
+- Automatic privacy review of user-authored content inside external datasets or reports.
+- Automatic use of email, Google Drive, or Zotero from the skill's companion-routing layer.
+
+Read these first:
+- README.txt
+- references/v1-7-real-world-guide.md
+- references/real-world-capability-classification-v1-7.md
+- references/core-and-optional.md
+- references/portable-install.md
+- references/external-astronomy-tools.md
+- references/teareduce-practical-guide.md
+
+Short TEAREDUCE note:
+- Use `deploy/run-teareduce-smoke.sh` or `deploy/run-teareduce-smoke.ps1` for the shortest end-to-end TEAREDUCE health check.
+- The consolidated TEAREDUCE smoke test now validates the four practical routes together on this machine.

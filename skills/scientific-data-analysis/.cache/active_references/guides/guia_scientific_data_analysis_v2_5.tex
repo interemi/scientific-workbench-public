@@ -1,0 +1,281 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{tocloft}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{listings}
+\usepackage{titlesec}
+\geometry{margin=2.15cm}
+\setlength{\headheight}{14pt}
+\setlength{\emergencystretch}{3em}
+\setlist{itemsep=3pt,parsep=1pt,topsep=4pt}
+\definecolor{titleblue}{HTML}{123B5D}
+\definecolor{softblue}{HTML}{EDF5FB}
+\definecolor{softgray}{HTML}{F5F7FA}
+\definecolor{accent}{HTML}{0F6E8C}
+\hypersetup{
+  colorlinks=true,linkcolor=titleblue,urlcolor=accent,
+  pdftitle={Scientific Data Analysis v2.5: English publication edition},
+  pdfauthor={interemi},
+  pdfsubject={Deep budget deferral in the modular architecture}
+}
+\titleformat{\section}{\Large\bfseries\color{titleblue}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection.}{0.6em}{}
+\setlength{\cftsecnumwidth}{2.8em}
+\tocloftpagestyle{fancy}
+\lstdefinestyle{promptstyle}{
+  basicstyle=\ttfamily\small,backgroundcolor=\color{softgray},
+  frame=single,rulecolor=\color{softblue},breaklines=true,columns=fullflexible
+}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Scientific Data Analysis}
+\fancyhead[R]{v2.5 guide: English edition}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+
+\begin{document}
+\pagenumbering{gobble}
+\begin{titlepage}
+\centering
+\vspace*{1.0cm}
+{\Huge\bfseries\color{titleblue} Deep Budget-Deferral Guide\\[0.15cm]
+Scientific Data Analysis v2.5\par}
+\vspace{0.65cm}
+{\Large Hardening the modular family while preserving public paths\par}
+\vspace{0.8cm}
+{\large Internal health: thin entrypoints, deferred implementation bodies,
+internal helpers, and the recorded plugin-eval A/95 result\par}
+\vspace{0.8cm}
+{\large English publication edition: September 22, 2026\par}
+\vspace{0.5cm}
+\begin{minipage}{0.93\textwidth}
+\small\raggedright
+Translation of the preserved private v2.5 guide at commit \code{d6583f1}.
+Original TeX SHA-256:
+\nolinkurl{08040631e64ed58e00e7a472d7f744af6c71f9add402accac15cfdf1c6c684c1}.
+Private source:
+\nolinkurl{skills/scientific-data-analysis/.cache/active_references/guides/guia_scientific_data_analysis_v2_5.tex}.
+
+Recorded results and closure steps are historical, not current verification.
+This release guide does not synchronize or modify Scientific Workbench;
+the app remains outside its scope. Historical commands are retained for
+traceability: use fresh output directories when reproducing them, without
+overwriting earlier evidence. The original remains unchanged privately.
+\end{minipage}
+\vfill
+{\large Prepared with Codex\par}
+{\large Copyright 2026 interemi\par}
+\end{titlepage}
+
+\clearpage
+\pagenumbering{roman}
+\fancyfoot[C]{\thepage}
+\begin{abstract}
+\raggedright
+\code{scientific-data-analysis} v2.5 continues v2.4. v2.4 stabilized the mother
+skill; v2.5 extends that work across \code{scientific-data-analysis},
+\code{scientific-data-astro}, \code{scientific-data-documents},
+\code{scientific-data-notebooks}, and \code{scientific-data-maintainer}.
+It defers heavy content without deleting capabilities or undertaking a large
+rewrite. Public scripts remain stable entrypoints; substantial executable
+bodies live in \code{fixtures/}, and internal helpers in
+\code{fixtures/_internal/}. The mother's substantial historical content
+becomes compact stubs or external maintenance archives. Its duplicate registry
+becomes a stub resolving the canonical maintainer registry.
+
+The intended result is that the skills remain substantial domain tools,
+while \code{evaluate-skill} rates them A/95 and \code{improve-skill} finds no
+required fixes. A documented static warning about deferred cost remains
+accepted. Scientific Workbench is not modified.
+\end{abstract}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+
+\section{Executive overview}
+v2.5 changes internal architecture, not capabilities. It aims to let the
+scientific-data family grow with less pressure on the context budget, without
+turning each child into another oversized skill.
+
+The conservative product decisions are:
+\begin{itemize}[leftmargin=1.5em]
+\item \code{scientific-data-analysis} remains the normal public entrypoint.
+\item \code{scientific-data-astro} remains the expert child for FITS, WCS, photometry, spectra, RV, and optional or legacy astronomy routes.
+\item \code{scientific-data-maintainer} remains maintainer-only.
+\item Public scripts remain in \code{scripts/}.
+\item Substantial implementation bodies move to \code{fixtures/}.
+\item Substantial internal helpers move to \code{fixtures/_internal/}.
+\item The \code{public_surface_registry.yaml} public contract is preserved.
+\item Scientific Workbench is not modified.
+\item The canonical 61-row registry lives in maintainer; the mother keeps a compact stub resolving it for the gates.
+\end{itemize}
+
+The original guide both says that the registry is unchanged and describes
+replacing the mother's duplicate with a stub. These statements refer to the
+preserved public contract and the changed storage/resolution layout,
+respectively.
+
+\section{From v2.4 to v2.5}
+\begin{longtable}{p{0.22\linewidth}p{0.66\linewidth}}
+\toprule
+\textbf{Area} & \textbf{v2.5 change} \\
+\midrule
+Mother & \code{app_run_bundle.py} and \code{skill_hygiene_check.py} become thin entrypoints with bodies in fixtures. \\
+Astro & Scripts become thin entrypoints dispatching to same-name fixtures. \\
+Astro shims & \code{latex_workbench.py} and \code{notebook_workbench.py} remain shims to documents/notebooks, not fixture wrappers. \\
+Documents & Scripts become thin entrypoints with executable bodies in \code{fixtures/}. \\
+Notebooks & Scripts become thin entrypoints with executable bodies in \code{fixtures/}. \\
+Maintainer & Scripts become thin entrypoints with bodies in \code{fixtures/}. \\
+Internal helpers & \code{provenance_utils}, \code{run_bundle}, \code{runtime_common}, \code{tabular_io}, and related helpers become compact shims. \\
+Ownership matrix & The full v2.3 matrix is archived in \code{fixtures/archived_references/}; the active reference is a compact stub. \\
+Maintainer history & Substantial historical matrices and inventories are archived; active references are compact stubs. \\
+Mother router & The full v2.3 module map is archived outside the active skill; the router uses compact deterministic metadata when that external file is absent. \\
+Maintainer module map & Its v2.3 copy also becomes a canonical stub to stay below the plugin-eval static threshold. \\
+Mother history & Substantial historical contracts and plans live outside the active skill; active paths retain compatibility stubs. \\
+Historical guides & Non-current PDF and TeX guides are archived outside the active skill; v2.5 becomes active. \\
+Mother registry & \code{public_surface_registry.yaml} becomes a compact stub resolving the canonical maintainer registry. \\
+Historical documents & v1.7/v1.9/v2.0/v2.2/v2.3/v2.4 references become navigation stubs where full content is already archived. \\
+Mother wrappers & Avoid unsafe imports of private helpers from children. \\
+Plugin-eval & All five skills reach A/95 without mandatory required fixes. \\
+Documentation & Adds \code{v2-5-budget-deferral-hardening.md} and this v2.5 guide. \\
+\bottomrule
+\end{longtable}
+
+\section{What remains unchanged}
+\begin{itemize}[leftmargin=1.5em]
+\item No new capability or public path removal.
+\item No changes to scientific contracts, artifact types, errors, statuses, or app hints.
+\item No forced general-purpose analogy for astronomy or legacy routes.
+\item No edits to original user data.
+\item No synchronization or development of Scientific Workbench.
+\end{itemize}
+
+\section{v2.5 architecture}
+The pattern is:
+\begin{lstlisting}[style=promptstyle]
+scripts/inspect_fits.py      # stable entrypoint
+fixtures/inspect_fits.py     # substantial executable body
+scripts/_internal/fixture_script_dispatch.py
+scripts/_internal/provenance_utils.py      # compact shim
+fixtures/_internal/provenance_utils.py     # substantial internal body
+scripts/_internal/deferred_internal.py     # internal loader
+\end{lstlisting}
+Users and gates continue to call \code{scripts/*.py}. Implementation changes
+belong in the corresponding fixture. This reduces routine reading cost while
+preserving historical compatibility.
+
+\subsection{Shim rule}
+Some scripts re-export a tool from another child and have no local
+implementation. In astro:
+\begin{itemize}[leftmargin=1.5em]
+\item \code{latex_workbench.py} continues to delegate to \code{scientific-data-documents}.
+\item \code{notebook_workbench.py} continues to delegate to \code{scientific-data-notebooks}.
+\end{itemize}
+Converting those shims into fixture wrappers would be incorrect. v2.5 retains
+them as shims and verifies that behavior through regression checks.
+
+\newpage
+\section{Plugin-eval evidence}
+The important v2.5 result is closure of mandatory work and visible code
+recommendations across all five skills. The final recorded installed
+measurement, after compacting mother and maintainer with margin, was:
+\begin{longtable}{p{0.43\linewidth}rrr}
+\toprule
+\textbf{Installed skill} & \textbf{Score} & \textbf{Grade} & \textbf{Deferred} \\
+\midrule
+\code{scientific-data-analysis} & 95 & A & 44913 \\
+\code{scientific-data-astro} & 95 & A & 49754 \\
+\code{scientific-data-documents} & 95 & A & 28155 \\
+\code{scientific-data-notebooks} & 95 & A & 28040 \\
+\code{scientific-data-maintainer} & 95 & A & 46230 \\
+\bottomrule
+\end{longtable}
+All five retained the \emph{deferred cost} warning.
+
+All five \code{deferred_cost_tokens} measurements remain in the heavy band.
+The original release accepts this because actual domain implementations,
+wrappers, contracts, and maintenance evidence remain available. Mandatory
+fixes and warnings about complexity, long lines, and long functions were
+closed. Remaining backlog:
+\begin{itemize}[leftmargin=1.5em]
+\item The static \code{deferred_cost_tokens-budget-high} warning.
+\item Formal coverage, if coverage metrics are desired later.
+\end{itemize}
+
+\section{v2.5 regressions}
+Main regression:
+\begin{lstlisting}[style=promptstyle]
+python scripts/audit_v2_5_budget_deferral_regression.py
+\end{lstlisting}
+It validates:
+\begin{itemize}[leftmargin=1.5em]
+\item Representative astro wrappers and fixtures.
+\item Astro shims that must remain shims.
+\item Representative documents, notebooks, and maintainer wrappers.
+\item Internal helpers deferred to \code{fixtures/_internal/}.
+\item Mother maintenance wrappers.
+\item The active historical matrix as a compact stub and its complete canonical fixture archive.
+\item Compact historical maintainer references with archived canonical bodies.
+\item A compact mother router module map that remains loadable at runtime.
+\item The compact maintainer module-map copy and its archived canonical body.
+\item Compact mother historical contracts/plans and their archived canonical bodies.
+\item The mother's duplicate registry replaced by a canonical stub to maintainer.
+\item Compact, synchronized README, RELEASE, and public snapshot documents.
+\item Mother wrappers preserving their own private helpers.
+\end{itemize}
+Earlier gates remain in place:
+\begin{lstlisting}[style=promptstyle]
+python scripts/audit_v2_4_budget_architecture_regression.py
+python scripts/audit_v2_3_release_candidate_regression.py
+python scripts/audit_v2_3_module_ownership_regression.py
+\end{lstlisting}
+
+\section{Historical closure criteria}
+The original v2.5 closure required:
+\begin{enumerate}[leftmargin=1.7em]
+\item \code{guia_scientific_data_analysis_v2_5.tex} compiles to PDF.
+\item The PDF and TeX are copied to the Desktop for that historical local handoff.
+\item \code{audit_v2_5_budget_deferral_regression.py} passes.
+\item Affected v2.3/v2.4 regressions pass.
+\item Documents/notebooks wrapper and internal-helper smoke checks pass.
+\item \code{sync_public_surface_docs.py --check} passes.
+\item The editable skill is synchronized to the installed family only after green gates.
+\item Post-synchronization gates pass.
+\item \code{evaluate-skill} and \code{improve-skill} run on installed mother and children.
+\end{enumerate}
+
+\section{Recommended usage after v2.5}
+Ordinary usage remains unchanged:
+\begin{lstlisting}[style=promptstyle]
+python scripts/scientific_workflow_router.py plan input --task "..."
+python scripts/profile_table.py data.csv --summary-json summary.json
+python scripts/inspect_fits.py image.fits --summary-json summary.json
+\end{lstlisting}
+For maintenance, release work, and plugin-eval:
+\begin{lstlisting}[style=promptstyle]
+python scripts/audit_v2_5_budget_deferral_regression.py
+python scripts/audit_v2_4_budget_architecture_regression.py
+python scripts/sync_public_surface_docs.py --check
+\end{lstlisting}
+
+\section{Conclusion}
+v2.5 is an internal improvement rather than a visible user feature. The
+modular architecture now defers substantial execution bodies, internal
+helpers, and historical material as well as separating responsibilities.
+It is intended to support growth while preserving compatibility and reducing
+pressure on usage budgets. The original guide's aspiration about weekly usage
+limits is not a measured account-level saving; its evidence is the static
+plugin-eval result documented above.
+\end{document}

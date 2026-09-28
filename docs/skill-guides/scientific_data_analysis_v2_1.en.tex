@@ -1,0 +1,347 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{tocloft}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{listings}
+\usepackage{titlesec}
+\geometry{margin=2.15cm}
+\setlength{\headheight}{14pt}
+\setlength{\emergencystretch}{3em}
+\setlist{itemsep=3pt,parsep=1pt,topsep=4pt}
+\definecolor{titleblue}{HTML}{123B5D}
+\definecolor{softblue}{HTML}{EDF5FB}
+\definecolor{softgray}{HTML}{F5F7FA}
+\definecolor{accent}{HTML}{0F6E8C}
+\hypersetup{
+  colorlinks=true,linkcolor=titleblue,urlcolor=accent,
+  pdftitle={Scientific Data Analysis v2.1: English publication edition},
+  pdfauthor={interemi},
+  pdfsubject={Compact routing and plugin-eval evaluation}
+}
+\titleformat{\section}{\Large\bfseries\color{titleblue}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection.}{0.6em}{}
+\setlength{\cftsecnumwidth}{2.8em}
+\tocloftpagestyle{fancy}
+\lstdefinestyle{promptstyle}{
+  basicstyle=\ttfamily\small,backgroundcolor=\color{softgray},
+  frame=single,rulecolor=\color{softblue},breaklines=true,columns=fullflexible
+}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Scientific Data Analysis}
+\fancyhead[R]{v2.1 guide: English edition}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+
+\begin{document}
+\pagenumbering{gobble}
+\begin{titlepage}
+\centering
+\vspace*{1.0cm}
+{\Huge\bfseries\color{titleblue} Compact Routing Guide\\[0.15cm]
+Scientific Data Analysis v2.1\par}
+\vspace{0.65cm}
+{\Large A compact skill backend with plugin-eval evaluation\par}
+\vspace{0.8cm}
+{\large Maintenance: compact router, public snapshot in references,
+regression wrappers, and an initial benchmark\par}
+\vspace{0.8cm}
+{\large English publication edition: September 23, 2026\par}
+\vspace{0.5cm}
+\begin{minipage}{0.93\textwidth}
+\small\raggedright
+Translation of the preserved private v2.1 guide at commit \code{83dd0a5}.
+Original TeX SHA-256:
+\nolinkurl{62d605394261d9603a680bb93f62d5ecf13a02faa10609bd4d79979f322ab720}.
+Private source:
+\nolinkurl{skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v2_1.tex}.
+
+Recorded results and closure steps are historical, not current verification.
+This release guide does not synchronize or modify Scientific Workbench;
+the app remains outside its scope. Historical commands are retained for
+traceability: use fresh output directories when reproducing them, without
+overwriting earlier evidence. The original remains unchanged privately.
+\end{minipage}
+\vfill
+{\large Prepared with Codex\par}
+{\large Copyright 2026 interemi\par}
+\end{titlepage}
+
+\clearpage
+\pagenumbering{roman}
+\fancyfoot[C]{\thepage}
+\begin{abstract}
+\code{scientific-data-analysis} v2.1 focuses on compact routing and evaluation
+after integrated v2.0. The skill remains the deterministic engine for scripts,
+JSON contracts, run bundles, artifacts, warnings, errors, provenance, and
+original preservation. \code{SKILL.md} becomes a compact router again; detailed
+operational instructions live in \code{references/}, and the generated registry
+snapshot is no longer always loaded.
+
+Scientific execution remains local-first, with read-only originals or copied
+inputs. Scientific Workbench remains the v2.0-compatible app; v2.1 neither
+synchronizes nor modifies it.
+\end{abstract}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+
+\section{Executive overview}
+v2.1 consolidates the skill after integrated v2.0:
+\begin{itemize}[leftmargin=1.5em]
+\item Reduces \code{SKILL.md} to a compact router.
+\item Moves long routing, the public snapshot, and operational detail into \code{references/}.
+\item Preserves v1.8/v1.9/v2.0 app-readiness contracts.
+\item Adds \code{tests/} wrappers around \code{audit_*} regressions.
+\item Prepares an initial \code{plugin-eval} benchmark.
+\item Synchronizes the installed skill only after validating the editable tree.
+\end{itemize}
+This is a skill maintenance, activation, and evaluation release, with no new
+app feature phase or Scientific Workbench edits.
+
+\section{From v2.0 to v2.1}
+\begin{longtable}{p{0.20\linewidth}p{0.68\linewidth}}
+\toprule
+\textbf{Area} & \textbf{v2.1 change} \\
+\midrule
+\code{SKILL.md} & Compact router for activation, safety, visible blocks, and key references. \\
+Public snapshot & Moves to \code{references/public-surface-snapshot.md}. \\
+Long routing & Preserved in \code{references/v2-1-expanded-skill-routing.md}. \\
+Public contract & Registry, capabilities, and scripts remain compatible. \\
+Regressions & Adds \code{tests/test_audit_regression_wrappers.py} for generic evaluators. \\
+Plugin-eval & Before/after measurement targets lower active cost and an initial benchmark. \\
+App & Scientific Workbench is not edited or synchronized; no new app version is declared. \\
+\bottomrule
+\end{longtable}
+
+\section{What remains unchanged}
+\begin{itemize}[leftmargin=1.5em]
+\item No capability renaming or scientific script contract changes.
+\item Optional backends do not become core dependencies.
+\item Domain-specific and legacy routes are not presented as general tools.
+\item Read-only/copy-based original protection remains mandatory.
+\end{itemize}
+
+\section{The skill}
+The deterministic backend:
+\begin{itemize}[leftmargin=1.5em]
+\item Registers public capabilities.
+\item Inspects and processes data, documents, FITS, notebooks, tables, and packages.
+\item Emits \code{summary.json}, \code{manifest.json}, stdout, stderr, and typed artifacts.
+\item Declares \code{PASS}, \code{WARNING}, \code{BLOCKED_CONTROLADO}, \code{FAIL}, or audit status \code{ROTO}.
+\item Preserves originals through copies or separate outputs.
+\item Blocks cleanly for absent optional backends or unsafe inputs.
+\end{itemize}
+
+\section{Scientific Workbench}
+The product interface:
+\begin{itemize}[leftmargin=1.5em]
+\item Loads the installed skill registry.
+\item Accepts file or folder attachments.
+\item Uses the local planner, skill router, or AI to propose workflows.
+\item Executes capabilities in traceable runs.
+\item Shows jobs, progress, cancellation, retry, resume, and support bundles.
+\item Discovers PNG, PDF, CSV/TSV, Markdown, notebook, JSON, and log previews.
+\item Provides guided controls for column selection, optional panels, and visual confirmation.
+\end{itemize}
+
+\section{Integration responsibilities}
+\begin{longtable}{p{0.25\linewidth}p{0.63\linewidth}}
+\toprule
+\textbf{Layer} & \textbf{Responsibility} \\
+\midrule
+Skill & Reproducible scripts, envelopes, run bundles, artifacts, and provenance. \\
+Scientific Workbench & UI, planning, command review, processes, artifact indexing, and job recovery. \\
+Local/cloud AI & Explanation, planning, and assistance; not the sole scientific source of truth. \\
+Codex bridge & Extended reasoning, code, reporting, and filesystem tasks under explicit control. \\
+\bottomrule
+\end{longtable}
+
+\section{v2.0 JSON contract}
+The app accepts legacy, v1.8/v1.9, and v2.0 payloads. Main v2.0 fields:
+\begin{longtable}{p{0.30\linewidth}p{0.58\linewidth}}
+\toprule
+\textbf{Field} & \textbf{Use} \\
+\midrule
+\code{contract_version} & \code{2.0} for new envelopes; earlier compatibility remains. \\
+\code{status} / \code{app_status} & Normalized job/UI state. \\
+\code{command} & Redacted command with argv, cwd, and provenance. \\
+\code{inputs} / \code{outputs} & Declared inputs and outputs. \\
+\code{typed_artifacts} & Primary artifact list for Results. \\
+\code{warnings} / \code{errors} & Human-readable and parseable messages. \\
+\code{next_actions} & Useful continuation actions. \\
+\code{original_modified} & \code{false}, \code{true}, or explained \code{unknown}. \\
+\code{app_hints} & Short summary, severity, suggested previews, and tags. \\
+\code{job_metadata} & Retry, cancellation, exposure, and estimates. \\
+\code{safety} & Read-only/copy policy, secret redaction, and confirmations. \\
+\bottomrule
+\end{longtable}
+
+\section{Artifact types}
+Scientific Workbench recognizes frozen v1.8/v1.9 types and v2.0 additions:
+\begin{lstlisting}[style=promptstyle]
+summary_json, manifest_json, report_md, preview_png, table_csv,
+notebook_ipynb, log_txt, qa_report, handoff_bundle, unknown,
+fits_product, fits_visual, metadata_json, preview_pdf,
+edited_document, app_preview
+\end{lstlisting}
+Use \code{unknown} when an artifact cannot be typed accurately. Do not invent
+an ambiguous type to make the output appear more complete.
+
+\section{Run bundles}
+The preferred format remains:
+\begin{lstlisting}[style=promptstyle]
+run/
+  manifest.json
+  summary.json
+  stdout.txt
+  stderr.txt
+  command.txt
+  artifacts/
+  previews/
+  reports/
+  tables/
+  logs/
+  next_steps.md
+\end{lstlisting}
+The app can discover recursively but should prefer \code{typed_artifacts} and
+\code{manifest.json} when present.
+
+\section{Local-first, optional cloud, and Codex bridge}
+\subsection{Local-first}
+The original guide recommends local Ollama: no paid API key is required,
+prompts/context remain on the local machine, and it supports planning,
+failure explanation, and result summaries.
+
+\subsection{Optional cloud}
+The guide lists OpenAI, Grok/xAI, and Gemini as optional providers for reasoning
+or writing. They can incur costs, require user keys, and do not execute
+capabilities themselves. Provider errors must be classified without leaking
+secrets. These are historical provider descriptions, not a current availability
+or pricing verification.
+
+\subsection{Codex bridge}
+Codex supports code, reports, refactors, and workspace reasoning. It does not
+replace the deterministic backend. Workflows must retain verifiable commands,
+outputs, artifacts, and logs.
+
+\section{Safety}
+The v2.0 integration requires:
+\begin{itemize}[leftmargin=1.5em]
+\item Read-only original inputs, with edits confined to copies or separate outputs.
+\item No API keys or secrets in logs, summaries, support bundles, or exportable prompts.
+\item Job records containing commands, statuses, warnings, errors, and next actions.
+\item Preflight and confirmation for optional/GUI backends, with clean blocking when prerequisites are absent.
+\item A release block for timeout, raw traceback, secret leakage, false success, or original modification.
+\end{itemize}
+
+\section{Workflows recorded in Phase 8}
+\begin{longtable}{p{0.27\linewidth}p{0.23\linewidth}p{0.38\linewidth}}
+\toprule
+\textbf{Family} & \textbf{Status} & \textbf{Interpretation} \\
+\midrule
+Professional table & \code{PASS} & Parseable run bundle with artifacts. \\
+Administrative document & \code{WARNING} & Useful intake with explicit limitations. \\
+Inherited notebook & Controlled block & Stops interactive input or side effects before execution. \\
+Corrupt container & \code{WARNING} & Recovers available content without false success. \\
+Time series & \code{WARNING} & Visible date ambiguity. \\
+Sensor/measurement & \code{WARNING} & Visible suspicious ranges. \\
+FITS/RGB & \code{WARNING} & Successful RGB case; incomplete WCS warns. \\
+Absent optional backend & Controlled block & Clean block with next actions. \\
+DOCX roundtrip & \code{PASS} & Edits a confirmed copy, not the original. \\
+Keynote/GUI & \code{PASS} & Preflight and confirmed export of a copy. \\
+\bottomrule
+\end{longtable}
+Controlled block denotes the original machine status \code{BLOCKED_CONTROLADO}.
+
+\section{Limits}
+\begin{itemize}[leftmargin=1.5em]
+\item STILTS/TOPCAT, APT, Keynote, TEAREDUCE, IRAF, and iSTARMOD remain optional, expert, or legacy backends.
+\item Li I 6707.8 and SB2 tools are specialized, not general-purpose.
+\item GUI workflows need explicit confirmation and copied inputs.
+\item Cloud AI does not guarantee scientific accuracy.
+\item v2.0 is installed only after Phase 11 synchronizes the skill and validates the installed skill with Scientific Workbench.
+\end{itemize}
+
+\section{Historical verification commands}
+The original workspace-specific paths are shown through aliases:
+\code{$PRIVATE_WORKSPACE} is the original editable workspace;
+\code{$DATANALYSIS_PYTHON} is its explicitly selected scientific interpreter.
+The external dual-gate script belongs to that workspace and is not supplied by
+this source publication. These are historical reproduction steps, not the
+current public installation procedure.
+
+Main dual gate:
+\begin{lstlisting}[style=promptstyle]
+cd "$PRIVATE_WORKSPACE"
+./run_v2_0_dual_gate.sh
+\end{lstlisting}
+Skill check:
+\begin{lstlisting}[style=promptstyle]
+cd "$PRIVATE_WORKSPACE/skill_work/scientific-data-analysis"
+"$DATANALYSIS_PYTHON" scripts/sync_public_surface_docs.py --check
+\end{lstlisting}
+App check:
+\begin{lstlisting}[style=promptstyle]
+cd "$PRIVATE_WORKSPACE/ScientificWorkbench"
+SKIP_UI_SMOKE=1 RUN_DOCUS_BENCHMARK=0 ./script/run_quality_gate.sh
+\end{lstlisting}
+
+\section{Troubleshooting}
+\begin{longtable}{p{0.27\linewidth}p{0.61\linewidth}}
+\toprule
+\textbf{Symptom} & \textbf{Next step} \\
+\midrule
+Absent optional backend & Accept \code{BLOCKED_CONTROLADO}; inspect preflight and \code{next_actions}. \\
+Output conflict & Use a fresh temporary folder or change \code{--outdir}. \\
+Notebook with \code{input()} & Execute a copy with declared values or block before execution. \\
+Missing preview & Inspect \code{manifest.json}, \code{typed_artifacts}, and \code{previews/}. \\
+Cloud provider failure & Fall back to Ollama/local or the skill router; do not leak keys in logs. \\
+Ambiguous result & Retain \code{WARNING} and explain the limit instead of silently reporting success. \\
+\bottomrule
+\end{longtable}
+
+\section{Plugin-eval}
+The prior installed-skill evaluation identified excessive active context:
+\code{SKILL.md} was too large, and the evaluator did not recognize
+\code{audit_*} scripts as conventional tests.
+
+v2.1 responds with a compact router, a generated snapshot outside
+\code{SKILL.md}, an expanded reference preserving operational detail,
+\code{unittest} wrappers under \code{tests/}, an initial
+\code{plugin-eval init-benchmark}, and final \code{plugin-eval analyze}.
+
+\section{v2.1 checks}
+\begin{lstlisting}[style=promptstyle]
+cd "$PRIVATE_WORKSPACE/skill_work/scientific-data-analysis"
+"$DATANALYSIS_PYTHON" scripts/sync_public_surface_docs.py --check
+"$DATANALYSIS_PYTHON" scripts/skill_surface_audit.py --skip-hygiene
+"$DATANALYSIS_PYTHON" -m unittest tests.test_audit_regression_wrappers -v
+\end{lstlisting}
+
+\section{Synchronization}
+Final v2.1 synchronization copies the editable skill into the installed skill
+only after green gates. It excludes \code{tmp/}, \code{__pycache__},
+\code{*.pyc}, and \code{.DS_Store}.
+
+Scientific Workbench is not synchronized in v2.1. App consumption of these
+changes requires a later explicitly scoped phase.
+
+\section{Historical decision}
+v2.1 is ready only when the editable tree passes checks, the PDF compiles, the
+installed skill is synchronized from the validated editable tree,
+post-sync checks pass, \code{plugin-eval init-benchmark} creates its initial
+configuration, and final \code{plugin-eval} evaluation confirms lower active cost.
+\end{document}

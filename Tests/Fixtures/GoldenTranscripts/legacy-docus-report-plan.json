@@ -1,0 +1,192 @@
+{
+  "agent_mode": "workflow",
+  "agent_plan": {
+    "created_at": "<timestamp>",
+    "estimate": {
+      "caution": null,
+      "cost_note": "Local planning and local execution; no cloud API cost.",
+      "enabled_step_count": 3,
+      "max_seconds": 235,
+      "min_seconds": 22,
+      "runtime_text": "Estimated runtime: 22s-4min"
+    },
+    "id": "<uuid>",
+    "rationale": "Detected a DOCUS-style Practice 1 bundle with PDFs, fits_p1, iSTARMOD, and FWHM-v sin i calibration. The plan routes each internal asset to the matching skill capability while writing outputs outside the original folder.",
+    "source": "local",
+    "steps": [
+      {
+        "capability_id": "datanalysis_env.status",
+        "id": "<uuid>",
+        "is_enabled": true,
+        "raw_arguments": "",
+        "summary": "Check that the datanalysis wrapper and Python environment are ready.",
+        "uses_inputs": false,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "legacy_spectroscopy_envcheck",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "<TMP_ROOT>/fixtures/DOCUS --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Check the UCM legacy spectroscopy environment and confirm the original DOCUS tree stays read-only. Review this legacy step and enable it explicitly.",
+        "uses_inputs": true,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "document_intake_workbench",
+        "id": "<uuid>",
+        "is_enabled": true,
+        "raw_arguments": "--deep-pdf --max-files 12 --output-dir {artifactsDir} --summary-json {summaryJson} --manifest-json {manifestJson} <TMP_ROOT>/fixtures/DOCUS/P1_parte1.pdf <TMP_ROOT>/fixtures/DOCUS/P1_parte2.pdf",
+        "summary": "Read the practice PDFs and reference handoff files to extract requirements.",
+        "uses_inputs": true,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "echelle_multispec_inventory",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "<TMP_ROOT>/fixtures/DOCUS/fits_p1 --output-dir {artifactsDir} --report-md --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Inventory the seven MULTISPE FITS spectra order by order. Review this expert step and enable it explicitly.",
+        "uses_inputs": true,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "profile_table",
+        "id": "<uuid>",
+        "is_enabled": true,
+        "raw_arguments": "<TMP_ROOT>/fixtures/DOCUS/FWHM_vsini_datafit.csv --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Profile the FWHM-v sin i calibration table.",
+        "uses_inputs": true,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "istarmod_workbench.inspect-tree",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "<TMP_ROOT>/fixtures/DOCUS/iSTARMOD --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Inspect the iSTARMOD tree before copying or running it. Review this legacy step and enable it explicitly.",
+        "uses_inputs": true,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "istarmod_workbench.prepare-copy",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "<TMP_ROOT>/fixtures/DOCUS/iSTARMOD --output-dir {artifactsDir}/istarmod_clean_copy --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Prepare a clean iSTARMOD copy outside DOCUS so stale outputs and broken venvs do not pollute the run. Review this legacy step and enable it explicitly.",
+        "uses_inputs": true,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "fxcor_iraf_workbench.prepare-session",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "<TMP_ROOT>/fixtures/DOCUS --output-dir {artifactsDir}/fxcor_workspace --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Create a safe IRAF/fxcor workspace for RV and v sin i coursework passes. Review this legacy step and enable it explicitly.",
+        "uses_inputs": true,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "fxcor_iraf_workbench.run-auto",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "{previousArtifactsDir}/fxcor_workspace --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Run the automatic fxcor batches from the prepared workspace. Review this legacy step and enable it explicitly.",
+        "uses_inputs": false,
+        "uses_previous_output": true
+      },
+      {
+        "capability_id": "legacy_rv_coursework_workbench.analyze",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "{previousSummaryJson} --fits-root <TMP_ROOT>/fixtures/DOCUS/fits_p1 --calibration-csv <TMP_ROOT>/fixtures/DOCUS/FWHM_vsini_datafit.csv --output-dir {artifactsDir} --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Consolidate fxcor outputs into filtered RV/v sin i tables and summaries. Review this legacy step and enable it explicitly.",
+        "uses_inputs": true,
+        "uses_previous_output": true
+      },
+      {
+        "capability_id": "legacy_external_reference_check",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "check --rv-summary {previousSummaryJson} --gzleo-fits <TMP_ROOT>/fixtures/DOCUS/fits_p1/nrej1101_foces02_n2.fits --output-dir {artifactsDir} --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Compare the derived Practice 1 results against the bundled literature-reference route. Review this legacy step and enable it explicitly.",
+        "uses_inputs": true,
+        "uses_previous_output": true
+      },
+      {
+        "capability_id": "li6708_equivalent_width_workbench.measure",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "<TMP_ROOT>/fixtures/DOCUS/fits_p1/npwand_n3.fits --output-dir {artifactsDir} --line-center 6707.8 --line-label 'Li I 6707.8' --target-name 'PW And' --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Measure the Li I 6707.8 equivalent width in PW And as an additional activity diagnostic. Review this expert step and enable it explicitly.",
+        "uses_inputs": true,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "legacy_spectroscopy_report_builder.scaffold",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "{artifactsDir}/legacy_report --title 'Practica 1 - Espectroscopia optica de alta resolucion' --author 'Scientific Workbench' --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Create the Spanish LaTeX report project that will receive the measured results. Review this legacy step and enable it explicitly.",
+        "uses_inputs": false,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "legacy_spectroscopy_report_builder.populate",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "{artifactsDir:legacy_spectroscopy_report_builder.scaffold}/legacy_report --envcheck {summaryJson:legacy_spectroscopy_envcheck} --inventory-summary {summaryJson:echelle_multispec_inventory} --fxcor-summary {summaryJson:fxcor_iraf_workbench.run-auto} --rv-summary {summaryJson:legacy_rv_coursework_workbench.analyze} --istarmod-summary {summaryJson:istarmod_workbench.prepare-copy} --li-summary {summaryJson:li6708_equivalent_width_workbench.measure} --external-reference-summary {summaryJson:legacy_external_reference_check} --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Populate the report project with the generated environment, FITS, RV, v sin i, iSTARMOD, EW, and literature-check outputs. Review this legacy step and enable it explicitly.",
+        "uses_inputs": false,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "latex_workbench.review",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "{artifactsDir:legacy_spectroscopy_report_builder.populate}/legacy_report --report-md {artifactsDir}/latex_review.md --summary-json {summaryJson} --manifest-json {manifestJson}",
+        "summary": "Review the populated LaTeX report for structure, unresolved figures, citations, and layout risks before compiling. Review this normal step and enable it explicitly.",
+        "uses_inputs": false,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "latex_workbench.compile",
+        "id": "<uuid>",
+        "is_enabled": false,
+        "raw_arguments": "{artifactsDir:legacy_spectroscopy_report_builder.populate}/legacy_report --output-dir {artifactsDir} --manifest-json {manifestJson}",
+        "summary": "Compile the populated LaTeX project into the final PDF report. Review this normal step and enable it explicitly.",
+        "uses_inputs": false,
+        "uses_previous_output": false
+      }
+    ],
+    "title": "UCM legacy spectroscopy practice workflow"
+  },
+  "ai_base_url": "http://localhost:11434",
+  "ai_model": "qwen3:4b-instruct",
+  "ai_provider": "ollama",
+  "auto_run": false,
+  "generated_at": "<timestamp>",
+  "input_paths": [
+    "<TMP_ROOT>/fixtures/DOCUS"
+  ],
+  "jobs": [],
+  "messages": [
+    {
+      "created_at": "<timestamp>",
+      "role": "assistant",
+      "text": "Tell me what you want to do, attach files or folders if useful, and I will decide whether to answer, plan a workflow, or suggest Codex for explicit coding-agent work. Outputs stay away from your originals unless you explicitly choose otherwise."
+    },
+    {
+      "created_at": "<timestamp>",
+      "role": "user",
+      "text": "Necesito que analices en profundidad la carpeta DOCUS, hagas la practica UCM y produzcas un PDF final sin tocar originales."
+    },
+    {
+      "created_at": "<timestamp>",
+      "role": "assistant",
+      "text": "I drafted a local planner workflow plan below.\nReview it, then run it when ready."
+    }
+  ],
+  "output_root": "<TMP_ROOT>/output/legacy-docus-report-plan",
+  "status": "Planned 16 steps using Local planner."
+}

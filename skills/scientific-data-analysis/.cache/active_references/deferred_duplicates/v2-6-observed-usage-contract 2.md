@@ -1,0 +1,1 @@
+../../../references/v2-6-observed-usage-contract.md

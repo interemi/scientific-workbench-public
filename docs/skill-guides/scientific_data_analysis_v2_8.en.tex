@@ -1,0 +1,352 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{tocloft}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{listings}
+\usepackage{titlesec}
+
+\geometry{margin=2.15cm}
+\setlength{\headheight}{14pt}
+\setlength{\emergencystretch}{3em}
+\setlist{itemsep=3pt,parsep=1pt,topsep=4pt}
+\definecolor{titleblue}{HTML}{123B5D}
+\definecolor{softblue}{HTML}{EDF5FB}
+\definecolor{softgray}{HTML}{F5F7FA}
+\definecolor{accent}{HTML}{0F6E8C}
+\definecolor{warning}{HTML}{9A5A00}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=titleblue,
+  urlcolor=accent,
+  pdftitle={Scientific Data Analysis v2.8: English publication edition},
+  pdfauthor={interemi},
+  pdfsubject={Family integrity, scientific safety, and verifiable integration with Scientific Workbench}
+}
+\titleformat{\section}{\Large\bfseries\color{titleblue}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection.}{0.6em}{}
+\setlength{\cftsecnumwidth}{2.8em}
+\tocloftpagestyle{fancy}
+\lstdefinestyle{promptstyle}{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{softgray},
+  frame=single,
+  rulecolor=\color{softblue},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true
+}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Scientific Data Analysis}
+\fancyhead[R]{v2.8 guide: English edition}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+
+\begin{document}
+\pagenumbering{gobble}
+\begin{titlepage}
+\centering
+\vspace*{1.0cm}
+{\Huge\bfseries\color{titleblue} Family Integrity Guide\\[0.15cm]
+Scientific Data Analysis v2.8\par}
+\vspace{0.65cm}
+{\Large Mother, children, and Scientific Workbench under verifiable contracts\par}
+\vspace{0.8cm}
+{\large Structural and scientific hardening: fail-closed routing, multi-root
+ownership, strict envelopes, data safety, and domain regressions\par}
+\vspace{0.8cm}
+{\large English publication edition: September 22, 2026\par}
+\vspace{0.5cm}
+\begin{minipage}{0.93\textwidth}
+\small
+This is a translation of the preserved private v2.8 guide at commit
+\code{001ee0b}. Original TeX SHA-256:
+\nolinkurl{1ce624029567acb477df6c286dfcb9e7876c338f238cfd38a3878fffe7847cdc}.
+The original is retained privately under
+\nolinkurl{skills/scientific-data-analysis/.cache/active_references/guides/guia_scientific_data_analysis_v2_8.tex}.
+
+Recorded results below retain their original scope. This translation does not
+rerun gates, promote the installed family, or establish current release readiness.
+Synchronization is valid only when the applicable current gates finish without
+\code{FAIL} or \code{ROTO}.
+\end{minipage}
+\vfill
+{\large Prepared with Codex\par}
+{\large Copyright 2026 interemi\par}
+\end{titlepage}
+
+\clearpage
+\pagenumbering{roman}
+\fancyfoot[C]{\thepage}
+\begin{abstract}
+\code{scientific-data-analysis} v2.8 turns the v2.7 integration plan into a
+verifiable release boundary. The family retains its five-root modular
+architecture while strengthening routing, app-facing contracts, file safety,
+and scientific capabilities that could previously produce ambiguous or
+insufficiently traceable results.
+
+Release evidence no longer rests on an isolated rating. The v2.8 gate checks
+the canonical 61-capability surface, ownership, recursive stub resolution,
+maintainer isolation, and controlled failures. It is complemented by 118 Python
+tests per tree, an independent 61-mutation replay, portable smoke, 267 Swift
+tests, and Scientific Workbench E2E matrices. \code{plugin-eval} scores remain
+supporting evidence, not release authority.
+\end{abstract}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+
+\section{Executive overview}
+
+v2.8 focuses on family integrity and scientific safety. It does not artificially
+increase the capability count: it corrects shared invariants, strengthens failure
+handling, and makes execution from each capability's owning root verifiable.
+
+The principal decisions are:
+\begin{itemize}[leftmargin=1.5em]
+\item \code{scientific-data-analysis} remains the mother and compact router.
+\item \code{scientific-data-astro}, \code{scientific-data-documents}, and \code{scientific-data-notebooks} execute their respective domains.
+\item \code{scientific-data-maintainer} retains registries and gates and is not exposed as an ordinary action.
+\item A \code{public_surface_registry.yaml} may be a stub; its \code{canonical_registry} must resolve recursively, with bounds and confinement to the family.
+\item Every capability has an owning root, which its command uses as \code{workingDirectory}.
+\item A broken map or registry must fail in a controlled way; owner selection must not be invented through heuristics.
+\item Original preservation is mandatory: v2.8-covered paths are tested with SHA hashes and outputs in dedicated workspaces or temporary directories.
+\item Exact, symlink, hardlink, protected-tree, and output-to-output collisions are blocked before executing the implementation or any output emitter.
+\item Notebook execution requires human review and explicit \code{--trust-notebook-code}; confirmation is not presented as an operating-system sandbox.
+\end{itemize}
+
+\section{From v2.7 to v2.8}
+
+\begin{longtable}{p{0.29\linewidth}p{0.59\linewidth}}
+\toprule
+\textbf{Area} & \textbf{v2.8 change} \\
+\midrule
+Current gate & A v2.8 regression verifies all five skills and the complete canonical surface. \\
+Routing & Recursive resolution detects cycles, limits depth, and confines paths to the family. \\
+Ownership & Exact registry/module-map/router parity for 61 capabilities. \\
+Fail-closed behavior & Heuristic fallbacks for known capabilities are removed when canonical metadata is missing. \\
+Common contracts & Status, QA severity, nonfinite values, secret redaction, atomic emitters, and manifests are strengthened and aligned across the five roots. \\
+Astronomy & Risks corrected in MULTISPEC, FITS tables, extraction, RGB, photometric calibration, RV, SB2, and the Li I line. \\
+Documents and notebooks & Output collisions, workspace escapes, nonfinite values, and incomplete validations addressed; code execution remains blocked without explicit trust. \\
+App & Scientific Workbench consumes the installed multi-root family without copying skills into the app. \\
+Guide & This guide replaces v2.7 as the active document while preserving the earlier version. \\
+\bottomrule
+\end{longtable}
+
+\section{The family's structural boundary}
+\subsection{Canonical surface}
+
+The public surface contains exactly 61 unique IDs. Fingerprint and metadata
+must agree across registry, module map, and router. Stubs resolve to YAML with
+\code{entries:}; cycles, excessive depth, or paths outside the five roots produce
+controlled errors.
+
+\subsection{Ownership and execution}
+\begin{longtable}{p{0.23\linewidth}p{0.59\linewidth}}
+\toprule
+\textbf{Owner} & \textbf{Installed root} \\
+\midrule
+mother & \code{~/.codex/skills/scientific-data-analysis} \\
+astro & \code{~/.codex/skills/scientific-data-astro} \\
+documents & \code{~/.codex/skills/scientific-data-documents} \\
+notebooks & \code{~/.codex/skills/scientific-data-notebooks} \\
+maintainer & \code{~/.codex/skills/scientific-data-maintainer} \\
+\bottomrule
+\end{longtable}
+
+\code{CapabilityCommandBuilder} must construct commands using the owning root's
+script and use that same root as the working directory. The six maintainer-only
+IDs stay outside ordinary catalogs and workflows.
+
+\section{Preserved app-facing contracts}
+
+v2.8 retains compatibility with v1.8, v1.9, and v2.x:
+\begin{itemize}[leftmargin=1.5em]
+\item statuses \code{PASS}, \code{WARNING}, \code{BLOCKED_CONTROLADO}, \code{FAIL}, and \code{ROTO};
+\item normalized status aliases without hiding the original status;
+\item canonical artifact types, grouped for readability:
+  \begin{itemize}[leftmargin=1.5em,nosep]
+  \item \code{summary_json}, \code{manifest_json}, \code{report_md}, and \code{table_csv};
+  \item \code{preview_png}, \code{preview_pdf}, \code{app_preview}, and \code{fits_visual};
+  \item \code{notebook_ipynb}, \code{log_txt}, \code{qa_report}, \code{handoff_bundle}, and \code{edited_document};
+  \item \code{unknown} as the explicit fallback.
+  \end{itemize}
+\item strict JSON envelopes without \code{NaN} or \code{Infinity};
+\item \code{app_hints}, errors, and artifacts compatible with \code{ToolEnvelopeParser} and \code{ArtifactDiscovery};
+\item a run manifest even when execution ends in a controlled block or failure.
+\end{itemize}
+
+QA severity takes precedence in the app-facing status. A scientific warning must
+not disappear through later envelope translation. Nonfinite values must be
+rejected or recorded with an explicit finding.
+
+\section{Scientific and data hardening}
+\subsection{Astronomy}
+\begin{itemize}[leftmargin=1.5em]
+\item IRAF MULTISPEC types 0 and 1 use the correct linear and logarithmic laws; unsupported type 2 is blocked instead of approximated. The convention is checked against the official \href{https://iraf.readthedocs.io/en/doc-autoupdate/tasks/sptable/xonedspec/specwcs.html}{IRAF SPECWCS documentation}.
+\item FITS BinTable retains relevant columns and units.
+\item Spectral extraction is identified as experimental and preserves flux; it is not presented as a complete Horne implementation.
+\item Exoplanet reduction accepts common \code{IMAGETYP} aliases, preserves \code{FILTER}, and scales darks as rates.
+\item RGB workflows preserve \code{FILTER}, \code{EXPTIME}, and WCS; quarantine only reverts files owned by its manifest.
+\item CCD reduction does not apply implicit crops.
+\item Photometric calibration propagates covariance with absolute sigmas.
+\item RV and SB2 validate domain, degeneracy, and covariance.
+\item Li I 6708 windows are disjoint and tested with known equivalent widths.
+\end{itemize}
+
+\subsection{Documents and notebooks}
+\begin{itemize}[leftmargin=1.5em]
+\item Notebook runners are blocked by default and execute only after receiving \texttt{--trust-notebook-\allowbreak code}; declared inputs and outputs remain within the validated boundary.
+\item Sensitive inputs are not dumped into envelopes or manifests.
+\item Collisions between inputs, profiles, and Office/LaTeX outputs are detected.
+\item Semantic comparisons inspect complete tables and text documents.
+\item Time-series and Dask workflows declare invalid dates and nonfinite values.
+\item DuckDB and deliverables use strict serialization and unique temporary files.
+\item An output directory contained in the input is blocked to prevent recursion and re-ingestion of generated outputs.
+\end{itemize}
+
+\section{v2.8 regression}
+
+The structural gate can run from the mother or maintainer root:
+\begin{lstlisting}[style=promptstyle]
+python scripts/audit_v2_8_family_integrity_regression.py
+\end{lstlisting}
+
+It checks frontmatter, invocation policies, 61 IDs, fingerprint, metadata parity,
+scripts by owning root, dynamic cycle/escape rejection, six maintainer-only IDs,
+symlinks, portability, and failures without tracebacks.
+
+A second independent regression froze a 947-file fingerprint and ran 61 mutations
+without changing it: 41 public cases (28 astro, five documents, six notebooks,
+two mother) and 20 maintainer cases through both owner and mother. Every case
+required return code 2, one strict JSON object on stdout, empty stderr,
+\code{BLOCKED_CONTROLADO}, no artifacts or tracebacks, and identical input trees
+and SHA-256 values before and after.
+
+\section{Validation sequence}
+\begin{lstlisting}[style=promptstyle]
+python scripts/sync_public_surface_docs.py --check
+python scripts/audit_v2_8_family_integrity_regression.py
+python scripts/audit_v2_7_senior_integration_regression.py
+python scripts/skill_surface_audit.py \
+  --root ../scientific-data-analysis
+python scripts/portable_smoke_test.py \
+  --profile core --output-dir <temporary-directory>
+
+# In each of the five roots
+python -m unittest discover -s tests -p "test_*.py"
+
+# In Scientific Workbench
+./script/run_swift_tests.sh
+KEEP_E2E_MATRIX=1 ./script/run_e2e_capability_matrix.sh
+KEEP_SMOKE_MATRIX=1 ./script/run_smoke_matrix.sh
+\end{lstlisting}
+
+Smoke must cover tables, documents, notebooks, FITS, and optional-backend absence.
+That absence may result in \code{BLOCKED_CONTROLADO}: it is not \code{PASS}, but
+neither is it contract corruption. Any \code{FAIL} or \code{ROTO} prevents a
+declaration that synchronization is complete.
+
+The app runner builds with SwiftPM, counts the target's \code{@Test} tests, and
+fails if fewer than expected execute. This avoids accepting \code{swift test}
+that builds without discovering Swift Testing under a particular toolchain.
+
+In the recorded final snapshot, editable and installed families both passed
+118/118 Python tests: 14 mother, 31 astro, 36 documents, 27 notebooks, and 10
+maintainer. Scientific Workbench passed 267/267 Swift tests, five executed E2E
+scenarios, and six planning-smoke scenarios. The matrix includes table/CSV,
+document, notebook, FITS, and mixed packages. A STILTS preflight with a sanitized
+environment returned the expected nonzero block with
+\code{missing_optional_backend}, no artifacts, and no false success.
+
+\section{Integration with Scientific Workbench}
+
+The app does not contain skill copies. It must:
+\begin{enumerate}[leftmargin=1.7em]
+\item discover all five installed roots;
+\item resolve registry stubs recursively;
+\item associate every entry with its owning root;
+\item execute from that root;
+\item hide maintainer from ordinary actions;
+\item parse envelopes and discover v1.8/v1.9/v2.x artifacts;
+\item keep Jobs, Results, Settings, catalog, and planner consistent with the same metadata;
+\item pass Swift tests and representative smoke cases before declaring synchronization.
+\end{enumerate}
+
+\section{Interpreting the evidence}
+
+\code{plugin-eval} helps identify design and documentation problems, but a
+\code{100/A} rating with few substantive checks does not establish scientific
+or runtime correctness. v2.8 authority combines:
+\begin{enumerate}[leftmargin=1.7em]
+\item the current structural gate;
+\item unit tests and domain regressions;
+\item portable smoke;
+\item Scientific Workbench tests and smoke;
+\item inspection of artifacts, manifests, and statuses.
+\end{enumerate}
+
+Historical gates are retained for traceability. They are not blockers when they
+only freeze obsolete inventories, paths, or text; any still-applicable invariant
+must migrate to the v2.8 gate.
+
+With \code{plugin-eval 0.1.2}, post-hardening reevaluation yields \code{100/A} for
+mother, documents, and notebooks, and \code{96/A} for astro and maintainer.
+There are no evaluator failures. All Python lines exceeding 120 characters in
+the analyzed surface were removed, and maximum aggregate complexity decreased
+from 55 to 16 in documents, 45 to 13 in notebooks, 20 to 15 in astro, and 20 to
+10 in maintainer. All 118 tests were retained: dense modules were split by
+responsibility and the 123-case astro matrix became a declarative JSON fixture.
+Astro deferred cost also fell from 30,059 to 29,429 tokens.
+
+The two \code{96/A} ratings retain one deferred-budget warning each, primarily
+from suites, contracts, and scientific evidence kept within each root. This is
+recorded as a real metric limitation; testing and traceability are not removed
+to force an artificial \code{100/A}.
+
+\section{Limitations and deferred work}
+\begin{itemize}[leftmargin=1.5em]
+\item Spectral extraction does not yet implement full Horne extraction.
+\item MULTISPEC type 2 requires an explicit evaluator before it can be enabled.
+\item FITS cropping with WCS rewriting and exhaustive \code{BLANK} handling are outside this release.
+\item BJD\_TDB and other high-precision timing refinements need a dedicated workflow.
+\item A notebook can write to an external absolute path if its own code instructs it to; the runner does not replace an operating-system sandbox.
+\item The supported boundary is the public wrappers; directly invoking an internal fixture bypasses that first barrier.
+\item Tree hardlink scans are bounded at 100,000 entries and fail closed when they cannot demonstrate safety.
+\item Preflight does not eliminate a TOCTOU race if another process changes the filesystem between check and write.
+\item v2.8 verifies exact, symlink, hardlink, tree, fixed-output, and output-to-output collisions through domain suites and the 61/61 replay. It does not claim the Cartesian product of all scripts, flags, filesystems, and backends has been enumerated. Scientific Workbench adds a second barrier through \code{FilesystemSafetyPolicy}.
+\item Coverage matrices describe measured smoke/regression scope, not exhaustive coverage.
+\end{itemize}
+
+\section{Non-goals and prohibited actions}
+\begin{itemize}[leftmargin=1.5em]
+\item Do not modify raw data or original scientific files.
+\item Do not copy skills into the Scientific Workbench app bundle.
+\item Do not expose maintainer as an ordinary action.
+\item Do not turn warnings or blocks into false successes.
+\item Do not hide tracebacks, nonfinite values, or lost warnings.
+\item Do not declare synchronization with \code{FAIL} or \code{ROTO}.
+\item Do not delete historical guides or contracts.
+\end{itemize}
+
+\section{Conclusion}
+
+v2.8 turns v2.7's preparatory hardening into a reproducible release boundary:
+canonical surface, ownership, controlled failures, strict contracts, scientific
+tests, and multi-root consumption by Scientific Workbench. The version is ready
+only when structural, domain, portable, and Swift gates agree on a verifiable
+result without hidden failures.
+
+\end{document}

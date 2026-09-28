@@ -1,0 +1,1 @@
+../../../references/astro-transferable-patterns.md

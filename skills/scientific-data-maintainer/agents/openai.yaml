@@ -1,0 +1,6 @@
+interface:
+  display_name: "Scientific Data Maintainer"
+  short_description: "Validate and release the scientific-data skill family"
+  default_prompt: "Use $scientific-data-maintainer only to audit, validate, or release the scientific-data skill family; keep maintainer commands out of normal analysis workflows."
+policy:
+  allow_implicit_invocation: false

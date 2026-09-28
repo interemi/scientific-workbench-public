@@ -1,0 +1,6 @@
+interface:
+  display_name: "Scientific Data Notebooks"
+  short_description: "Analyze tables and notebooks reproducibly"
+  default_prompt: "Use $scientific-data-notebooks to inspect tables or execute a copied notebook in an isolated workspace with explicit provenance, QA, and derived outputs."
+policy:
+  allow_implicit_invocation: true

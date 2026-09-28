@@ -1,0 +1,1 @@
+../../../references/photometry-detectors.md

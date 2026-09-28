@@ -1,0 +1,1 @@
+../../../references/coursework-figure-equivalents.md

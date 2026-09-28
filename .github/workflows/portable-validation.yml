@@ -1,0 +1,304 @@
+name: Portable validation
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'codex/**']
+  workflow_dispatch:
+    inputs:
+      validation_scope:
+        description: Validation to run
+        required: true
+        default: core
+        type: choice
+        options:
+          - core
+          - full
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portable-${{ github.workflow }}-${{ github.ref }}-${{ inputs.validation_scope || 'core' }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.validation_scope == 'core' }}
+    name: Swift and Python core (${{ matrix.os }}, ${{ matrix.dependencies }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            architecture: arm64
+            dependencies: locked
+          - os: macos-15-intel
+            architecture: x86_64
+            dependencies: unlocked-compatibility
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      CI_EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
+      CI_DEPENDENCY_MODE: ${{ matrix.dependencies }}
+    steps:
+      - name: Prepare external evidence directory
+        run: |
+          evidence_dir="$RUNNER_TEMP/scientific-workbench-ci"
+          mkdir -p "$evidence_dir"
+          printf 'CI_EVIDENCE_DIR=%s\n' "$evidence_dir" >> "$GITHUB_ENV"
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: '3.11'
+      - name: Record platform and selected toolchain
+        run: |
+          mkdir -p "$CI_EVIDENCE_DIR"
+          {
+            printf 'Tested commit: %s\n' "$(git rev-parse HEAD)"
+            printf 'Tested tree: %s\n' "$(git rev-parse 'HEAD^{tree}')"
+            printf 'Event commit: %s\n' "$GITHUB_SHA"
+            printf 'Run: %s/actions/runs/%s (attempt %s)\n' "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            printf 'Dependency mode: %s\n' "$CI_DEPENDENCY_MODE"
+            printf 'Runner image: %s %s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}"
+            sw_vers
+            uname -m
+            xcode-select -p
+            swift --version
+            python --version
+          } 2>&1 | tee "$CI_EVIDENCE_DIR/platform.log"
+          [[ "$(uname -m)" == "$CI_EXPECTED_ARCHITECTURE" ]]
+      - name: Verify bundled backend and distribution safety
+        run: |
+          {
+            python script/check_distribution_snapshot.py
+            python script/check_core_lock.py
+            python script/check_full_lock.py
+            python -m unittest discover -s Tests/DistributionTests -v
+            ./script/check_release_readiness.sh
+            if [[ -f SOURCE_PROVENANCE.json ]]; then
+              python script/audit_public_documentation.py \
+                --require-english --strict-links --strict-portability \
+                > "$CI_EVIDENCE_DIR/documentation-inventory.json"
+            else
+              python script/audit_public_documentation.py \
+                > "$CI_EVIDENCE_DIR/documentation-inventory.json"
+            fi
+            python script/audit_publication_history.py --history --check-secrets \
+              --output "$CI_EVIDENCE_DIR/history-review.json"
+          } 2>&1 | tee "$CI_EVIDENCE_DIR/distribution.log"
+      - name: Build app sources
+        run: swift build 2>&1 | tee "$CI_EVIDENCE_DIR/swift-build.log"
+      - name: Prepare bundled skills for Swift integration tests
+        run: |
+          installed_skills="$HOME/.codex/skills"
+          mkdir -p "$installed_skills"
+          for skill in scientific-data-analysis scientific-data-astro scientific-data-documents scientific-data-notebooks scientific-data-maintainer; do
+            source="$GITHUB_WORKSPACE/skills/$skill"
+            destination="$installed_skills/$skill"
+            [[ -d "$source" && ! -L "$source" ]] || { printf 'Missing bundled skill: %s\n' "$source" >&2; exit 1; }
+            [[ ! -e "$destination" && ! -L "$destination" ]] || { printf 'Skill destination already exists: %s\n' "$destination" >&2; exit 1; }
+            ln -s "$source" "$destination"
+            [[ -f "$destination/SKILL.md" ]] || { printf 'Incomplete bundled skill: %s\n' "$destination" >&2; exit 1; }
+          done
+          [[ -f "$installed_skills/scientific-data-analysis/public_surface_registry.yaml" ]]
+          [[ -f "$installed_skills/scientific-data-maintainer/references/v2-3-mother-router-module-map.json" ]]
+      - name: Run Swift tests with discovery checks
+        run: ./script/run_swift_tests.sh 2>&1 | tee "$CI_EVIDENCE_DIR/swift-tests.log"
+      - name: Install core in a new isolated environment
+        run: |
+          lock_options=()
+          case "$CI_DEPENDENCY_MODE" in
+            locked) lock_options+=(--locked) ;;
+            unlocked-compatibility) printf 'Intel compatibility probe: dependencies are not locked.\n' ;;
+            *) printf 'Unknown dependency mode: %s\n' "$CI_DEPENDENCY_MODE" >&2; exit 1 ;;
+          esac
+          python script/setup_environment.py --python python --profile core \
+            --destination "$RUNNER_TEMP/scientific-workbench/datanalysis" --install "${lock_options[@]}" \
+            2>&1 | tee "$CI_EVIDENCE_DIR/core-install.log"
+      - name: Verify installed core environment discovery
+        run: |
+          DATAANALYSIS_ENV_ROOT="$RUNNER_TEMP/scientific-workbench/datanalysis" \
+            "$RUNNER_TEMP/scientific-workbench/datanalysis/bin/python" \
+            skills/scientific-data-analysis/scripts/datanalysis_env.py status \
+            --summary-json "$CI_EVIDENCE_DIR/environment-status.json" \
+            2>&1 | tee "$CI_EVIDENCE_DIR/environment-status.log"
+          python - "$CI_EVIDENCE_DIR/environment-status.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              status = json.load(handle)
+          if (status.get("tool") != "datanalysis_env.status" or status.get("status") != "ok"
+              or not status.get("found")
+              or not (status.get("selected_env_root") or "").endswith("/scientific-workbench/datanalysis")):
+              raise SystemExit("Installed core environment discovery did not report ok")
+          PY
+      - name: Validate synthetic workflows and snapshot integrity
+        run: |
+          "$RUNNER_TEMP/scientific-workbench/datanalysis/bin/python" \
+            script/run_portable_core.py --output-dir "$RUNNER_TEMP/portable-core" \
+            2>&1 | tee "$CI_EVIDENCE_DIR/portable-core.log"
+      - name: Print compact verification evidence
+        if: always()
+        run: |
+          if [[ -f "$RUNNER_TEMP/portable-core/verification.json" ]]; then
+            cat "$RUNNER_TEMP/portable-core/verification.json"
+          fi
+          if [[ -f "$RUNNER_TEMP/scientific-workbench/datanalysis/scientific-workbench-setup/installed-packages.txt" ]]; then
+            cat "$RUNNER_TEMP/scientific-workbench/datanalysis/scientific-workbench-setup/installed-packages.txt"
+          fi
+          for log in "$RUNNER_TEMP"/portable-core/step-*.log; do
+            if [[ -f "$log" ]]; then tail -80 "$log"; fi
+          done
+          git status --short
+      - name: Write run summary
+        if: always()
+        env:
+          CI_STATUS_BEFORE_UPLOAD: ${{ job.status }}
+        run: |
+          {
+            printf '## Scientific Workbench portable validation\n\n'
+            printf -- '- Status before evidence upload: %s\n' "$CI_STATUS_BEFORE_UPLOAD"
+            printf -- '- Expected architecture: %s\n' "$CI_EXPECTED_ARCHITECTURE"
+            printf -- '- Dependency mode: %s\n' "$CI_DEPENDENCY_MODE"
+            printf '\nSee the job result and retained evidence for failures.\n'
+            printf 'This validates core workflows; public-opening approval, full-profile support, and clean-Mac UI acceptance remain separate.\n'
+            if [[ -f "$CI_EVIDENCE_DIR/platform.log" ]]; then
+              printf '\n```text\n'
+              cat "$CI_EVIDENCE_DIR/platform.log"
+              printf '\n```\n'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: portable-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/scientific-workbench-ci/*.log
+            ${{ runner.temp }}/scientific-workbench-ci/*.json
+            ${{ runner.temp }}/portable-core/verification.json
+            ${{ runner.temp }}/portable-core/env-doctor.json
+            ${{ runner.temp }}/portable-core/smoke-summary.json
+            ${{ runner.temp }}/portable-core/smoke-manifest.json
+            ${{ runner.temp }}/portable-core/step-*.log
+            ${{ runner.temp }}/scientific-workbench/datanalysis/scientific-workbench-setup/installed-packages.txt
+
+  full_macos:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.validation_scope == 'full' }}
+    name: Python Full locked install and focused checks (macos-15, arm64)
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Prepare external evidence directory
+        run: |
+          evidence_dir="$RUNNER_TEMP/scientific-workbench-full-ci"
+          mkdir -p "$evidence_dir"
+          printf 'CI_FULL_EVIDENCE_DIR=%s\n' "$evidence_dir" >> "$GITHUB_ENV"
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: '3.11'
+      - name: Record platform and verify source
+        run: |
+          set -o pipefail
+          {
+            printf 'Tested commit: %s\n' "$(git rev-parse HEAD)"
+            printf 'Tested tree: %s\n' "$(git rev-parse 'HEAD^{tree}')"
+            printf 'Event commit: %s\n' "$GITHUB_SHA"
+            printf 'Run: %s/actions/runs/%s (attempt %s)\n' "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            printf 'Runner image: %s %s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}"
+            sw_vers
+            uname -m
+            python --version
+          } 2>&1 | tee "$CI_FULL_EVIDENCE_DIR/platform.log"
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ "$(uname -m)" == arm64 ]]
+          python script/check_distribution_snapshot.py
+          python script/check_full_lock.py
+          ./script/check_release_readiness.sh
+          if [[ -f SOURCE_PROVENANCE.json ]]; then
+            python script/audit_public_documentation.py \
+              --require-english --strict-links --strict-portability \
+              > "$CI_FULL_EVIDENCE_DIR/documentation-inventory.json"
+          fi
+      - name: Install Full lock in a new isolated environment
+        run: |
+          set -o pipefail
+          python script/setup_environment.py --python python --profile full --locked \
+            --destination "$RUNNER_TEMP/scientific-workbench-full/datanalysis" --install \
+            2>&1 | tee "$CI_FULL_EVIDENCE_DIR/full-install.log"
+      - name: Validate the installed environment without external TeX
+        run: |
+          set -o pipefail
+          "$RUNNER_TEMP/scientific-workbench-full/datanalysis/bin/python" \
+            script/run_portable_core.py --profile core \
+            --output-dir "$RUNNER_TEMP/portable-full-core" \
+            2>&1 | tee "$CI_FULL_EVIDENCE_DIR/portable-full-core.log"
+          "$RUNNER_TEMP/scientific-workbench-full/datanalysis/bin/python" \
+            -m unittest discover -s skills/scientific-data-documents/tests -v \
+            2>&1 | tee "$CI_FULL_EVIDENCE_DIR/documents-tests.log"
+      - name: Print compact Full evidence
+        if: always()
+        run: |
+          if [[ -f "$RUNNER_TEMP/portable-full-core/verification.json" ]]; then
+            cat "$RUNNER_TEMP/portable-full-core/verification.json"
+          fi
+          if [[ -f "$RUNNER_TEMP/scientific-workbench-full/datanalysis/scientific-workbench-setup/installed-packages.txt" ]]; then
+            cat "$RUNNER_TEMP/scientific-workbench-full/datanalysis/scientific-workbench-setup/installed-packages.txt"
+          fi
+          for log in "$RUNNER_TEMP"/portable-full-core/step-*.log; do
+            if [[ -f "$log" ]]; then tail -80 "$log"; fi
+          done
+          git status --short
+      - name: Write Full run summary
+        if: always()
+        env:
+          CI_STATUS_BEFORE_UPLOAD: ${{ job.status }}
+        run: |
+          {
+            printf '## Scientific Workbench Full lock installation check\n\n'
+            printf -- '- Status before evidence upload: %s\n' "$CI_STATUS_BEFORE_UPLOAD"
+            printf -- '- Tested commit: %s\n' "$GITHUB_SHA"
+            printf -- '- Runner: macOS 15 arm64\n'
+            printf -- '- Dependency mode: Full locked\n'
+            printf '\nA pass confirms the Full lock installed in a new environment, Core synthetic cases, and document tests on this runner.\n'
+            printf 'The 38-case Full smoke also compiles LaTeX and is not run here without a TeX engine.\n'
+            printf 'Manual UI use and other optional backends remain separate.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain Full diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: portable-full-macos-15-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/scientific-workbench-full-ci/*.log
+            ${{ runner.temp }}/scientific-workbench-full-ci/*.json
+            ${{ runner.temp }}/portable-full-core/verification.json
+            ${{ runner.temp }}/portable-full-core/env-doctor.json
+            ${{ runner.temp }}/portable-full-core/smoke-summary.json
+            ${{ runner.temp }}/portable-full-core/smoke-manifest.json
+            ${{ runner.temp }}/portable-full-core/step-*.log
+            ${{ runner.temp }}/scientific-workbench-full/datanalysis/scientific-workbench-setup/installation-plan.json
+            ${{ runner.temp }}/scientific-workbench-full/datanalysis/scientific-workbench-setup/env-doctor.json
+            ${{ runner.temp }}/scientific-workbench-full/datanalysis/scientific-workbench-setup/installed-packages.txt

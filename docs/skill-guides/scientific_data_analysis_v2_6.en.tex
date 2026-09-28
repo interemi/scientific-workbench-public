@@ -1,0 +1,297 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{tocloft}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{listings}
+\usepackage{titlesec}
+\geometry{margin=2.15cm}
+\setlength{\headheight}{14pt}
+\setlength{\emergencystretch}{3em}
+\setlist{itemsep=3pt,parsep=1pt,topsep=4pt}
+\definecolor{titleblue}{HTML}{123B5D}
+\definecolor{softblue}{HTML}{EDF5FB}
+\definecolor{softgray}{HTML}{F5F7FA}
+\definecolor{accent}{HTML}{0F6E8C}
+\hypersetup{
+  colorlinks=true,linkcolor=titleblue,urlcolor=accent,
+  pdftitle={Scientific Data Analysis v2.6: English publication edition},
+  pdfauthor={interemi},
+  pdfsubject={Measured usage and conservative cost optimization}
+}
+\titleformat{\section}{\Large\bfseries\color{titleblue}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection.}{0.6em}{}
+\setlength{\cftsecnumwidth}{2.8em}
+\tocloftpagestyle{fancy}
+\lstdefinestyle{promptstyle}{
+  basicstyle=\ttfamily\small,backgroundcolor=\color{softgray},
+  frame=single,rulecolor=\color{softblue},breaklines=true,columns=fullflexible
+}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Scientific Data Analysis}
+\fancyhead[R]{v2.6 guide: English edition}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+
+\begin{document}
+\pagenumbering{gobble}
+\begin{titlepage}
+\centering
+\vspace*{1.0cm}
+{\Huge\bfseries\color{titleblue} Measured Usage Guide\\[0.15cm]
+Scientific Data Analysis v2.6\par}
+\vspace{0.65cm}
+{\Large Reproducible observation and evidence-based optimization\par}
+\vspace{0.8cm}
+{\large Operational health: benchmark matrix, local harness,
+mother/child comparison, and app-readiness gates\par}
+\vspace{0.8cm}
+{\large English publication edition: September 22, 2026\par}
+\vspace{0.5cm}
+\begin{minipage}{0.93\textwidth}
+\small\raggedright
+Translation of the preserved private v2.6 guide at commit \code{d6583f1}.
+Original TeX SHA-256:
+\nolinkurl{86bf78142300618242b3036d4537e88009ac353d30b96a798d4c2d66a562c131}.
+Private source:
+\nolinkurl{skills/scientific-data-analysis/.cache/active_references/guides/guia_scientific_data_analysis_v2_6.tex}.
+
+Recorded results and closure steps are historical, not current verification.
+This release guide does not synchronize or modify Scientific Workbench;
+the app remains outside its scope. Historical commands are retained for
+traceability: use fresh output directories when reproducing them, without
+overwriting earlier evidence. The original remains unchanged privately.
+\end{minipage}
+\vfill
+{\large Prepared with Codex\par}
+{\large Copyright 2026 interemi\par}
+\end{titlepage}
+
+\clearpage
+\pagenumbering{roman}
+\fancyfoot[C]{\thepage}
+\begin{abstract}
+\code{scientific-data-analysis} v2.6 continues the modular architecture
+stabilized in v2.5, with a different question. v2.5 reduced static loading and
+closed required plugin-eval fixes. v2.6 asks where representative usage
+actually incurs cost. It introduces a benchmark matrix, an observed-usage
+harness, reproducible \code{observed_usage.jsonl} results, a mother/child
+comparison, and a conservative policy: optimize only when measurements
+justify the change.
+
+The measurement is a local proxy, not a reading of actual weekly Codex tokens.
+v2.6 therefore promises no reduction in account usage limits. It provides
+verifiable infrastructure for measuring and comparing future decisions while
+preserving v2.5 compatibility.
+\end{abstract}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+
+\section{Executive overview}
+v2.6 focuses on measurement and restraint. It adds no capabilities, changes no
+scientific contracts, and leaves Scientific Workbench untouched. It makes
+efficiency discussions evidence-based through reproducible scenarios,
+parseable outputs, and an initial ranking of local cost.
+
+The product decisions are:
+\begin{itemize}[leftmargin=1.5em]
+\item \code{scientific-data-analysis} remains the normal entrypoint for ambiguous or mixed tasks.
+\item Use \code{scientific-data-astro}, \code{scientific-data-documents}, \code{scientific-data-notebooks}, or \code{scientific-data-maintainer} when the intent is already specific.
+\item Results use \code{token_measurement_kind=local_proxy}; they are not actual account token counts.
+\item Registries, artifact types, run bundles, app hints, and app-readiness contracts remain unchanged.
+\item Optimization is limited to stabilizing the harness and documenting measurable decisions.
+\end{itemize}
+
+\section{From v2.5 to v2.6}
+\begin{longtable}{p{0.20\linewidth}p{0.68\linewidth}}
+\toprule
+\textbf{Area} & \textbf{v2.6 change} \\
+\midrule
+Charter & \code{v2-6-measured-usage-charter.md} defines objectives, non-goals, and closure criteria. \\
+Observed contract & \code{v2-6-observed-usage-contract.md} separates local proxy measurement from actual tokens. \\
+Benchmark matrix & \code{v2-6-benchmark-matrix.json} contains 8 synthetic or anonymized scenarios. \\
+Harness & \code{audit_v2_6_observed_usage_harness.py} runs scenarios and saves \code{observed_usage.jsonl}. \\
+Regressions & Adds v2.6 checks for baseline, matrix, observed usage, and app-readiness sanity. \\
+Router comparison & \code{v2-6-routing-cost-findings.md} documents mother versus child routes. \\
+Optimization & \code{v2-6-cost-optimization-log.md} records decisions; no large refactor or public trigger change. \\
+Maintainer scenario & Uses a maintainer-specific regression and captures JSON stdout as a parseable summary. \\
+Guide & Replaces v2.5 as the active release document. \\
+\bottomrule
+\end{longtable}
+
+\section{What remains unchanged}
+\begin{itemize}[leftmargin=1.5em]
+\item No new capability, public path deletion, or public path rename.
+\item No edits to Scientific Workbench.
+\item No synchronization of the installed family until the final phase.
+\item No forced restructuring of mother and children.
+\item No claim of actual token savings without comparable actual measurements.
+\item No changes to the scientific contracts of astro, documents, notebooks, or maintainer routes.
+\end{itemize}
+
+\section{Measured scenarios}
+The v2.6 matrix covers eight scenarios. All inputs are synthetic or anonymized;
+originals are not modified.
+
+\begin{longtable}{p{0.43\linewidth}p{0.45\linewidth}}
+\toprule
+\textbf{Scenario} & \textbf{Owner, route, and input} \\
+\midrule
+\code{table_professional_csv} & notebooks; direct child; synthetic professional CSV \\
+\code{mixed_folder_router} & mother; router; synthetic mixed folder \\
+\code{legacy_notebook_inspect} & notebooks; direct child; synthetic legacy notebook \\
+\code{document_admin_intake} & documents; direct child; administrative document package \\
+\code{fits_simple_inspect} & astro; direct child; minimal synthetic FITS \\
+\code{optional_stilts_block} & astro; optional; simulated absent STILTS backend \\
+\code{maintainer_surface_check} & maintainer; maintainer route; v2.5 maintainer regression \\
+\code{router_vs_direct_table} & mother; router; the same CSV used for direct profiling \\
+\bottomrule
+\end{longtable}
+
+\section{Observed result}
+Reference execution:
+\begin{lstlisting}[style=promptstyle]
+python scripts/audit_v2_6_observed_usage_harness.py \
+  --output-dir tmp/v2_6_phase2_observed_usage_harness
+\end{lstlisting}
+
+\begin{longtable}{p{0.41\linewidth}p{0.23\linewidth}rr}
+\toprule
+\textbf{Scenario} & \textbf{Status} & \textbf{Proxy} & \textbf{ms} \\
+\midrule
+\code{table_professional_csv} & PASS & 1975 & 459 \\
+\code{mixed_folder_router} & PASS & 20484 & 94 \\
+\code{legacy_notebook_inspect} & Controlled block & 811 & 67 \\
+\code{document_admin_intake} & PASS & 3605 & 602 \\
+\code{fits_simple_inspect} & PASS & 1313 & 110 \\
+\code{optional_stilts_block} & Controlled block & 1457 & 73 \\
+\code{maintainer_surface_check} & PASS & 162 & 44 \\
+\code{router_vs_direct_table} & PASS & 20565 & 90 \\
+\bottomrule
+\end{longtable}
+``Proxy'' is the local token proxy; ``ms'' is duration in milliseconds.
+``Controlled block'' preserves the original machine status
+\code{BLOCKED_CONTROLADO}.
+
+Interpretation:
+\begin{itemize}[leftmargin=1.5em]
+\item There are 6 PASS results and 2 controlled blocks.
+\item The notebook stops cleanly under system Python because \code{nbformat} is missing.
+\item The absent STILTS backend blocks cleanly; this is not treated as a core error.
+\item The CSV comparison shows a heavier mother route than the direct child when the goal is already specific.
+\item \code{local_proxy} supports internal comparisons, not promises of actual weekly savings.
+\end{itemize}
+
+\section{Mother versus child routing}
+The mother remains the appropriate entrypoint for broad requests such as
+``inspect this folder'' or ``help me with this project.'' Direct children
+provide a shorter route when the intent is clear:
+\begin{itemize}[leftmargin=1.5em]
+\item FITS, WCS, photometry, spectra, or astronomy: \code{scientific-data-astro}.
+\item PDF, DOCX, LaTeX, presentations, or reporting: \code{scientific-data-documents}.
+\item CSV, notebooks, containers, time series, or tables: \code{scientific-data-notebooks}.
+\item Release gates, plugin-eval, or maintenance: \code{scientific-data-maintainer}.
+\end{itemize}
+v2.6 does not change trigger text or public contracts on the basis of one
+measurement. It documents evidence and provides repeatable regression checks.
+
+\section{v2.6 regressions}
+Main regressions:
+\begin{lstlisting}[style=promptstyle]
+python scripts/audit_v2_6_phase0_baseline_regression.py
+python scripts/audit_v2_6_benchmark_matrix_regression.py
+python scripts/audit_v2_6_observed_usage_harness.py --output-dir tmp/v2_6_phase2_observed_usage_harness
+python scripts/audit_v2_6_observed_usage_regression.py --output-dir tmp/v2_6_phase2_observed_usage_harness
+python scripts/audit_v2_6_app_ready_cost_sanity_regression.py --output-dir tmp/v2_6_phase5_app_ready_sanity
+\end{lstlisting}
+Inherited gates that must continue to pass:
+\begin{lstlisting}[style=promptstyle]
+python scripts/audit_v2_5_budget_deferral_regression.py
+python scripts/audit_v2_4_budget_architecture_regression.py
+python scripts/sync_public_surface_docs.py --check
+python scripts/portable_smoke_test.py --profile core
+\end{lstlisting}
+
+\section{Historical closure criteria}
+The original v2.6 closure required all ten conditions:
+\begin{enumerate}[leftmargin=1.7em]
+\item The benchmark matrix covers all 5 skills.
+\item The harness produces \code{observed_usage.jsonl}, \code{result.json}, and \code{summary.md}.
+\item All 8 scenarios are PASS, WARNING, or justified \code{BLOCKED_CONTROLADO}, with no FAIL/ROTO.
+\item App-readiness sanity validates summaries, artifacts, statuses, and \code{original_modified=false}.
+\item \code{guia_scientific_data_analysis_v2_6.tex} compiles to PDF.
+\item The PDF and TeX are copied to the Desktop, as required by that historical local handoff.
+\item v2.6 and inherited gates pass in the editable family.
+\item Installed synchronization occurs only after green gates.
+\item Post-synchronization gates pass.
+\item \code{evaluate-skill} runs against the installed mother and children.
+\end{enumerate}
+
+\section{Recommended usage after v2.6}
+For broad tasks:
+\begin{lstlisting}[style=promptstyle]
+python scripts/scientific_workflow_router.py plan input --task "..."
+\end{lstlisting}
+For specific tasks:
+\begin{lstlisting}[style=promptstyle]
+python scripts/profile_table.py data.csv --summary-json summary.json
+python scripts/inspect_fits.py image.fits --summary-json summary.json
+python scripts/document_intake_workbench.py docs/ --summary-json summary.json
+\end{lstlisting}
+To repeat the v2.6 measurement:
+\begin{lstlisting}[style=promptstyle]
+python scripts/audit_v2_6_observed_usage_harness.py --output-dir tmp/v2_6_observed_usage
+python scripts/audit_v2_6_observed_usage_regression.py --output-dir tmp/v2_6_observed_usage
+\end{lstlisting}
+
+\section{Plugin-eval evaluation update}
+After conservative hardening following v2.6, the mother and four children were
+optimized for \code{plugin-eval:evaluate-skill} without removing capabilities
+or breaking public paths. The full content was deferred: guides, long
+references, historical duplicates, examples, and heavy helpers remained
+available outside the initial content Codex reads when invoking a skill.
+
+The remaining informational item was \code{coverage-artifacts-unavailable}.
+To address it, \code{audit_v2_7_plugin_eval_coverage_artifacts.py} generates
+\code{coverage-summary.json} for each skill. It reports smoke/regression
+coverage observed with \code{trace}, not exhaustive project coverage. It gives
+\code{plugin-eval} a real, traceable coverage signal instead of an empty field.
+
+Recorded editable-family state before synchronization:
+\begin{longtable}{p{0.43\linewidth}p{0.18\linewidth}p{0.25\linewidth}}
+\toprule
+\textbf{Skill} & \textbf{Rating} & \textbf{Deductions} \\
+\midrule
+\code{scientific-data-analysis} & 100/A & none \\
+\code{scientific-data-astro} & 100/A & none \\
+\code{scientific-data-documents} & 100/A & none \\
+\code{scientific-data-notebooks} & 100/A & none \\
+\code{scientific-data-maintainer} & 100/A & none \\
+\bottomrule
+\end{longtable}
+Three invariants must remain:
+\begin{itemize}[leftmargin=1.5em]
+\item Public paths continue to exist, even when they point to deferred content.
+\item Coverage artifacts are small, parseable, and regenerable.
+\item \code{evaluate-skill} runs on mother and children after every synchronization.
+\end{itemize}
+
+\section{Conclusion}
+v2.6 provides reproducible evidence for reasoning about cost, preserves the
+v2.5 architecture, and avoids unnecessary contract changes. Use the mother for
+ambiguity, children for defined tasks, and require benchmark evidence before
+future optimizations.
+\end{document}

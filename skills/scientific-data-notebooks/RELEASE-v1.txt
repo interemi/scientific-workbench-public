@@ -1,0 +1,3 @@
+# RELEASE-v1.txt
+
+Archived active-budget stub. Full copy: `.cache/archived_references/RELEASE-v1.txt`.

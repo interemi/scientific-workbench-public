@@ -1,0 +1,3 @@
+canonical_registry: ../scientific-data-maintainer/public_surface_registry.yaml
+release: v2.8
+purpose: Compact mother-skill registry stub. The canonical 61-row public surface registry lives in the maintainer child skill.

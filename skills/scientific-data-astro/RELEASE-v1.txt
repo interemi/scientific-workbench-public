@@ -1,0 +1,3 @@
+scientific-data-astro staged child
+
+Created during v2.3 modular architecture work. Not a standalone public release until final v2.3 sync gates pass.

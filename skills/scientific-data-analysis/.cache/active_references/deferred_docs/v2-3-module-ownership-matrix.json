@@ -1,0 +1,6 @@
+{
+  "schema_version": "1.0-stub",
+  "archived": true,
+  "canonical_path": "../scientific-data-maintainer/references/v2-3-module-ownership-matrix.json",
+  "reason": "The full v2.3 ownership matrix is maintainer-only and is stored in the maintainer child skill to keep the mother skill budget small."
+}

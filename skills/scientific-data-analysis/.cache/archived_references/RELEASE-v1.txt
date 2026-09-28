@@ -1,0 +1,58 @@
+SCIENTIFIC-DATA-ANALYSIS
+Release v2.6 measured usage / v2.5 deep budget-deferral hardening / v2.4 budget-architecture hardening / v2.3 modular architecture / v2.2 evaluation-hardening / v2.1 compact-router / v2.0 integrated skill + ScientificWorkbench / v1.9 contract-freeze / v1.8 app-ready backend / v1.7 real-world / v1.6 stable baseline
+
+Compatibility anchors for historical gates: Release v1.7 stable / v1.6 stable baseline.
+Historical exact anchors: Release v2.4 budget-architecture hardening; v2.3/v2.4 modular-health route.
+
+What this release means
+- v2.6 is the measured-usage release: it adds a benchmark matrix, local observed-usage harness, routing cost findings, app-ready cost sanity checks, and a guide explaining what can and cannot be inferred from proxy measurements.
+- v2.6 does not promise weekly usage-limit savings from one local proxy run; it records evidence and keeps optimization conservative.
+- v2.5 is the deep budget-deferral hardening release: astro and maintainer child skills keep stable script entrypoints while dispatching heavy bodies from fixtures, and the historical v2.3 ownership matrix is archived behind a compact maintainer stub.
+- v2.5 closes the remaining required plugin-eval budget fixes for scientific-data-astro and scientific-data-maintainer without changing registry, ScientificWorkbench, or scientific behavior.
+- v2.4 is the budget-architecture hardening release: heavy historical regression bodies, matrices, old guide payloads, and maintainer-only material live canonically in scientific-data-maintainer; the mother keeps compatibility wrappers and pointer stubs.
+- v2.3 is the modular architecture release: scientific-data-analysis remains the mother-router while staged child skills cover astro, documents, notebooks, and maintainer routes without breaking historical command paths.
+- v2.2 keeps transient outputs and caches out of the active bundle and replaces bulky historical routing with compatibility stubs.
+- v2.1 keeps SKILL.md as a compact router while generated public-surface details and long routing notes live in references.
+- v2.0 validates the installed skill with ScientificWorkbench as the native macOS product surface.
+- v1.9 freezes artifact types, app-facing errors, app hints, next actions, exposure modes, and v2.0 deferrals.
+- v1.8 defines the app-ready backend: JSON envelopes, run bundles, app-readiness matrix, dry-run router, and app-like regressions.
+- v1.7 documents real-world applicability for public capabilities across academic, professional, and personal use.
+- v1.6 remains the completed 59-capability audit-and-hardening baseline.
+
+What this release promises
+- Stable public script paths and registry labels.
+- Stable scientific behavior and non-destructive workflows.
+- Reproducible v2.6 measured-usage scenarios and regressions that compare broad mother routing with direct child routes where intent is already scoped.
+- A v2.3/v2.4/v2.5 modular-health route: mother router, staged child skills, compatibility wrappers, maintainer-owned historical gates, fixture-backed script bodies, and a lower active budget for plugin-eval without losing public routes.
+- Controlled optional-backend behavior for STILTS/TOPCAT, APT, TEAREDUCE, IRAF/iSTARMOD/fxcor, iWork, Keynote, and GUI-adjacent paths.
+- Clear release validation through v2.5, v2.4, v2.3, sync-public-surface, smoke, and plugin-eval gates.
+
+What this release does not promise
+- No new public capabilities.
+- No ScientificWorkbench synchronization or app development in v2.6.
+- No claim that local proxy token estimates are real Codex account usage.
+- No full removal of all budget warnings; remaining deferred budget, Python complexity, and long-line findings are accepted backlog unless they become required fixes.
+
+Registry-backed public surface snapshot
+BEGIN GENERATED PUBLIC SURFACE SNAPSHOT
+This compact release snapshot is generated from public_surface_registry.yaml.
+Public capability labels: 61 entries.
+
+core / routing: datanalysis_env.py status; datanalysis_healthcheck.py; env_doctor.py; companion_route_check.py; external_astro_tools_preflight.py
+astronomy observational: astrometry_net_workbench.py preflight; echelle_multispec_inventory.py; inspect_fits.py; legacy_spectroscopy_envcheck.py; photometric_solution.py; photometry_noise_budget.py; radial_velocity_workbench.py inspect; teareduce_router.py; apt_workbench.py; astrometry_net_workbench.py verify-existing-wcs; fits_rgb_batch.py; fxcor_iraf_workbench.py prepare-session; fxcor_iraf_workbench.py run-auto; istarmod_workbench.py inspect-tree; istarmod_workbench.py prepare-copy; legacy_external_reference_check.py; legacy_rv_coursework_workbench.py analyze; legacy_spectroscopy_report_builder.py populate; legacy_spectroscopy_report_builder.py scaffold; li6708_equivalent_width_workbench.py measure; radial_velocity_workbench.py validate-manifest; rgb_visual_fits_export.py; sb2_double_gaussian_workbench.py fit; stilts_workbench.py
+documents + reporting: document_intake_workbench.py; latex_workbench.py review; latex_workbench.py scaffold; scientific_writeup_review.py; deliverable_factory.py scaffold; iwork_workbench.py; keynote_export.py; latex_workbench.py compile; office_roundtrip.py docx-style-inventory; office_roundtrip.py docx-styled-replace; presentation_workbench.py existing-deck-style-audit; presentation_workbench.py inspect; quicklook_bridge.py; semantic_diff.py
+notebooks + cross-domain: bootstrap_analysis_notebook.py; cross_domain_data_workbench.py; notebook_workbench.py execute-copy; profile_table.py; spectra_ascii_coursework_workbench.py; timeseries_forecasting_workbench.py; catalog_workbench.py crossmatch-sky; coursework_notebook_fidelity_check.py; duckdb_workbench.py; inspect_data_container.py; notebook_branch_compare.py; physical_qa.py
+END GENERATED PUBLIC SURFACE SNAPSHOT
+
+Read these first
+- README.txt
+- references/v2-6-measured-usage-charter.md
+- references/v2-6-observed-usage-contract.md
+- references/v2-6-routing-cost-findings.md
+- references/v2-6-cost-optimization-log.md
+- references/v2-5-budget-deferral-hardening.md
+- references/v2-4-budget-architecture-hardening.md
+- references/v2-3-modular-architecture-charter.md
+- references/v1-7-real-world-guide.md
+- references/core-and-optional.md
+- references/portable-install.md

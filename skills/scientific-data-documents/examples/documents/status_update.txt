@@ -1,0 +1,4 @@
+Status update
+
+The portable smoke-test bundle is intended to be small, readable, and safe to move across machines.
+Use it to confirm the install before running the skill on real data.

@@ -1,0 +1,1 @@
+../../../references/v2-0-p1-26-photometric-calibration-selector.md

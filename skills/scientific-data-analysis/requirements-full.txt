@@ -1,0 +1,40 @@
+-r requirements-core.txt
+
+# Optional v1 extension stack.
+# Use this when you want the broader document, OCR, astronomy, and container feature set.
+
+# Broader analytics and SQL
+duckdb
+pyarrow
+fastparquet
+statsmodels
+scikit-learn
+
+# Astronomy and reduction extras
+photutils
+ccdproc
+specutils
+astroquery
+reproject
+regions
+plotly
+nbclient
+nbformat
+nbconvert
+jupyter_client
+ipykernel
+notebook
+
+# Office, OCR, and document extras
+pypdfium2
+pdfplumber
+rapidocr-onnxruntime
+python-calamine
+pyxlsb
+pyxlsbwriter
+numbers-parser
+olefile
+
+# Container and image extras
+tifffile
+zarr

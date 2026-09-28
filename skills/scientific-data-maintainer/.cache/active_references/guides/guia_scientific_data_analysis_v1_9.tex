@@ -1,0 +1,421 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{tocloft}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{listings}
+\usepackage{titlesec}
+\geometry{margin=2.15cm}
+\setlength{\headheight}{14pt}
+\setlength{\emergencystretch}{3em}
+\setlist{itemsep=3pt,parsep=1pt,topsep=4pt}
+\definecolor{titleblue}{HTML}{123B5D}
+\definecolor{softblue}{HTML}{EDF5FB}
+\definecolor{softgray}{HTML}{F5F7FA}
+\definecolor{accent}{HTML}{0F6E8C}
+\hypersetup{
+  colorlinks=true,linkcolor=titleblue,urlcolor=accent,
+  pdftitle={Scientific Data Analysis v1.9: English publication edition},
+  pdfauthor={interemi},
+  pdfsubject={Contract freeze and app-facing hardening}
+}
+\titleformat{\section}{\Large\bfseries\color{titleblue}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection.}{0.6em}{}
+\setlength{\cftsecnumwidth}{2.8em}
+\tocloftpagestyle{fancy}
+\lstdefinestyle{promptstyle}{
+  basicstyle=\ttfamily\small,backgroundcolor=\color{softgray},
+  frame=single,rulecolor=\color{softblue},breaklines=true,columns=fullflexible
+}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Scientific Data Analysis}
+\fancyhead[R]{v1.9 guide: English edition}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+
+\begin{document}
+\pagenumbering{gobble}
+\begin{titlepage}
+\centering
+\vspace*{1.0cm}
+{\Huge\bfseries\color{titleblue} Consolidation Guide\\[0.15cm]
+Scientific Data Analysis v1.9\par}
+\vspace{0.65cm}
+{\Large Contract freeze and app-facing hardening\par}
+\vspace{0.8cm}
+{\large Stable artifact types, clean errors, P1/P2 consolidation,
+and expanded app-like regressions\par}
+\vspace{0.8cm}
+{\large English publication edition: September 23, 2026\par}
+\vspace{0.5cm}
+\begin{minipage}{0.93\textwidth}
+\small\raggedright
+Translation of the preserved private v1.9 guide at commit \code{b9f6176}.
+Original TeX SHA-256:
+\nolinkurl{37247e3ded372906cdca842b400c81b1264a6ecb343226dac5b50a6be8022ae2}.
+Private source:
+\nolinkurl{skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v1_9.tex}.
+
+Recorded results and closure steps are historical, not current verification.
+This release guide does not synchronize or modify Scientific Workbench;
+the app remains outside its scope. Historical commands are retained for
+traceability: use fresh output directories when reproducing them, without
+overwriting earlier evidence. The original remains unchanged privately.
+\end{minipage}
+\vfill
+{\large Prepared with Codex\par}
+{\large Copyright 2026 interemi\par}
+\end{titlepage}
+
+\clearpage
+\pagenumbering{roman}
+\fancyfoot[C]{\thepage}
+\begin{abstract}
+\code{scientific-data-analysis} v1.9 is a consolidation release. v1.8 prepared
+the backend for app consumption; v1.9 reduces debt and freezes the components
+an app needs to remain stable: artifact type names, app-facing errors, exposure
+limits, app hints, next actions, and realistic regressions.
+
+v1.9 makes the backend more predictable, its blocks clearer, and its outputs
+easier to parse before major v2.0 integration. It does not develop or
+synchronize Scientific Workbench.
+\end{abstract}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+
+\section{Executive overview}
+v1.9 is the Contract Freeze and App-Facing Hardening phase. It consolidates
+the v1.8 work by:
+\begin{itemize}[leftmargin=1.5em]
+\item Classifying inherited P1/P2 debt as v1.9 work, v2.0 deferrals, or not applicable.
+\item Freezing \code{artifact_type} names while retaining published v1.8 compatibility.
+\item Hardening errors, warnings, and \code{BLOCKED_CONTROLADO} so apps need not interpret tracebacks.
+\item Reducing risky duplication in envelope, artifact typing, app hint, and next-action helpers.
+\item Fixing normal, expert, optional, legacy, maintainer, and unexposed modes.
+\item Expanding app-like regressions with realistic, ambiguous, and broken cases.
+\item Updating the guide and references to explain consolidation rather than claim v2.0.
+\end{itemize}
+The product decision is to prepare the backend for a controlled future
+integration, without creating Scientific Workbench v2.0 in this release.
+
+\section{From v1.8 to v1.9}
+\begin{longtable}{p{0.23\linewidth}p{0.65\linewidth}}
+\toprule
+\textbf{Area} & \textbf{v1.9 change} \\
+\midrule
+Charter & Defines a contract-freeze and app-facing-hardening release. \\
+Debt inventory & Classifies all 59 public capabilities by family, decision, phase, risk, and focused action. \\
+Artifact types & Freezes official names and allowed aliases; prohibits generic types such as \code{json}, \code{csv}, \code{png}, and \code{report}. \\
+Errors & Requires \code{errors.kind}, \code{errors.message}, \code{next_actions}, \code{original_modified}, and no raw traceback. \\
+App hints & Priority routes emit or document \code{short_summary}, \code{severity}, \code{preview_artifact_types}, \code{tags}, and useful actions. \\
+Exposure & Optional, legacy, expert, and maintainer routes stay outside normal mode; the router rejects or demotes them. \\
+Regressions & Adds professional data, documents, inherited notebooks, corrupt containers, time series, sensors, expert astronomy, missing backends, and output conflicts. \\
+\bottomrule
+\end{longtable}
+
+\section{What remains unchanged}
+\begin{itemize}[leftmargin=1.5em]
+\item Scientific Workbench is not edited in v1.9.
+\item Installed synchronization waits until the final installation phase.
+\item Published v1.8 artifact types are not renamed without compatibility.
+\item Domain-specific, legacy, and maintainer tools are not forced into general use.
+\item UI-driven workflows, job history, preview panels, and a formal app/skill planner remain outside this release.
+\item Optional backends do not become core dependencies.
+\item Correct scientific behavior is preserved when improving app-facing output.
+\end{itemize}
+
+\section{v1.9 source documents}
+\begin{itemize}[leftmargin=1.5em]
+\item \path{references/v1-9-consolidation-charter.md}: goals, non-goals, phases, and closure.
+\item \path{references/v1-9-debt-inventory.md}: actionable P1/P2 inventory for 59 capabilities.
+\item \path{references/v1-9-artifact-types-freeze.md}: official artifact types, aliases, and prohibited names.
+\item \path{references/v1-9-error-contract.md}: app-facing errors, failures, and blocks.
+\item \path{references/v1-9-app-hints-next-actions.md}: priority-route hints and next actions.
+\item \path{references/v1-9-exposure-modes.md}: normal, expert, optional, legacy, maintainer, and unexposed modes.
+\item \path{references/v1-9-v2-0-deferrals.md}: protected v2.0 rows.
+\item \path{references/v1-9-app-like-extended-regression.md}: expanded app-like coverage.
+\end{itemize}
+
+\section{P1/P2 inventory}
+The inventory covers 59 public capabilities plus two global rows. It classifies
+app-facing debt as closed, deferred, or explicitly inapplicable; it does not
+mean that the skill is broken.
+
+\begin{longtable}{p{0.20\linewidth}r p{0.59\linewidth}}
+\toprule
+\textbf{Severity} & \textbf{Rows} & \textbf{Interpretation} \\
+\midrule
+\code{P1} & 25 & Significant app-facing, optional, artifact-typing, or future UX work. \\
+\code{P2} & 34 & Consolidation, documentation, tests, hints, limits, or regression improvements. \\
+\code{P0} & 0 & No critical release blocker documented in the inventory. \\
+\bottomrule
+\end{longtable}
+
+\begin{longtable}{p{0.20\linewidth}r p{0.59\linewidth}}
+\toprule
+\textbf{Decision} & \textbf{Rows} & \textbf{Meaning} \\
+\midrule
+\code{v1_9} & 34 & Focused consolidation changes. \\
+\code{v2_0} & 8 & Requires Scientific Workbench, UI, or substantial workflow work. \\
+\code{no_procede} & 17 & Close by documenting limits and accurate exposure. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Debt families}
+\begin{longtable}{p{0.28\linewidth}p{0.60\linewidth}}
+\toprule
+\textbf{Family} & \textbf{Consolidation scope} \\
+\midrule
+\code{artifact_types} & Stable typing for outputs, previews, manifests, reports, visual FITS, and sidecars. \\
+\code{app_hints} & Short summaries, severity, tags, previews, and useful next actions. \\
+\code{errors} & Clean, parseable failures/blocks without raw tracebacks. \\
+\code{exposure_modes} & Normal, expert, optional, legacy, and maintainer visibility. \\
+\code{duplicacion} & Duplicate helpers affecting envelopes, artifacts, manifests, or next actions. \\
+\code{regressions} & Expanded, lightweight, deterministic app-like coverage. \\
+\bottomrule
+\end{longtable}
+
+\section{Frozen artifact types}
+Primary reference: \path{references/v1-9-artifact-types-freeze.md}.
+
+\subsection{Inherited v1.8 types}
+\begin{longtable}{p{0.28\linewidth}p{0.60\linewidth}}
+\toprule
+\textbf{Artifact type} & \textbf{Use} \\
+\midrule
+\code{summary_json} & Parseable run summary or envelope. \\
+\code{manifest_json} & Provenance, input, output, and environment manifest. \\
+\code{report_md} & Human-readable Markdown report. \\
+\code{preview_png} & Static visual or Quick Look preview. \\
+\code{table_csv} & Derived CSV or TSV table. \\
+\code{notebook_ipynb} & Generated, inspected, or copy-executed notebook. \\
+\code{log_txt} & stdout, stderr, command transcript, or logs. \\
+\code{qa_report} & Dedicated QA report. \\
+\code{handoff_bundle} & Folder/package for delivery or continuation. \\
+\code{unknown} & Explicit fallback when better typing is unavailable. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Compatible v1.9 additions}
+\begin{longtable}{p{0.28\linewidth}p{0.60\linewidth}}
+\toprule
+\textbf{Artifact type} & \textbf{Use} \\
+\midrule
+\code{fits_product} & Derived FITS/FIT/FTS not declared as display-only. \\
+\code{fits_visual} & Display-only visual FITS, such as a rendered image \code{RGB_CUBE}. \\
+\code{metadata_json} & Structured JSON other than the primary summary or manifest. \\
+\code{preview_pdf} & PDF used as a preview or preview export. \\
+\bottomrule
+\end{longtable}
+
+Prohibited official names are \code{json}, \code{csv}, \code{png}, \code{pdf},
+\code{markdown}, \code{fits}, \code{directory}, \code{folder}, \code{preview},
+\code{report}, \code{manifest}, and \code{notebook}: they are too generic for
+the app contract.
+
+\section{App-facing errors and blocks}
+Primary reference: \path{references/v1-9-error-contract.md}.
+
+A block or failure must provide output that an interface can present directly:
+\begin{longtable}{p{0.30\linewidth}p{0.58\linewidth}}
+\toprule
+\textbf{Field} & \textbf{Requirement} \\
+\midrule
+\code{status} / \code{app_status} & Normalizes to \code{BLOCKED_CONTROLADO} or \code{FAIL}. \\
+\code{errors[].kind} & An allowed category, not opaque free text. \\
+\code{errors[].message} & A short, actionable human-readable message. \\
+\code{command} & Redacted argv/cwd for traceability. \\
+\code{inputs} & Inspected inputs, or an explanation that none apply. \\
+\code{typed_artifacts} & Present even when empty for early blocks. \\
+\code{next_actions} & At least one structured action for a block/failure. \\
+\code{original_modified} & \code{false}, or explained \code{unknown}. \\
+\code{short_summary} & Compact summary within \code{app_hints}. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Allowed kinds}
+\begin{longtable}{p{0.35\linewidth}p{0.53\linewidth}}
+\toprule
+\textbf{Kind} & \textbf{Case} \\
+\midrule
+\code{missing_input} & Missing path or input. \\
+\code{output_conflict} & Output is a directory, has an invalid parent, or is not writable. \\
+\code{corrupt_input} & Suffix appears valid, but content is corrupt or truncated. \\
+\code{missing_optional_backend} & Optional backend is absent. \\
+\code{invalid_argument} & Invalid CLI argument. \\
+\code{unsupported_format} & Format/family is unsupported by the selected route. \\
+\code{permission_denied} & System permissions prevent reading or writing. \\
+\code{timeout} & Backend/subprocess time limit exceeded. \\
+\code{dependency_error} & Python dependency or runtime is unavailable. \\
+\code{execution_error} & Execution fails after initial validation. \\
+\code{tool_error} & Compatible fallback for unclassified legacy messages. \\
+\bottomrule
+\end{longtable}
+
+\section{App hints and next actions}
+v1.9 closes Debt B through focused capability profiles, improving explanation
+without changing the scientific result.
+\begin{longtable}{p{0.31\linewidth}p{0.57\linewidth}}
+\toprule
+\textbf{Field} & \textbf{Use} \\
+\midrule
+\code{short_summary} & Brief sentence for lists, cards, or notifications. \\
+\code{severity} & \code{ok}, \code{warning}, \code{blocked}, or \code{error}. \\
+\code{preview_artifact_types} & Previews the app can highlight. \\
+\code{tags} & Route labels such as table, container, astronomy, expert-mode, or QA. \\
+\code{next_actions} & Human next step: review columns, correct input, choose a backend, or read a manifest. \\
+\bottomrule
+\end{longtable}
+
+\path{references/v1-9-app-hints-next-actions.md} records 17 closed targets,
+including:
+\begin{itemize}[leftmargin=1.5em]
+\item General tables: \code{profile_table.py}.
+\item General folders: \code{cross_domain_data_workbench.py}.
+\item Time series: \code{timeseries_forecasting_workbench.py}.
+\item QA/measurement: \code{physical_qa.py} and \code{photometry_noise_budget.py}.
+\item Received notebooks: \code{coursework_notebook_fidelity_check.py}.
+\item Expert astronomy: \code{catalog_workbench.py crossmatch-sky}.
+\end{itemize}
+
+\section{Capability exposure}
+v1.9 freezes exposure modes to prevent narrow routes from appearing as ordinary
+actions.
+\begin{longtable}{p{0.26\linewidth}p{0.62\linewidth}}
+\toprule
+\textbf{Mode} & \textbf{Use} \\
+\midrule
+\code{normal} & Ordinary tables, documents, notebooks, containers, time series, or general QA. \\
+\code{expert} & Advanced/domain-specific route requiring technical context. \\
+\code{optional} & Optional backend or specific platform; not a core dependency. \\
+\code{legacy} & IRAF, fxcor, iSTARMOD, and legacy coursework. \\
+\code{maintainer} & Release gates, registry, smoke, synchronization, and probes. \\
+\code{no_exponer} & Not a normal action; direct CLI or documented context only. \\
+\bottomrule
+\end{longtable}
+
+For general inputs, \code{scientific_workflow_router.py} recommends normal
+routes and demotes or rejects sensitive routes with
+\code{normal_user_action=false}. The 22 sensitive routes in
+\path{references/v1-9-exposure-modes.md} do not become normal v1.9 actions.
+
+\section{v1.9 regressions}
+\begin{longtable}{p{0.49\linewidth}p{0.39\linewidth}}
+\toprule
+\textbf{Gate} & \textbf{Coverage} \\
+\midrule
+\path{audit_v1_9_phase0_inventory_regression.py} & Charter, 59 rows, P1/P2 counts, decisions, and families. \\
+\path{audit_v1_9_artifact_types_regression.py} & Official types, aliases, prohibited names, and Debt A targets. \\
+\path{audit_v1_9_error_contract_regression.py} & Clean failures in \code{env_doctor.py}, \code{iwork_workbench.py}, and \code{duckdb_workbench.py}. \\
+\path{audit_v1_9_dedupe_regression.py} & Internal helpers and reduced app-facing duplication. \\
+\path{audit_v1_9_app_hints_regression.py} & 17 targets with hints and next actions. \\
+\path{audit_v1_9_general_p2_regression.py} & General/adaptable routes with app-facing P2/P1 work. \\
+\path{audit_v1_9_exposure_modes_regression.py} & Router and optional, expert, legacy, and maintainer modes. \\
+\path{audit_v1_9_v2_0_deferrals_regression.py} & Eight protected v2.0 rows. \\
+\path{audit_v1_9_more_app_like_regression.py} & Additional app-like regression coverage. \\
+\path{audit_v1_9_app_like_extended_regression.py} & Realistic, ambiguous, and broken Phase 6 cases. \\
+\path{audit_v1_9_docs_regression.py} & References, TeX/PDF guide, extracted text, and rendered pages. \\
+\bottomrule
+\end{longtable}
+
+\section{Expanded app-like coverage}
+Phase 6 expands coverage without real private data. Minimum families:
+\begin{longtable}{p{0.34\linewidth}p{0.54\linewidth}}
+\toprule
+\textbf{Family} & \textbf{Expected behavior} \\
+\midrule
+Professional table & Useful parseable profiling with unchanged originals. \\
+Administrative document & Intake with explicit warnings for weakly supported formats. \\
+Inherited notebook & Preflight blocks or warns about \code{input()} and side effects. \\
+Corrupt container & Warning or clean block, not false success. \\
+Time series & Warnings for ambiguous dates, duplicates, or uncertain frequency. \\
+Sensor/measurement & QA for suspicious ranges, NaN/Inf, or questionable units. \\
+Expert astronomy route & Accurate warning/rejection for domain-specific data. \\
+Absent optional backend & \code{BLOCKED_CONTROLADO}, not core \code{FAIL}. \\
+Output conflict & Clean block with \code{output_conflict}. \\
+\bottomrule
+\end{longtable}
+Recorded main outputs:
+\begin{lstlisting}[style=promptstyle]
+tmp/v1_9_debt_R_app_like_extended/app_like_extended_regression_summary.json
+tmp/v1_9_debt_R_app_like_extended/app_like_extended_regression_report.md
+\end{lstlisting}
+
+\section{Protected v2.0 scope}
+Reference: \path{references/v1-9-v2-0-deferrals.md}.
+
+Reserved for v2.0:
+\begin{itemize}[leftmargin=1.5em]
+\item Major Scientific Workbench synchronization.
+\item Complete UI-driven workflows and a formal app planner/skill execution engine.
+\item Job history, previews, and statuses consumed directly by the app.
+\item Joint skill/app documentation.
+\item Interactive column, unit, style, and match selectors.
+\item Visual confirmations and diffs before editing.
+\item Complex optional panels for external backends.
+\end{itemize}
+Protected capability rows:
+\begin{itemize}[leftmargin=1.5em]
+\item \code{fits_rgb_batch.py}
+\item \code{stilts_workbench.py}
+\item \code{radial_velocity_workbench.py inspect}
+\item \code{photometric_solution.py}
+\item \code{apt_workbench.py}
+\item \code{office_roundtrip.py docx-style-inventory}
+\item \code{office_roundtrip.py docx-styled-replace}
+\item \code{keynote_export.py}
+\end{itemize}
+
+\section{Testing a v1.9 capability}
+Recommended pattern:
+\begin{enumerate}[leftmargin=1.7em]
+\item Create or copy anonymized inputs into a fresh \code{tmp/} run.
+\item Run the router in dry-run mode when input is ambiguous.
+\item Invoke the capability with \code{--summary-json}, \code{--manifest-json}, or \code{--run-dir} when available.
+\item Validate JSON parsing and accurate \code{status} / \code{app_status}.
+\item Check \code{typed_artifacts} against the frozen list.
+\item Inspect \code{app_hints}, \code{next_actions}, \code{warnings}, and \code{errors}.
+\item Confirm \code{original_modified=false}, or explained \code{unknown}.
+\item Classify as \code{PASS}, \code{WARNING}, \code{BLOCKED_CONTROLADO}, \code{FAIL}, or audit \code{ROTO}.
+\end{enumerate}
+Examples:
+\begin{lstlisting}[style=promptstyle]
+python scripts/audit_v1_9_artifact_types_regression.py
+python scripts/audit_v1_9_error_contract_regression.py
+python scripts/audit_v1_9_app_like_extended_regression.py
+\end{lstlisting}
+
+\section{Historical Phase 7 closure}
+Phase 7 requires:
+\begin{itemize}[leftmargin=1.5em]
+\item Expected v1.9 references with the required terms.
+\item This guide in TeX and PDF.
+\item Successful PDF compilation, extractable text containing key terms, and rendered representative pages or all pages.
+\item Passing \code{scripts/audit_v1_9_docs_regression.py}.
+\item No applicable drift from \code{scripts/sync_public_surface_docs.py --check}.
+\item Scientific Workbench unchanged and the installed skill not synchronized.
+\end{itemize}
+
+\section{Toward Phases 8 and 9}
+Phase 8 is the editable-tree release candidate: repeat v1.9 gates, affected
+v1.8/v1.7/v1.6 regressions, and core smoke. Only Phase 9 may synchronize the
+installed skill, after a release candidate without \code{FAIL} or \code{ROTO}.
+
+This guide records the v1.9 documentation state, not final installation:
+\begin{center}
+\textbf{v1.9 consolidates the backend; v2.0 will synchronize Scientific Workbench.}
+\end{center}
+\end{document}

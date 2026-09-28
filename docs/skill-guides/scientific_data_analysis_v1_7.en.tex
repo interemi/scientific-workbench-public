@@ -1,0 +1,312 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{tocloft}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{listings}
+\usepackage{titlesec}
+\geometry{margin=2.15cm}
+\setlength{\headheight}{14pt}
+\setlength{\emergencystretch}{3em}
+\setlist{itemsep=3pt,parsep=1pt,topsep=4pt}
+\definecolor{titleblue}{HTML}{123B5D}
+\definecolor{softblue}{HTML}{EDF5FB}
+\definecolor{softgray}{HTML}{F5F7FA}
+\definecolor{accent}{HTML}{0F6E8C}
+\hypersetup{
+  colorlinks=true,linkcolor=titleblue,urlcolor=accent,
+  pdftitle={Scientific Data Analysis v1.7: English publication edition},
+  pdfauthor={interemi},
+  pdfsubject={Real-world uses and scientific limits}
+}
+\titleformat{\section}{\Large\bfseries\color{titleblue}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection.}{0.6em}{}
+\setlength{\cftsecnumwidth}{2.8em}
+\tocloftpagestyle{fancy}
+\lstdefinestyle{promptstyle}{
+  basicstyle=\ttfamily\small,backgroundcolor=\color{softgray},
+  frame=single,rulecolor=\color{softblue},breaklines=true,columns=fullflexible
+}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Scientific Data Analysis}
+\fancyhead[R]{v1.7 guide: English edition}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+
+\begin{document}
+\pagenumbering{gobble}
+\begin{titlepage}
+\centering
+\vspace*{1.0cm}
+{\Huge\bfseries\color{titleblue} User Guide\\[0.15cm]
+Scientific Data Analysis v1.7\par}
+\vspace{0.65cm}
+{\Large Real-world uses and scientific limits\par}
+\vspace{0.8cm}
+{\large Academic, professional, and personal workflows; 59 capabilities,
+transferable patterns, and explicit applicability criteria\par}
+\vspace{0.8cm}
+{\large English publication edition: September 23, 2026\par}
+\vspace{0.5cm}
+\begin{minipage}{0.93\textwidth}
+\small\raggedright
+Translation of the preserved private v1.7 guide at commit \code{994eaea}.
+Original TeX SHA-256:
+\nolinkurl{a863704d5bfa264afee727339a83e752fab569e57e7e1f2c5cfb85af43c303e8}.
+Private source:
+\nolinkurl{skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v1_7.tex}.
+
+Installation and validation claims describe the historical v1.7 record,
+not the currently installed family. This translation does not rerun those
+gates. Historical command examples use English illustrative input names;
+script names, options, and contract identifiers are unchanged. Use fresh
+output directories and safe input copies when reproducing examples.
+The original remains unchanged privately.
+\end{minipage}
+\vfill
+{\large Prepared with Codex\par}
+{\large Copyright 2026 interemi\par}
+\end{titlepage}
+
+\clearpage
+\pagenumbering{roman}
+\begin{abstract}
+\code{scientific-data-analysis} began with a strong focus on astronomy,
+FITS, notebooks, LaTeX, data reduction, and scientific reporting. v1.7
+extends its usefulness to academic, professional, and personal work while
+preserving that foundation. A capability may be general-purpose, transfer
+a pattern, remain domain-specific, be legacy, or serve maintainers only.
+Analogies are not forced when a tool does not apply.
+
+The original guide records the installed v1.7 state after final
+synchronization and post-sync validation. The audited technical baseline
+remains v1.6; v1.7 adds documentation, regressions, and focused fixes to
+clarify what to use, what to avoid, and how to choose the next step.
+\end{abstract}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+
+\section{Executive overview}
+v1.7 clarifies use beyond purely academic cases. It classifies all 59 public
+capabilities, supplies general routes for tables, documents, notebooks,
+containers, and time series, and explains transferable scientific patterns
+and explicit reasons to reject a route.
+
+Some tools work unchanged outside astronomy, some transfer only a pattern,
+and others remain astrophysics, legacy, or maintenance tools. Accurately
+describing those boundaries is part of the improvement.
+
+\section{Historical product state}
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{v1.6 stable}: installed, audited baseline with 59 capabilities.
+\item \textbf{v1.7 stable}: real-world extension, installed and validated after synchronization.
+\item \textbf{Completed v1.7 phases}: classification, real-world intake, measurement/noise/QA, transferable astronomy patterns, professional/personal packages, documentation, release candidate, and final installation.
+\item \textbf{State recorded by the source}: v1.7 installed; v1.6 remains the stable audit and regression baseline.
+\end{itemize}
+
+\section{Capability classification}
+Maintained reference:
+\begin{lstlisting}[style=promptstyle]
+references/real-world-capability-classification-v1-7.md
+\end{lstlisting}
+\begin{longtable}{p{0.34\linewidth}r p{0.43\linewidth}}
+\toprule
+\textbf{Classification} & \textbf{Total} & \textbf{Meaning} \\
+\midrule
+\code{general} & 25 & Works outside astronomy without changing its conceptual contract. \\
+\code{cross_domain_adaptable} & 9 & Originates in science, astronomy, or coursework, but transfers a real pattern with documentation, tests, and limits. \\
+\code{domain_specific} & 7 & Useful in real settings within its original scientific domain. \\
+\code{legacy_specific} & 12 & Depends on narrow tools, backends, practices, or platforms. \\
+\code{maintainer_only} & 6 & Release, registry, smoke, probes, or internal validation. \\
+\textbf{Total} & \textbf{59} & Matches the v1.6 public surface. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Reading the classification}
+\begin{itemize}[leftmargin=1.5em]
+\item \code{general}: a normal entry point for academic, business, or personal use.
+\item \code{cross_domain_adaptable}: can inspire or execute a useful pattern; explain its original domain.
+\item \code{domain_specific}: use only when input belongs to that domain.
+\item \code{legacy_specific}: check environment and backend first; block cleanly when unsuitable.
+\item \code{maintainer_only}: do not offer as an ordinary analysis tool.
+\end{itemize}
+
+\newpage
+\section{General real-world routes}
+\subsection{Tables and data folders}
+For CSV, TSV, Excel, JSONL, parquet, or mixed folders:
+\begin{lstlisting}[style=promptstyle]
+python scripts/profile_table.py table.csv --summary-json profile.json
+python scripts/cross_domain_data_workbench.py data_folder --output-dir out --summary-json out/summary.json
+python scripts/duckdb_workbench.py table1.csv table2.csv --sql "SELECT * FROM source0 LIMIT 20"
+\end{lstlisting}
+Typical uses:
+\begin{itemize}[leftmargin=1.5em]
+\item Academic: inspect a course dataset before cleaning it.
+\item Professional: tickets, events, sales, operations, or QA.
+\item Personal: expenses, energy, habits, inventory, or historical exports.
+\end{itemize}
+
+\subsection{Documents and handoffs}
+\begin{lstlisting}[style=promptstyle]
+python scripts/document_intake_workbench.py document_package --output-dir intake
+python scripts/semantic_diff.py baseline.csv candidate.csv --output-md diff.md
+python scripts/deliverable_factory.py scaffold output --kind status-report --format markdown
+\end{lstlisting}
+These routes help identify folder contents, review priorities, differences
+between versions, and the package to deliver.
+
+\subsection{Inherited notebooks}
+\begin{lstlisting}[style=promptstyle]
+python scripts/notebook_workbench.py inspect notebook.ipynb --summary-json inspect.json
+python scripts/notebook_workbench.py execute-copy notebook.ipynb --output-dir executed_copy
+\end{lstlisting}
+The purpose is copy-based execution, preservation of originals, risk
+detection, and provenance. It is not automatic repair of every notebook.
+
+\subsection{Containers}
+\begin{lstlisting}[style=promptstyle]
+python scripts/inspect_data_container.py package.zip --summary-json container.json
+python scripts/inspect_data_container.py data.sqlite --output-json sqlite_inventory.json
+\end{lstlisting}
+Inspect before extracting or opening unfamiliar files. This is the intended
+inspection entry point for ZIP, SQLite, NPZ, HDF5, MAT, NetCDF, parquet,
+feather, and other supported containers; inspection is not a guarantee
+that arbitrary input is safe.
+
+\subsection{Time series}
+\begin{lstlisting}[style=promptstyle]
+python scripts/timeseries_forecasting_workbench.py \
+  --output-dir forecast \
+  --data-path series.csv \
+  --date-column date \
+  --value-column value \
+  --frequency MS \
+  --test-horizon 12
+\end{lstlisting}
+Output is a reproducible scaffold with a holdout, benchmarks, and clean
+exports to start an analysis, not an infallible prediction.
+
+\section{Transferable patterns}
+\subsection{Measurement, noise, and QA}
+References:
+\begin{lstlisting}[style=promptstyle]
+references/real-world-measurement-patterns.md
+references/photometry-detectors.md
+\end{lstlisting}
+Patterns:
+\begin{itemize}[leftmargin=1.5em]
+\item Noise/SNR budgets for an ROI or sensor.
+\item Linear instrument calibration using standards.
+\item Lightweight QA for NaN/Inf, suspicious signs, negative errors, duplicate timestamps, or non-monotonic times.
+\item Inspection of measurements and their uncertainties before modeling.
+\end{itemize}
+
+\subsection{Patterns originating in astronomy}
+Reference: \path{references/astro-transferable-patterns.md}.
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.32\linewidth}>{\raggedright\arraybackslash}p{0.27\linewidth}>{\raggedright\arraybackslash}p{0.28\linewidth}}
+\toprule
+\textbf{Capability} & \textbf{Reusable pattern} & \textbf{Limit} \\
+\midrule
+\code{catalog crossmatch-sky} & Coordinate matching with angular tolerance. & Not general GIS; no CRS, polygons, or routes. \\
+\code{fits_rgb_batch.py} & Multichannel image with a manifest and QA. & Remains oriented toward FITS and filters. \\
+\code{rgb visual export} & Reproducible visual file with before/after evidence. & Display-only, not calibrated flux. \\
+\code{astrometry preflight} & Preflight before an expensive or fragile backend. & The solver is astrometric, not general-purpose. \\
+\code{RV validate-manifest} & Validate a manifest before reporting. & RV/Systemic schema, not a universal manifest. \\
+\code{deck style-audit} & Visual, geometry, and editability QA on copied decks. & Does not replace final visual review. \\
+\bottomrule
+\end{longtable}
+
+\section{Examples by setting}
+\subsection{Academic}
+\begin{itemize}[leftmargin=1.5em]
+\item Review an instructor's notebook without changing it.
+\item Inspect FITS, WCS, spectra, or scientific tables.
+\item Create a LaTeX report prepared for Overleaf.
+\item Compare branches of a group assignment.
+\item Check whether a result includes units, uncertainty, and limits.
+\end{itemize}
+\subsection{Professional}
+\begin{itemize}[leftmargin=1.5em]
+\item Inventory operational CSV, JSONL, and Excel files.
+\item Review a supplier's document package before a meeting.
+\item Execute a copy of an inherited KPI notebook.
+\item Inspect a technical ZIP containing SQLite and a README before extraction.
+\item Build a forecasting scaffold for demand or workload.
+\item Identify impossible sensor values before reporting metrics.
+\end{itemize}
+\subsection{Personal}
+\begin{itemize}[leftmargin=1.5em]
+\item Profile a household budget or exported expenses.
+\item Organize anonymized administrative documents.
+\item Execute a copy of a downloaded tutorial notebook.
+\item Inspect a personal archive before extraction.
+\item Create an energy-use or habits notebook.
+\item Review household sensor data with unusual timestamps or impossible values.
+\end{itemize}
+
+\section{When a capability does not apply}
+Use \code{NO_APLICA}, \code{BLOCKED_CONTROLADO}, or retain domain-specific
+scope when:
+\begin{itemize}[leftmargin=1.5em]
+\item Input does not meet the contract's format, units, or assumptions.
+\item An optional backend is absent and no accurate fallback exists.
+\item Output would seem useful only by hiding its original domain.
+\item A visual product would be mistaken for calibrated data.
+\item A maintainer-only capability is proposed for an end-user task.
+\item A legacy route requires an environment the user does not have.
+\item An analogy outside the domain would offer marketing rather than practical help.
+\end{itemize}
+
+\subsection{Concrete examples}
+\begin{itemize}[leftmargin=1.5em]
+\item \code{li6708_equivalent_width_workbench.py} does not generalize beyond its narrow spectroscopy scope.
+\item \code{astrometry_net_workbench.py verify-existing-wcs} does not validate non-celestial maps.
+\item \code{stilts_workbench.py} is not a substitute for \code{duckdb_workbench.py}.
+\item \code{rgb_visual_fits_export.py} creates traceable visual containers, not calibrated data.
+\item \code{capability_probe_matrix.py} is a maintenance tool, not a normal user action.
+\end{itemize}
+
+\section{Historical installed-v1.7 validation}
+Maintained regressions recorded in the original guide:
+\begin{lstlisting}[style=promptstyle]
+python scripts/audit_v1_7_real_world_classification_regression.py
+python scripts/audit_v1_7_phase1_real_world_intake_regression.py
+python scripts/audit_v1_7_phase2_measurement_noise_qa_regression.py
+python scripts/audit_v1_7_phase3_astro_transfer_patterns_regression.py
+python scripts/audit_v1_7_phase4_professional_personal_packages_regression.py
+\end{lstlisting}
+Documentation and smoke gates:
+\begin{lstlisting}[style=promptstyle]
+python scripts/sync_public_surface_docs.py --check
+python scripts/portable_smoke_test.py --profile core
+\end{lstlisting}
+
+\section{Changes relative to v1.6}
+\begin{itemize}[leftmargin=1.5em]
+\item v1.6 hardened the public surface and completed the technical audit of 59 capabilities.
+\item v1.7 explains who each capability serves and when to avoid it.
+\item v1.7 expands professional and personal examples while retaining academic rigor.
+\item Domain-specific and legacy boundaries remain; the skill does not become a generic business suite.
+\item v1.7 adds real-package playbooks for tables, documents, notebooks, containers, time series, and sensors.
+\end{itemize}
+
+\section{Recorded release conclusion}
+v1.7 clarifies how to choose a useful entry point, transfer patterns where
+appropriate, preserve scientific contracts, and block cleanly when a route
+does not apply. The skill remains scientific and technical while explaining
+its practical role in coursework, professional projects, and personal tasks.
+\end{document}

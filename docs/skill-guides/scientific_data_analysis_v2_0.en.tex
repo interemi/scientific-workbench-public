@@ -1,0 +1,305 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{tocloft}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{listings}
+\usepackage{titlesec}
+\geometry{margin=2.15cm}
+\setlength{\headheight}{14pt}
+\setlength{\emergencystretch}{3em}
+\setlist{itemsep=3pt,parsep=1pt,topsep=4pt}
+\setlength{\parskip}{4pt plus 1pt}
+\definecolor{titleblue}{HTML}{123B5D}
+\definecolor{softblue}{HTML}{EDF5FB}
+\definecolor{softgray}{HTML}{F5F7FA}
+\definecolor{accent}{HTML}{0F6E8C}
+\hypersetup{
+  colorlinks=true,linkcolor=titleblue,urlcolor=accent,
+  pdftitle={Scientific Data Analysis v2.0: English publication edition},
+  pdfauthor={interemi},
+  pdfsubject={Integrated skill and Scientific Workbench release}
+}
+\titleformat{\section}{\Large\bfseries\color{titleblue}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection.}{0.6em}{}
+\setlength{\cftsecnumwidth}{2.8em}
+\tocloftpagestyle{fancy}
+\lstdefinestyle{promptstyle}{
+  basicstyle=\ttfamily\small,backgroundcolor=\color{softgray},
+  frame=single,rulecolor=\color{softblue},breaklines=true,columns=fullflexible
+}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Scientific Data Analysis}
+\fancyhead[R]{v2.0 guide: English edition}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+
+\begin{document}
+\pagenumbering{gobble}
+\begin{titlepage}
+\centering
+\vspace*{1.0cm}
+{\Huge\bfseries\color{titleblue} Integrated Guide\\[0.15cm]
+Scientific Data Analysis v2.0\par}
+\vspace{0.65cm}
+{\Large Skill backend and Scientific Workbench\par}
+\vspace{0.8cm}
+{\large Local-first product: contracts, guided workflows, run bundles,
+artifacts, jobs, previews, support, and dual validation\par}
+\vspace{0.8cm}
+{\large English publication edition: September 23, 2026\par}
+\vspace{0.5cm}
+\begin{minipage}{0.93\textwidth}
+\small\raggedright
+Translation of the preserved private v2.0 guide at commit \code{b9f6176}.
+Original TeX SHA-256:
+\nolinkurl{c154c0c20a8083a8e1ac8e315d6f2211f496a594a783200b1d78061db7a90701}.
+Private source:
+\nolinkurl{skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v2_0.tex}.
+
+Recorded results and closure steps are historical, not current verification.
+The original release declares installation complete only after Phase 11
+post-synchronization validation of the installed skill and app. Historical commands are retained for
+traceability: use fresh output directories when reproducing them, without
+overwriting earlier evidence. The original remains unchanged privately.
+\end{minipage}
+\vfill
+{\large Prepared with Codex\par}
+{\large Copyright 2026 interemi\par}
+\end{titlepage}
+
+\clearpage
+\pagenumbering{roman}
+\fancyfoot[C]{\thepage}
+\begin{abstract}
+\code{scientific-data-analysis} v2.0 is the first release designed as an
+integrated product with Scientific Workbench. The skill remains the
+deterministic engine for scripts, JSON contracts, run bundles, artifacts,
+warnings, errors, provenance, and original preservation. Scientific Workbench
+is the macOS app for planning, guidance, execution, jobs, previews, support
+bundles, and confirmation controls.
+
+Scientific execution remains local-first, with read-only originals or copied
+inputs. The original guide presents Ollama as the local AI route without a
+paid API, with OpenAI, Grok/xAI, and Gemini as optional cloud providers. The
+Codex bridge supports extended reasoning, code, and reporting; it does not
+replace deterministic capability execution.
+\end{abstract}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+
+\section{Executive overview}
+v2.0 brings together two previously separate pieces:
+\begin{itemize}[leftmargin=1.5em]
+\item \code{scientific-data-analysis}, with 59 public capabilities and app-readiness contracts.
+\item Scientific Workbench, a native macOS app for attaching data, reviewing plans, running workflows, and opening results.
+\end{itemize}
+The app supports planning and operation. Verifiable operational evidence lives
+in jobs, summaries, manifests, artifacts, logs, and run bundles; the release
+does not promise automatic scientific truth or mandatory cloud execution.
+
+\section{The skill}
+The deterministic backend:
+\begin{itemize}[leftmargin=1.5em]
+\item Registers public capabilities.
+\item Inspects and processes data, documents, FITS, notebooks, tables, and packages.
+\item Emits \code{summary.json}, \code{manifest.json}, stdout, stderr, and typed artifacts.
+\item Declares \code{PASS}, \code{WARNING}, \code{BLOCKED_CONTROLADO}, \code{FAIL}, or audit status \code{ROTO}.
+\item Preserves originals through copies or separate outputs.
+\item Blocks cleanly for absent optional backends or unsafe inputs.
+\end{itemize}
+
+\section{Scientific Workbench}
+The product interface:
+\begin{itemize}[leftmargin=1.5em]
+\item Loads the installed skill registry.
+\item Accepts file or folder attachments.
+\item Uses the local planner, skill router, or AI to propose workflows.
+\item Executes capabilities in traceable runs.
+\item Shows jobs, progress, cancellation, retry, resume, and support bundles.
+\item Discovers PNG, PDF, CSV/TSV, Markdown, notebook, JSON, and log previews.
+\item Provides guided controls for column selection, optional panels, and visual confirmation.
+\end{itemize}
+
+\section{Integration responsibilities}
+\begin{longtable}{p{0.25\linewidth}p{0.63\linewidth}}
+\toprule
+\textbf{Layer} & \textbf{Responsibility} \\
+\midrule
+Skill & Reproducible scripts, envelopes, run bundles, artifacts, and provenance. \\
+Scientific Workbench & UI, planning, command review, processes, artifact indexing, and job recovery. \\
+Local/cloud AI & Explanation, planning, and assistance; not the sole scientific source of truth. \\
+Codex bridge & Extended reasoning, code, reporting, and filesystem tasks under explicit control. \\
+\bottomrule
+\end{longtable}
+
+\section{v2.0 JSON contract}
+The app accepts legacy, v1.8/v1.9, and v2.0 payloads. Main v2.0 fields:
+\begin{longtable}{p{0.30\linewidth}p{0.58\linewidth}}
+\toprule
+\textbf{Field} & \textbf{Use} \\
+\midrule
+\code{contract_version} & \code{2.0} for new envelopes; earlier compatibility remains. \\
+\code{status} / \code{app_status} & Normalized job/UI state. \\
+\code{command} & Redacted command with argv, cwd, and provenance. \\
+\code{inputs} / \code{outputs} & Declared inputs and outputs. \\
+\code{typed_artifacts} & Primary artifact list for Results. \\
+\code{warnings} / \code{errors} & Human-readable and parseable messages. \\
+\code{next_actions} & Useful continuation actions. \\
+\code{original_modified} & \code{false}, \code{true}, or explained \code{unknown}. \\
+\code{app_hints} & Short summary, severity, suggested previews, and tags. \\
+\code{job_metadata} & Retry, cancellation, exposure, and estimates. \\
+\code{safety} & Read-only/copy policy, secret redaction, and confirmations. \\
+\bottomrule
+\end{longtable}
+
+\section{Artifact types}
+Scientific Workbench recognizes frozen v1.8/v1.9 types and v2.0 additions:
+\begin{lstlisting}[style=promptstyle]
+summary_json, manifest_json, report_md, preview_png, table_csv,
+notebook_ipynb, log_txt, qa_report, handoff_bundle, unknown,
+fits_product, fits_visual, metadata_json, preview_pdf,
+edited_document, app_preview
+\end{lstlisting}
+Use \code{unknown} when an artifact cannot be typed accurately. Do not invent
+an ambiguous type to make the output appear more complete.
+
+\section{Run bundles}
+The preferred format remains:
+\begin{lstlisting}[style=promptstyle]
+run/
+  manifest.json
+  summary.json
+  stdout.txt
+  stderr.txt
+  command.txt
+  artifacts/
+  previews/
+  reports/
+  tables/
+  logs/
+  next_steps.md
+\end{lstlisting}
+The app can discover recursively but should prefer \code{typed_artifacts} and
+\code{manifest.json} when present.
+
+\section{Local-first, optional cloud, and Codex bridge}
+\subsection{Local-first}
+The original guide recommends local Ollama: no paid API key is required,
+prompts/context remain on the local machine, and it supports planning,
+failure explanation, and result summaries.
+
+\subsection{Optional cloud}
+The guide lists OpenAI, Grok/xAI, and Gemini as optional providers for reasoning
+or writing. They can incur costs, require user keys, and do not execute
+capabilities themselves. Provider errors must be classified without leaking
+secrets. These are historical provider descriptions, not a current availability
+or pricing verification.
+
+\subsection{Codex bridge}
+Codex supports code, reports, refactors, and workspace reasoning. It does not
+replace the deterministic backend. Workflows must retain verifiable commands,
+outputs, artifacts, and logs.
+
+\section{Safety}
+The v2.0 integration requires:
+\begin{itemize}[leftmargin=1.5em]
+\item Read-only original inputs, with edits confined to copies or separate outputs.
+\item No API keys or secrets in logs, summaries, support bundles, or exportable prompts.
+\item Job records containing commands, statuses, warnings, errors, and next actions.
+\item Preflight and confirmation for optional/GUI backends, with clean blocking when prerequisites are absent.
+\item A release block for timeout, raw traceback, secret leakage, false success, or original modification.
+\end{itemize}
+
+\section{Workflows recorded in Phase 8}
+\begin{longtable}{p{0.27\linewidth}p{0.23\linewidth}p{0.38\linewidth}}
+\toprule
+\textbf{Family} & \textbf{Status} & \textbf{Interpretation} \\
+\midrule
+Professional table & \code{PASS} & Parseable run bundle with artifacts. \\
+Administrative document & \code{WARNING} & Useful intake with explicit limitations. \\
+Inherited notebook & Controlled block & Stops interactive input or side effects before execution. \\
+Corrupt container & \code{WARNING} & Recovers available content without false success. \\
+Time series & \code{WARNING} & Visible date ambiguity. \\
+Sensor/measurement & \code{WARNING} & Visible suspicious ranges. \\
+FITS/RGB & \code{WARNING} & Successful RGB case; incomplete WCS warns. \\
+Absent optional backend & Controlled block & Clean block with next actions. \\
+DOCX roundtrip & \code{PASS} & Edits a confirmed copy, not the original. \\
+Keynote/GUI & \code{PASS} & Preflight and confirmed export of a copy. \\
+\bottomrule
+\end{longtable}
+Controlled block denotes the original machine status \code{BLOCKED_CONTROLADO}.
+
+\section{Limits}
+\begin{itemize}[leftmargin=1.5em]
+\item STILTS/TOPCAT, APT, Keynote, TEAREDUCE, IRAF, and iSTARMOD remain optional, expert, or legacy backends.
+\item Li I 6707.8 and SB2 tools are specialized, not general-purpose.
+\item GUI workflows need explicit confirmation and copied inputs.
+\item Cloud AI does not guarantee scientific accuracy.
+\item v2.0 is installed only after Phase 11 synchronizes the skill and validates the installed skill with Scientific Workbench.
+\end{itemize}
+
+\section{Historical verification commands}
+The original workspace-specific paths are shown through aliases:
+\code{$PRIVATE_WORKSPACE} is the original editable workspace;
+\code{$DATANALYSIS_PYTHON} is its explicitly selected scientific interpreter.
+The external dual-gate script belongs to that workspace and is not supplied by
+this source publication. These are historical reproduction steps, not the
+current public installation procedure.
+
+Main dual gate:
+\begin{lstlisting}[style=promptstyle]
+cd "$PRIVATE_WORKSPACE"
+./run_v2_0_dual_gate.sh
+\end{lstlisting}
+Skill check:
+\begin{lstlisting}[style=promptstyle]
+cd "$PRIVATE_WORKSPACE/skill_work/scientific-data-analysis"
+"$DATANALYSIS_PYTHON" scripts/sync_public_surface_docs.py --check
+\end{lstlisting}
+App check:
+\begin{lstlisting}[style=promptstyle]
+cd "$PRIVATE_WORKSPACE/ScientificWorkbench"
+SKIP_UI_SMOKE=1 RUN_DOCUS_BENCHMARK=0 ./script/run_quality_gate.sh
+\end{lstlisting}
+
+\section{Troubleshooting}
+\begin{longtable}{p{0.27\linewidth}p{0.61\linewidth}}
+\toprule
+\textbf{Symptom} & \textbf{Next step} \\
+\midrule
+Absent optional backend & Accept \code{BLOCKED_CONTROLADO}; inspect preflight and \code{next_actions}. \\
+Output conflict & Use a fresh temporary folder or change \code{--outdir}. \\
+Notebook with \code{input()} & Execute a copy with declared values or block before execution. \\
+Missing preview & Inspect \code{manifest.json}, \code{typed_artifacts}, and \code{previews/}. \\
+Cloud provider failure & Fall back to Ollama/local or the skill router; do not leak keys in logs. \\
+Ambiguous result & Retain \code{WARNING} and explain the limit instead of silently reporting success. \\
+\bottomrule
+\end{longtable}
+
+\section{Synchronization}
+Final synchronization belongs to Phase 11. Pre-sync gates must pass before
+copying the editable skill to the installed location. After copying, repeat
+checks on the installed skill and test Scientific Workbench against it.
+
+Do not declare v2.0 installed when post-sync validation fails.
+
+\section{Historical decision}
+Phase 8 prepared the editable tree for joint documentation. Phase 9 produced
+this guide. Phase 10 validated the dual release candidate. Phase 11 installs
+the skill only if post-sync validation of the installed skill and Scientific
+Workbench passes without FAIL or ROTO.
+\end{document}

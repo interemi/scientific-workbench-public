@@ -1,0 +1,366 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{tocloft}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{listings}
+\usepackage{titlesec}
+\geometry{margin=2.15cm}
+\setlength{\headheight}{14pt}
+\setlength{\emergencystretch}{3em}
+\setlist{itemsep=3pt,parsep=1pt,topsep=4pt}
+\definecolor{titleblue}{HTML}{123B5D}
+\definecolor{softblue}{HTML}{EDF5FB}
+\definecolor{softgray}{HTML}{F5F7FA}
+\definecolor{accent}{HTML}{0F6E8C}
+\hypersetup{
+  colorlinks=true,linkcolor=titleblue,urlcolor=accent,
+  pdftitle={Scientific Data Analysis v1.8: English publication edition},
+  pdfauthor={interemi},
+  pdfsubject={Backend contracts for app integration}
+}
+\titleformat{\section}{\Large\bfseries\color{titleblue}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection.}{0.6em}{}
+\setlength{\cftsecnumwidth}{2.8em}
+\tocloftpagestyle{fancy}
+\lstdefinestyle{promptstyle}{
+  basicstyle=\ttfamily\small,backgroundcolor=\color{softgray},
+  frame=single,rulecolor=\color{softblue},breaklines=true,columns=fullflexible
+}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Scientific Data Analysis}
+\fancyhead[R]{v1.8 guide: English edition}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+
+\begin{document}
+\pagenumbering{gobble}
+\begin{titlepage}
+\centering
+\vspace*{1.0cm}
+{\Huge\bfseries\color{titleblue} Integration Guide\\[0.15cm]
+Scientific Data Analysis v1.8\par}
+\vspace{0.65cm}
+{\Large Backend contracts for app integration\par}
+\vspace{0.8cm}
+{\large App invocation, run bundles, dry-run routing, and explicit limits\par}
+\vspace{0.8cm}
+{\large English publication edition: September 23, 2026\par}
+\vspace{0.5cm}
+\begin{minipage}{0.93\textwidth}
+\small\raggedright
+Translation of the preserved private v1.8 guide at commit \code{994eaea}.
+Original TeX SHA-256:
+\nolinkurl{41c5839931276961b04a6377cd247591fcf30940f120361b9b95a9b8583efdcf}.
+Private source:
+\nolinkurl{skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v1_8.tex}.
+
+This guide records historical backend preparation, not current verification
+or installed-family promotion. Its v1.8 scope does not modify or synchronize
+Scientific Workbench. Historical commands are illustrative: use fresh output
+directories when reproducing them without overwriting earlier evidence.
+The example task prompt is translated into English; script names, options,
+and contract identifiers are preserved. The original remains unchanged privately.
+\end{minipage}
+\vfill
+{\large Prepared with Codex\par}
+{\large Copyright 2026 interemi\par}
+\end{titlepage}
+
+\clearpage
+\pagenumbering{roman}
+\begin{abstract}
+\code{scientific-data-analysis} v1.8 is a contract release. It prepares the
+editable skill as a more predictable backend for Scientific Workbench,
+without claiming that the app is already synchronized to v2.0. The backend
+comes first: parseable JSON, artifact types, run bundles, dry-run routing,
+an app-readiness matrix, app-like regressions, and explicit separation of
+normal, expert, optional, legacy, maintainer, and unexposed modes.
+
+v1.7 asked whether the skill was useful in real settings. v1.8 asks whether
+an app can invoke it predictably, read the result, present artifacts, and
+explain the next step while preserving original inputs.
+\end{abstract}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+
+\section{Executive overview}
+v1.8 prepares the skill as a Scientific Workbench backend. It does not develop
+or synchronize the app, move it to v2.0, or promise that the app already
+consumes every new field. The backend changes are:
+\begin{itemize}[leftmargin=1.5em]
+\item A v1.8 JSON contract for app-ready outputs.
+\item An initial artifact type taxonomy.
+\item A stable run bundle format.
+\item An app-readiness matrix for all 59 public capabilities.
+\item A deterministic dry-run router.
+\item App-like regressions for general, scientific, astronomy, optional, and legacy routes.
+\item Integration guidance that reserves major app synchronization for v2.0.
+\end{itemize}
+\textbf{Product intent:} each capability should state whether it applies,
+warns, blocks, or fails cleanly, which artifacts it produced, and what a
+person should do next. v1.8 does not make every capability general-purpose.
+
+\section{From v1.7 to v1.8}
+\begin{longtable}{p{0.25\linewidth}p{0.64\linewidth}}
+\toprule
+\textbf{Area} & \textbf{v1.8 change} \\
+\midrule
+Contract & A JSON envelope with \code{contract_version}, \code{app_status}, \code{typed_artifacts}, \code{original_modified}, \code{warnings}, \code{errors}, \code{next_actions}, and \code{app_hints}. \\
+App-readiness & All 59 capabilities are classified as \code{app_ready}, \code{app_ready_partial}, \code{cli_only}, \code{blocked_optional}, \code{maintainer_only}, or \code{not_applicable_to_app}. \\
+Run bundles & A stable run folder with \code{summary.json}, \code{manifest.json}, logs, artifacts, previews, reports, tables, and \code{next_steps.md}. \\
+Router & \code{scientific_workflow_router.py} is a conservative dry-run planner. It recommends or rejects routes without executing destructive actions. \\
+App-like regressions & General, scientific, astronomy, optional, and legacy families and bundles are exercised as a local app would invoke them. \\
+Integration & Guidance explains how Scientific Workbench can use the contracts later, without claiming v2.0 integration. \\
+\bottomrule
+\end{longtable}
+
+\section{What remains unchanged}
+\begin{itemize}[leftmargin=1.5em]
+\item The installed skill remains at its applicable stable version until final synchronization.
+\item Scientific Workbench is not edited in this phase.
+\item Domain-specific capabilities retain their domain limits.
+\item Optional routes do not become core dependencies.
+\item Legacy routes are not ordinary user actions.
+\item Original user inputs remain read-only by default.
+\item v1.8 builds on the real-world foundation of v1.7.
+\end{itemize}
+
+\section{The v1.8 JSON contract}
+Primary reference: \path{references/v1-8-app-ready-contract.md}.
+
+Minimum fields expected in app-ready output:
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.36\linewidth}p{0.53\linewidth}}
+\toprule
+\textbf{Field} & \textbf{Use} \\
+\midrule
+\code{contract_version} & \code{1.8} for an app-ready envelope. \\
+\code{tool} & Stable script or route name, retained for compatibility. \\
+\code{capability_id} / \code{capability_label} & Registry identity where applicable. \\
+\code{status} / \code{app_status} & Canonical or normalized status. \\
+\code{command} & \code{argv}, \code{cwd}, and redaction. Must never expose secrets. \\
+\code{inputs} & Inspected paths or copies used. \\
+\code{outputs} & Expected run products. \\
+\code{artifacts} / \code{typed_artifacts} & Typed artifacts for the UI. \\
+\code{warnings} & Useful risks that do not invalidate the entire result. \\
+\code{errors} & Clean failures or blocks, without raw tracebacks. \\
+\code{qa} & Quality findings and metrics. \\
+\code{provenance} & Original-input policy, environment, and source. \\
+\code{next_actions} & A person's next step. \\
+\code{original_modified} & \code{false} for normal routes. \\
+\code{app_hints} & Short summary, visual severity, tags, and suggested previews. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Canonical statuses}
+\begin{longtable}{p{0.29\linewidth}p{0.60\linewidth}}
+\toprule
+\textbf{Status} & \textbf{Meaning} \\
+\midrule
+\code{PASS} & The run finished and its result is usable. \\
+\code{WARNING} & Useful output requires human review. \\
+\code{BLOCKED_CONTROLADO} & A backend, input, platform, or safety condition prevents execution; the block is clean and actionable. \\
+\code{FAIL} & Clean failure without products that appear valid. \\
+\code{ROTO} & Audit classification for raw tracebacks, false success, misleading artifacts, or changed originals. It should not be a public tool's normal status. \\
+\bottomrule
+\end{longtable}
+
+\section{Artifact types}
+Initial taxonomy:
+\begin{longtable}{p{0.29\linewidth}p{0.60\linewidth}}
+\toprule
+\textbf{Artifact type} & \textbf{Meaning} \\
+\midrule
+\code{summary_json} & App-parseable summary. \\
+\code{manifest_json} & Provenance: inputs, outputs, command, and environment. \\
+\code{report_md} & Human-readable Markdown report. \\
+\code{preview_png} & Static visual preview. \\
+\code{table_csv} & Derived table. \\
+\code{notebook_ipynb} & Generated, inspected, or copy-executed notebook. \\
+\code{log_txt} & stdout, stderr, command log, or transcript. \\
+\code{qa_report} & Dedicated QA report. \\
+\code{handoff_bundle} & Folder or package for continuation or delivery. \\
+\code{unknown} & Existing artifact without a more specific type. \\
+\bottomrule
+\end{longtable}
+
+\section{Run bundles}
+Reference: \path{references/v1-8-run-bundle-contract.md}.
+Target layout:
+\begin{lstlisting}[style=promptstyle]
+run/
+  manifest.json
+  summary.json
+  stdout.txt
+  stderr.txt
+  command.txt
+  artifacts/
+  previews/
+  reports/
+  tables/
+  logs/
+  next_steps.md
+\end{lstlisting}
+This contract lets Scientific Workbench discover results without fragile
+heuristics; it does not require rewriting every script in v1.8. Priority
+general routes already have focused bundle or wrapper coverage. Scientific
+and legacy routes can migrate gradually.
+
+\section{Dry-run router}
+References: \path{references/v1-8-workflow-router.md} and
+\path{scripts/scientific_workflow_router.py}.
+\begin{longtable}{p{0.20\linewidth}p{0.69\linewidth}}
+\toprule
+\textbf{Mode} & \textbf{Use} \\
+\midrule
+\code{inspect} & Inventories the input and proposes candidate routes. \\
+\code{plan} & Returns dry-run steps and suggested commands without executing them. \\
+\code{explain} & Explains why a capability applies, does not apply, or is unknown. \\
+\bottomrule
+\end{longtable}
+Example:
+\begin{lstlisting}[style=promptstyle]
+python scripts/scientific_workflow_router.py plan input.csv \
+  --task "profile an anonymized professional table" \
+  --summary-json run/router_summary.json \
+  --manifest-json run/router_manifest.json
+\end{lstlisting}
+The router does not run downstream tools or modify inputs. It should reject
+astronomy or legacy routes for general input.
+
+\newpage
+\section{Capability app-readiness}
+Reference: \path{references/v1-8-app-readiness-matrix.md}.
+Recorded v1.8 counts:
+\begin{longtable}{p{0.34\linewidth}r p{0.44\linewidth}}
+\toprule
+\textbf{Class} & \textbf{Total} & \textbf{Use} \\
+\midrule
+\code{app_ready} & 17 & App invocation with sufficiently clear output. \\
+\code{app_ready_partial} & 18 & Useful, but needs a wrapper, typing, documentation, or UX work. \\
+\code{blocked_optional} & 7 & Optional backend or platform: preflight panel, not an ordinary action. \\
+\code{cli_only} & 9 & Valid CLI route, but narrow or expert-oriented for a normal app flow. \\
+\code{maintainer_only} & 6 & Release, registry, smoke, or maintenance only. \\
+\code{not_applicable_to_app} & 2 & Unexposed unless a clear expert context applies. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Recommended exposure}
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{Normal}: tables, documents, containers, mixed folders, time series, physical QA, and noise budgets.
+\item \textbf{Expert}: FITS, WCS, astrometry, sky crossmatching, RGB/FITS, RV, photometric calibration, spectroscopy, and advanced presentations.
+\item \textbf{Optional panel}: STILTS/TOPCAT, APT, DuckDB, iWork, Keynote, and TEAREDUCE.
+\item \textbf{Legacy expert}: IRAF, fxcor, iSTARMOD, and narrow coursework routes.
+\item \textbf{Maintainer}: smoke, synchronization, registry, capability probes, and gates.
+\end{itemize}
+
+\section{Testing a capability as an app would}
+Minimum pattern:
+\begin{enumerate}[leftmargin=1.5em]
+\item Copy or synthesize input in a fresh \code{tmp/} run.
+\item Use the dry-run router when the case is ambiguous.
+\item Run the capability with \code{--summary-json} and, where available, \code{--manifest-json} or \code{--run-dir}.
+\item Verify that \code{summary.json} parses.
+\item Check \code{contract_version}, \code{app_status}, \code{typed_artifacts}, \code{original_modified=false}, \code{warnings}, \code{errors}, and \code{next_actions}.
+\item Confirm that the original input has not changed.
+\item Classify output as \code{PASS}, \code{WARNING}, \code{BLOCKED_CONTROLADO}, \code{FAIL}, or audit \code{ROTO}.
+\end{enumerate}
+Examples:
+\begin{lstlisting}[style=promptstyle]
+python scripts/profile_table.py input.csv --run-dir tmp/run
+python scripts/audit_v1_8_phase6_app_like_general_regression.py
+\end{lstlisting}
+For scientific routes:
+\begin{lstlisting}[style=promptstyle]
+python scripts/audit_v1_8_phase7_app_like_science_astro_regression.py
+\end{lstlisting}
+
+\section{Optional, legacy, and domain-specific routes}
+\subsection{Optional}
+Optional means that an external backend or platform is required, not that
+the route is broken. It must not become a core dependency. STILTS, APT,
+DuckDB, iWork, Keynote, and TEAREDUCE need preflight and a clear block when
+they do not apply.
+\subsection{Legacy}
+IRAF, fxcor, and iSTARMOD are real but narrow tools. They should not be the
+first normal-mode app action. Expert mode may block them or guide the user
+toward a safe copy.
+\subsection{Domain-specific}
+Not every pattern transfers. \code{li6708_equivalent_width_workbench.py measure}
+targets a particular spectral line, not general measurement.
+\code{catalog_workbench.py crossmatch-sky} transfers tolerance-based matching
+but remains sky-only.
+
+\section{Scientific Workbench}
+Reference: \path{references/v1-8-scientificworkbench-integration.md}.
+Compatibility interpretation:
+\begin{itemize}[leftmargin=1.5em]
+\item Scientific Workbench invokes local capabilities.
+\item AI can plan and explain; local capabilities execute.
+\item The app already uses run folders, summaries, manifests, and artifact discovery.
+\item v1.8 strengthens the backend to make this integration less fragile.
+\end{itemize}
+\textbf{v1.8 prepares the skill; v2.0 will synchronize the app.}
+This historical guide does not claim that Scientific Workbench consumes
+the entire v1.8 contract.
+
+\section{v1.8 regressions}
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.55\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}}
+\toprule
+\textbf{Gate} & \textbf{Coverage} \\
+\midrule
+\path{audit_v1_8_app_ready_contract_regression.py} & JSON contract, examples, and legacy compatibility. \\
+\path{audit_v1_8_app_readiness_matrix_regression.py} & 59 rows, counts, and Top 10 P1 priorities. \\
+\path{audit_v1_8_phase4_run_bundles_regression.py} & Run bundles and artifact types. \\
+\path{audit_v1_8_phase5_router_regression.py} & Dry-run routing on six inputs. \\
+\path{audit_v1_8_phase6_app_like_general_regression.py} & Tables, documents, notebooks, ZIP, time series, sensors, and a personal folder. \\
+\path{audit_v1_8_phase7_app_like_science_astro_regression.py} & Science, astronomy, optional, and legacy routes. \\
+\path{audit_v1_8_phase8_docs_regression.py} & Guide, references, PDF, and key terms. \\
+\bottomrule
+\end{longtable}
+
+\section{Work reserved for v1.9}
+The historical plan for v1.9 is consolidation:
+\begin{itemize}[leftmargin=1.5em]
+\item Reduce P2 wrapper and artifact-typing debt.
+\item Stabilize envelope names and fields.
+\item Extend \code{--run-dir} to more priority routes.
+\item Strengthen regressions while retaining the same principles.
+\item Decide how to handle editable/installed differences before final synchronization.
+\item Prepare a stable matrix for app integration.
+\end{itemize}
+
+\section{Work reserved for v2.0}
+The historical v2.0 scope can be larger:
+\begin{itemize}[leftmargin=1.5em]
+\item Synchronize Scientific Workbench with the mature skill backend.
+\item Consume \code{typed_artifacts}, \code{app_hints}, and \code{next_actions}.
+\item Use dry-run routing as a deterministic planning fallback.
+\item Separate normal, expert, optional, legacy, and maintainer modes in the UI.
+\item Align app run folders with the run bundle contract.
+\item Keep provenance, logs, manifests, and the read-only policy visible to users.
+\end{itemize}
+
+\section{Historical Phase 8 checklist}
+\begin{itemize}[leftmargin=1.5em]
+\item v1.8 references present.
+\item TeX guide and compiled PDF available.
+\item PDF text extracted and validated.
+\item No public-surface drift under \code{sync_public_surface_docs.py --check}.
+\item Scientific Workbench not edited.
+\item Installed skill not synchronized.
+\end{itemize}
+\end{document}

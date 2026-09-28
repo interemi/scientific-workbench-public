@@ -1,0 +1,17 @@
+{
+  "archived": true,
+  "canonical_fixture": "fixtures/archived_references/v2-3-module-ownership-matrix.json",
+  "counts_by_owner": {
+    "astro": 73,
+    "documents": 24,
+    "maintainer": 331,
+    "mother": 73,
+    "notebooks": 22,
+    "shared": 23
+  },
+  "public_capability_count": 61,
+  "reason": "The full v2.3 ownership matrix is maintainer-only structured regression input. v2.5 stores it under fixtures so normal skill budget does not count the full historical matrix as deferred context.",
+  "row_count": 546,
+  "schema_version": "1.0-stub",
+  "wrapper_required_count": 134
+}

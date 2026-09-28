@@ -1,0 +1,75 @@
+{
+  "agent_mode": "workflow",
+  "agent_plan": {
+    "created_at": "<timestamp>",
+    "estimate": {
+      "caution": null,
+      "cost_note": "Local planning and local execution; no cloud API cost.",
+      "enabled_step_count": 3,
+      "max_seconds": 295,
+      "min_seconds": 37,
+      "runtime_text": "Estimated runtime: 37s-5min"
+    },
+    "id": "<uuid>",
+    "rationale": "Planned by scientific_workflow_router.py from the configured skill.\nRouter statuses: PASS.\nApp-readiness: app_ready.\nDry-run solamente: no se ejecutaron capabilities recomendadas. El router no modifica originales ni crea outputs derivados salvo summary/manifest solicitados. Usar copias temporales para ejecutar cualquier capability posterior.",
+    "source": "skillRouter",
+    "steps": [
+      {
+        "capability_id": "datanalysis_env.status",
+        "id": "<uuid>",
+        "is_enabled": true,
+        "raw_arguments": "",
+        "summary": "Check the skill execution environment before running the planned workflow.",
+        "uses_inputs": false,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "profile_table",
+        "id": "<uuid>",
+        "is_enabled": true,
+        "raw_arguments": "",
+        "summary": "Entrada tabular: perfila columnas, tipos, nulos y riesgos sin modificar el original.",
+        "uses_inputs": true,
+        "uses_previous_output": false
+      },
+      {
+        "capability_id": "cross_domain_data_workbench",
+        "id": "<uuid>",
+        "is_enabled": true,
+        "raw_arguments": "",
+        "summary": "Buen segundo paso si la tabla pertenece a un paquete o necesita informe de handoff.",
+        "uses_inputs": true,
+        "uses_previous_output": false
+      }
+    ],
+    "title": "Skill router workflow plan"
+  },
+  "ai_base_url": "http://localhost:11434",
+  "ai_model": "qwen3:4b-instruct",
+  "ai_provider": "ollama",
+  "auto_run": false,
+  "generated_at": "<timestamp>",
+  "input_paths": [
+    "<TMP_ROOT>/fixtures/csv/table.csv"
+  ],
+  "jobs": [],
+  "messages": [
+    {
+      "created_at": "<timestamp>",
+      "role": "assistant",
+      "text": "Tell me what you want to do, attach files or folders if useful, and I will decide whether to answer, plan a workflow, or suggest Codex for explicit coding-agent work. Outputs stay away from your originals unless you explicitly choose otherwise."
+    },
+    {
+      "created_at": "<timestamp>",
+      "role": "user",
+      "text": "Analyze this CSV table file safely and summarize the useful columns."
+    },
+    {
+      "created_at": "<timestamp>",
+      "role": "assistant",
+      "text": "I drafted a skill router workflow plan below.\nReview it, then run it when ready."
+    }
+  ],
+  "output_root": "<TMP_ROOT>/output/csv-profile",
+  "status": "Planned 3 steps using Skill router."
+}

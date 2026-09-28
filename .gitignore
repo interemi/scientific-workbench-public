@@ -1,0 +1,23 @@
+.build/
+dist/
+tmp/
+.codex/
+.DS_Store
+*.xcuserstate
+*.swp
+
+# Local credentials and signing material
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Environments and transient scientific runtime outputs
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo

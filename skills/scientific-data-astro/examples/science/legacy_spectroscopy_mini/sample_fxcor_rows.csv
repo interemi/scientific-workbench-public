@@ -1,0 +1,3 @@
+case_id,case_label,mode,object_name,image_name,template_image,template_vhelio_kms,aperture,shift_pix,height,fwhm_kms,fwhm_pix,tdr,vrel_kms,verr_kms,veldisp_kms_per_pix,txtonly_path
+mini_single_rv,Mini estrella simple,single_rv,mini_obj,mini_multispec.fits,mini_template.fits,-12.5,1,-8.120,0.62,37.50,10.00,12.40,-30.100,1.500,3.75,examples/science/legacy_spectroscopy_mini/sample_fxcor_rows.csv
+mini_single_rv,Mini estrella simple,single_rv,mini_obj,mini_multispec.fits,mini_template.fits,-12.5,2,-8.310,0.58,35.80,9.55,10.80,-30.820,1.900,3.75,examples/science/legacy_spectroscopy_mini/sample_fxcor_rows.csv

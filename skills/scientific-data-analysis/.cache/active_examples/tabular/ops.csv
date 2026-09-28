@@ -1,0 +1,4 @@
+team,tasks_open,tasks_closed,owner
+alpha,5,12,ops
+beta,2,9,qa
+gamma,4,7,coordination

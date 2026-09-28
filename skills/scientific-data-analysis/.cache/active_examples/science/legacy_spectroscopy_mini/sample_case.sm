@@ -1,0 +1,34 @@
+######################### INPUT FILE FOR fstarmod #############################
+# Ejemplo minimo y sintético para pruebas de skill.
+
+IM_PATH  =  ./p_est_frias/VIS/
+OBJ_NAME =  mini_multispec.fits
+
+SYN_SPEC = YES
+   SYN_NAME = syn_mini_ha.fits
+   SUB_NAME = sub_mini_ha.fits
+
+N_ITER = 3
+PIX_ZONE = 6510 6610   wvl
+PIX_EXCL = 6560 6565   wvl
+
+REF_PATH = ./p_est_frias/VIS/
+PRM_NAME = mini_template.fits
+PRM_RAD  = -12.5 var
+PRM_ROT  = 15.0 var
+PRM_WGT  = 1.0 fix
+
+SEC_NAME = NONE
+SEC_RAD  =
+SEC_ROT  =
+SEC_WGT  =
+
+TER_NAME = NONE
+TER_RAD  =
+TER_ROT  =
+TER_WGT  =
+
+MODE= ech
+APERTURE= 1
+LINE= v25_Halpha
+################################# FIN #########################################

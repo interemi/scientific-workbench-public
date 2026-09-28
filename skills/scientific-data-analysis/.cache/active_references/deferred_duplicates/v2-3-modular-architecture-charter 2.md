@@ -1,0 +1,1 @@
+../../../references/v2-3-modular-architecture-charter.md

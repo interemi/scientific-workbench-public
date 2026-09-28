@@ -1,0 +1,3 @@
+SELECT *
+FROM source0
+LIMIT 5;

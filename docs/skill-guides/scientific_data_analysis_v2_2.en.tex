@@ -1,0 +1,218 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{tocloft}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{listings}
+\usepackage{titlesec}
+\geometry{margin=2.15cm}
+\setlength{\headheight}{14pt}
+\setlength{\emergencystretch}{3em}
+\setlist{itemsep=3pt,parsep=1pt,topsep=4pt}
+\definecolor{titleblue}{HTML}{123B5D}
+\definecolor{softblue}{HTML}{EDF5FB}
+\definecolor{softgray}{HTML}{F5F7FA}
+\definecolor{accent}{HTML}{0F6E8C}
+\hypersetup{
+  colorlinks=true,linkcolor=titleblue,urlcolor=accent,
+  pdftitle={Scientific Data Analysis v2.2: English publication edition},
+  pdfauthor={interemi},
+  pdfsubject={Plugin-eval evaluation hardening}
+}
+\titleformat{\section}{\Large\bfseries\color{titleblue}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection.}{0.6em}{}
+\setlength{\cftsecnumwidth}{2.8em}
+\tocloftpagestyle{fancy}
+\lstdefinestyle{promptstyle}{
+  basicstyle=\ttfamily\small,backgroundcolor=\color{softgray},
+  frame=single,rulecolor=\color{softblue},breaklines=true,columns=fullflexible
+}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Scientific Data Analysis}
+\fancyhead[R]{v2.2 guide: English edition}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+
+\begin{document}
+\pagenumbering{gobble}
+\begin{titlepage}
+\centering
+\vspace*{1.0cm}
+{\Huge\bfseries\color{titleblue} Evaluation Hardening Guide\\[0.15cm]
+Scientific Data Analysis v2.2\par}
+\vspace{0.65cm}
+{\Large A compact, assessable backend compatible with Scientific Workbench\par}
+\vspace{0.8cm}
+{\large Maintenance: a clean active bundle, historical routing stub,
+regression wrappers, and post-sync plugin-eval\par}
+\vspace{0.8cm}
+{\large English publication edition: September 23, 2026\par}
+\vspace{0.5cm}
+\begin{minipage}{0.93\textwidth}
+\small\raggedright
+Translation of the preserved private v2.2 guide at commit \code{83dd0a5}.
+Original TeX SHA-256:
+\nolinkurl{9f9dd5ab069c07b65ba905586de2937caf4f13d024f1c80eec58afe3fde62a95}.
+Private source:
+\nolinkurl{skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v2_2.tex}.
+
+Recorded results and closure steps are historical, not current verification.
+This release guide does not synchronize or modify Scientific Workbench;
+the app remains outside its scope. Historical commands are retained for
+traceability: use fresh output directories when reproducing them, without
+overwriting earlier evidence. The original remains unchanged privately.
+\end{minipage}
+\vfill
+{\large Prepared with Codex\par}
+{\large Copyright 2026 interemi\par}
+\end{titlepage}
+
+\clearpage
+\pagenumbering{roman}
+\fancyfoot[C]{\thepage}
+\begin{abstract}
+\code{scientific-data-analysis} v2.2 hardens evaluation on top of the v2.1
+compact router and integrated v2.0 baseline. Its purpose remains reproducible,
+non-destructive, traceable scientific and technical workflows. Packaging and
+evaluator visibility change: temporary files, caches, and substantial historical
+routing are excluded from the active bundle; representative regressions become
+more visible to generic tools; and the guide advances to v2.2.
+
+The skill remains the deterministic local backend, with Scientific Workbench
+as the compatible app. v2.2 neither edits nor synchronizes the app.
+\end{abstract}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+
+\section{Executive overview}
+v2.2 adds no capability. It makes the installed skill easier to assess,
+maintain, and load. The recorded release work:
+\begin{itemize}[leftmargin=1.5em]
+\item Keeps \code{SKILL.md} as a compact router.
+\item Preserves the registry, JSON contracts, run bundles, artifact types, and public scripts.
+\item Removes \code{tmp/}, \code{__pycache__/}, and historical outputs from the active bundle.
+\item Replaces long v2.1 routing with a compatible stub.
+\item Replaces internal \code{README.md} documents counted by plugin-eval as scattered documentation.
+\item Archives historical notes without live references in \code{fixtures/archived_references/}.
+\item Extends \code{unittest} wrappers for routes and app-facing failures.
+\item Prepares a realistic, non-destructive \code{plugin-eval} benchmark.
+\item Reruns \code{plugin-eval analyze} before and after synchronization.
+\end{itemize}
+
+This is v2.2, not v2.3 or v3.0. It changes neither scientific behavior nor the
+app, and makes no claim of unverified capabilities. The historical cleanup
+described here is not an instruction to delete preserved evidence today.
+
+\section{From v2.1 to v2.2}
+\begin{longtable}{p{0.20\linewidth}p{0.68\linewidth}}
+\toprule
+\textbf{Area} & \textbf{v2.2 change} \\
+\midrule
+Active bundle & Temporary files, caches, and audit residue stay outside the installed skill. \\
+Historical routing & \code{references/v2-1-expanded-skill-routing.md} becomes a lightweight stub. \\
+Internal documents & Non-primary \code{README.md} files become \code{README.txt}. \\
+Historical archive & Notes not linked from live routes move to \code{fixtures/archived_references/}. \\
+Visible regressions & \code{tests/test_audit_regression_wrappers.py} covers audits, public surface, general routes, FITS, and clean failures. \\
+Plugin-eval & Records a baseline, measures deferred cost, and reassesses after synchronization. \\
+Guide & Adds \code{guia_scientific_data_analysis_v2_2.tex} and \code{.pdf}. \\
+\bottomrule
+\end{longtable}
+
+\section{What remains unchanged}
+\begin{itemize}[leftmargin=1.5em]
+\item No capability renaming or changes to \code{public_surface_registry.yaml}.
+\item No changes to frozen artifact types or scientific script contracts.
+\item Optional backends do not become core dependencies.
+\item Scientific Workbench is neither edited nor synchronized.
+\end{itemize}
+
+\section{Evaluation rules}
+Evaluate the installed skill with plugin-eval. These historical command
+templates use a placeholder for the evaluator location; resolve that location
+before use. The original account-specific home path is replaced with
+\code{$HOME}.
+\begin{lstlisting}[style=promptstyle]
+node .../plugin-eval.js analyze "$HOME/.codex/skills/scientific-data-analysis" --format markdown
+node .../plugin-eval.js explain-budget "$HOME/.codex/skills/scientific-data-analysis" --format markdown
+\end{lstlisting}
+
+Interpret the measurements accurately:
+\begin{itemize}[leftmargin=1.5em]
+\item \code{trigger_cost_tokens}: cost of activating the skill.
+\item \code{invoke_cost_tokens}: cost of reading initial instructions.
+\item \code{deferred_cost_tokens}: bundled material that should not always be loaded.
+\item Python warnings are real technical debt, but do not all justify a large refactor during a packaging release.
+\end{itemize}
+
+\section{Historical v2.2 closure criteria}
+\begin{longtable}{p{0.48\linewidth}p{0.40\linewidth}}
+\toprule
+\textbf{Gate} & \textbf{Criterion} \\
+\midrule
+\code{py_compile} & Changed scripts and wrappers compile. \\
+\code{sync_public_surface_docs.py --check} & Registry and snapshot remain consistent. \\
+\code{skill_surface_audit.py} & Public surface remains valid. \\
+\code{unittest wrappers} & Representative regressions pass. \\
+\code{portable_smoke_test.py --profile core} & Core smoke passes or blocks in a controlled, justified way. \\
+\code{plugin-eval analyze} & Score improves or remaining warnings are documented. \\
+\code{benchmark.json} & Concrete scenarios are ready; execution may be manual if cost/time is unreasonable. \\
+\code{post-sync} & Installed validation matches editable validation. \\
+\bottomrule
+\end{longtable}
+
+\section{Archive policy}
+The original guide records preservation outside the skill root at the following
+historical location, shown with a portable alias:
+\begin{lstlisting}[style=promptstyle]
+$PRIVATE_WORKSPACE/skill_archives/scientific-data-analysis-v2_2-evaluation-hardening-20260617_100731
+\end{lstlisting}
+\code{$PRIVATE_WORKSPACE} identifies the original private editable workspace.
+This archive supports recovery and traceability; it is not a public contract.
+Do not restore the entire archive into the installed skill.
+
+\section{Normal usage after v2.2}
+End-user usage remains unchanged:
+\begin{itemize}[leftmargin=1.5em]
+\item General tables: \code{profile_table.py}, \code{cross_domain_data_workbench.py}.
+\item Document intake: \code{document_intake_workbench.py}.
+\item Astronomy/FITS: \code{inspect_fits.py}, \code{fits_rgb_batch.py}, \code{photometry_noise_budget.py}.
+\item Notebooks: \code{notebook_workbench.py}.
+\item App-readiness: JSON envelopes, run bundles, and artifact types remain valid.
+\end{itemize}
+
+\section{Accepted debt}
+The original release accepts warnings that do not justify a large v2.2 refactor:
+\begin{itemize}[leftmargin=1.5em]
+\item Some substantial scientific scripts still have high complexity.
+\item Some long lines originate in contracts, tables, or app-facing messages.
+\item Deep deduplication belongs to an architecture phase rather than an evaluation release.
+\end{itemize}
+Do not break correct scientific behavior merely to improve an automated rating.
+
+\section{Recommended commands}
+\begin{lstlisting}[style=promptstyle]
+python3 -m py_compile scripts/*.py scripts/_internal/*.py tests/test_audit_regression_wrappers.py
+python3 scripts/sync_public_surface_docs.py --check
+python3 scripts/skill_surface_audit.py --skip-hygiene
+python3 -m unittest tests.test_audit_regression_wrappers
+python3 scripts/portable_smoke_test.py --profile core
+\end{lstlisting}
+
+\section{Conclusion}
+v2.2 improves evaluation and maintenance while preserving the central purpose:
+reproducible local-first analysis, original preservation, traceable outputs,
+and compatibility with Scientific Workbench.
+\end{document}

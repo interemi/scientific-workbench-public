@@ -1,0 +1,678 @@
+entries:
+  - id: datanalysis_env.status
+    label: datanalysis_env.py status
+    script: scripts/datanalysis_env.py
+    visible_block: core / routing
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Locate the right interpreter and report the active datanalysis wrapper status.
+  - id: datanalysis_healthcheck
+    label: datanalysis_healthcheck.py
+    script: scripts/datanalysis_healthcheck.py
+    visible_block: core / routing
+    kind: golden_path
+    support_level: stable
+    platform: datanalysis
+    requires_datanalysis: true
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Check whether the dedicated datanalysis environment is ready for heavy astronomy and notebook work.
+  - id: env_doctor
+    label: env_doctor.py
+    script: scripts/env_doctor.py
+    visible_block: core / routing
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: core
+    short_description: Summarize machine readiness, interpreter choice, and optional backend availability.
+  - id: companion_route_check
+    label: companion_route_check.py
+    script: scripts/companion_route_check.py
+    visible_block: core / routing
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Recommend installed local companion skills/plugins for narrow handoff steps without invoking connectors.
+  - id: external_astro_tools_preflight
+    label: external_astro_tools_preflight.py
+    script: scripts/external_astro_tools_preflight.py
+    visible_block: core / routing
+    kind: supporting_tool
+    support_level: optional
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Check optional Java, STILTS/TOPCAT, and APT batch readiness without making them core dependencies.
+    allowed_environment_keys: JAVA_COMMAND, STILTS_COMMAND, STILTS_JAR, TOPCAT_COMMAND, TOPCAT_JAR, APT_COMMAND, APT_PREFERENCES
+  - id: external_astro_tools_local_validation
+    label: external_astro_tools_local_validation.py
+    script: scripts/external_astro_tools_local_validation.py
+    visible_block: core / routing
+    kind: maintainer_only
+    support_level: optional
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Maintainer validation for locally installed STILTS/TOPCAT and APT backends using tiny synthetic fixtures.
+
+  - id: inspect_fits
+    label: inspect_fits.py
+    script: scripts/inspect_fits.py
+    visible_block: astronomy observational
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: core
+    short_description: First-pass FITS inspection with HDU, header, WCS, quicklook, and simple-image fallback.
+  - id: fits_rgb_batch
+    label: fits_rgb_batch.py
+    script: scripts/fits_rgb_batch.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: true
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Build derived RGB or pseudo-RGB products from grouped FITS images with WCS-aware alignment, manifests, and QA.
+  - id: rgb_visual_fits_export
+    label: rgb_visual_fits_export.py
+    script: scripts/rgb_visual_fits_export.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: true
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Export a rendered RGB PNG to display-only FITS with RGB_CUBE, channel extensions, manifest, and before/after comparison.
+  - id: stilts_workbench
+    label: stilts_workbench.py
+    script: scripts/stilts_workbench.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: optional
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Run reproducible STILTS conversions, filters, sky crossmatches, and VOTable validation when STILTS/TOPCAT is installed.
+    allowed_environment_keys: JAVA_COMMAND, STILTS_COMMAND, STILTS_JAR, TOPCAT_COMMAND, TOPCAT_JAR
+  - id: astrometry_net_workbench.preflight
+    label: astrometry_net_workbench.py preflight
+    script: scripts/astrometry_net_workbench.py
+    visible_block: astronomy observational
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: true
+    preflight_mode: explicit
+    smoke_tier: full
+    short_description: Infer Astrometry.net hints and check whether a local or web solve path is plausible.
+  - id: astrometry_net_workbench.verify-existing-wcs
+    label: astrometry_net_workbench.py verify-existing-wcs
+    script: scripts/astrometry_net_workbench.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: true
+    preflight_mode: explicit
+    smoke_tier: full
+    short_description: Verify an existing celestial WCS and emit a small QA bundle without re-solving.
+  - id: radial_velocity_workbench.inspect
+    label: radial_velocity_workbench.py inspect
+    script: scripts/radial_velocity_workbench.py
+    visible_block: astronomy observational
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: core
+    short_description: Inspect Systemic-style radial-velocity inputs before manual fitting and reporting.
+  - id: radial_velocity_workbench.validate-manifest
+    label: radial_velocity_workbench.py validate-manifest
+    script: scripts/radial_velocity_workbench.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Validate a manual Systemic session manifest before building a report.
+  - id: legacy_spectroscopy_envcheck
+    label: legacy_spectroscopy_envcheck.py
+    script: scripts/legacy_spectroscopy_envcheck.py
+    visible_block: astronomy observational
+    kind: golden_path
+    support_level: narrow
+    platform: macos
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Check whether a macOS IRAF or iSTARMOD coursework environment is ready and safely routable.
+  - id: echelle_multispec_inventory
+    label: echelle_multispec_inventory.py
+    script: scripts/echelle_multispec_inventory.py
+    visible_block: astronomy observational
+    kind: golden_path
+    support_level: narrow
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: core
+    short_description: Inventory MULTISPE and related echelle FITS products order by order.
+  - id: fxcor_iraf_workbench.prepare-session
+    label: fxcor_iraf_workbench.py prepare-session
+    script: scripts/fxcor_iraf_workbench.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: narrow
+    platform: macos
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Create a safe ASCII-friendly coursework workspace before IRAF fxcor runs.
+  - id: fxcor_iraf_workbench.run-auto
+    label: fxcor_iraf_workbench.py run-auto
+    script: scripts/fxcor_iraf_workbench.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: narrow
+    platform: macos
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Run reproducible automatic fxcor batches for single-RV, SB2, or vsini passes.
+  - id: legacy_rv_coursework_workbench.analyze
+    label: legacy_rv_coursework_workbench.py analyze
+    script: scripts/legacy_rv_coursework_workbench.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: narrow
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Consolidate per-order coursework RV and vsini results into filtered tables and summaries.
+  - id: sb2_double_gaussian_workbench.fit
+    label: sb2_double_gaussian_workbench.py fit
+    script: scripts/sb2_double_gaussian_workbench.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: narrow
+    platform: portable
+    requires_datanalysis: true
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Fit double-gaussian SB2 peaks order by order when the automatic lane is too weak.
+  - id: li6708_equivalent_width_workbench.measure
+    label: li6708_equivalent_width_workbench.py measure
+    script: scripts/li6708_equivalent_width_workbench.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: true
+    preflight_mode: none
+    smoke_tier: core
+    short_description: Measure Li I 6707.8 equivalent width or nearby narrow lines from ASCII or FITS spectra.
+  - id: legacy_external_reference_check
+    label: legacy_external_reference_check.py
+    script: scripts/legacy_external_reference_check.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: narrow
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Compare narrow coursework outputs against fixed literature references for PW And and GZ Leo.
+  - id: istarmod_workbench.inspect-tree
+    label: istarmod_workbench.py inspect-tree
+    script: scripts/istarmod_workbench.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: narrow
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Inspect iSTARMOD trees before copying, cleaning, or running them.
+  - id: istarmod_workbench.prepare-copy
+    label: istarmod_workbench.py prepare-copy
+    script: scripts/istarmod_workbench.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: narrow
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Build a clean, non-destructive iSTARMOD copy that leaves broken venvs and stale outputs behind.
+  - id: legacy_spectroscopy_report_builder.scaffold
+    label: legacy_spectroscopy_report_builder.py scaffold
+    script: scripts/legacy_spectroscopy_report_builder.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: narrow
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Scaffold a Spanish coursework report tailored to the legacy spectroscopy route.
+  - id: legacy_spectroscopy_report_builder.populate
+    label: legacy_spectroscopy_report_builder.py populate
+    script: scripts/legacy_spectroscopy_report_builder.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: narrow
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Populate a Spanish legacy spectroscopy report scaffold from generated workflow summaries.
+  - id: photometric_solution
+    label: photometric_solution.py
+    script: scripts/photometric_solution.py
+    visible_block: astronomy observational
+    kind: golden_path
+    support_level: stable
+    platform: datanalysis
+    requires_datanalysis: true
+    preflight_mode: none
+    smoke_tier: core
+    short_description: Fit a first-order photometric calibration from standard-star measurements.
+  - id: photometry_noise_budget
+    label: photometry_noise_budget.py
+    script: scripts/photometry_noise_budget.py
+    visible_block: astronomy observational
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: core
+    short_description: Estimate a practical imaging or aperture-photometry noise budget and SNR.
+  - id: apt_workbench
+    label: apt_workbench.py
+    script: scripts/apt_workbench.py
+    visible_block: astronomy observational
+    kind: supporting_tool
+    support_level: optional
+    platform: portable
+    requires_datanalysis: true
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Bridge APT batch mode safely through source lists, saved preferences, logs, manifests, and parsed output tables.
+  - id: teareduce_router
+    label: teareduce_router.py
+    script: scripts/teareduce_router.py
+    visible_block: astronomy observational
+    kind: golden_path
+    support_level: optional
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Decide when TEAREDUCE is the right backend and when the native stack should stay in charge.
+
+  - id: document_intake_workbench
+    label: document_intake_workbench.py
+    script: scripts/document_intake_workbench.py
+    visible_block: documents + reporting
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: inline
+    smoke_tier: core
+    short_description: Inspect mixed document bundles and produce a safe intake summary without editing originals.
+  - id: presentation_workbench.inspect
+    label: presentation_workbench.py inspect
+    script: scripts/presentation_workbench.py
+    visible_block: documents + reporting
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: inline
+    smoke_tier: full
+    short_description: Inspect copied presentation decks, slide text/image balance, visual style, handoff readiness, and editability risks.
+  - id: presentation_workbench.existing-deck-style-audit
+    label: presentation_workbench.py existing-deck-style-audit
+    script: scripts/presentation_workbench.py
+    visible_block: documents + reporting
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: inline
+    smoke_tier: full
+    short_description: Audit an existing deck, derive title/figure/caption geometry, emit visual QA, and persist scientific figure provenance.
+  - id: iwork_workbench
+    label: iwork_workbench.py
+    script: scripts/iwork_workbench.py
+    visible_block: documents + reporting
+    kind: supporting_tool
+    support_level: optional
+    platform: macos
+    requires_datanalysis: false
+    preflight_mode: inline
+    smoke_tier: none
+    short_description: Deep-inspect iWork bundles and export previews or reports without touching originals.
+  - id: office_roundtrip.docx-style-inventory
+    label: office_roundtrip.py docx-style-inventory
+    script: scripts/office_roundtrip.py
+    visible_block: documents + reporting
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: List explicitly styled DOCX runs for Pages-exported marked-fragment edits.
+  - id: office_roundtrip.docx-styled-replace
+    label: office_roundtrip.py docx-styled-replace
+    script: scripts/office_roundtrip.py
+    visible_block: documents + reporting
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Replace text only inside matching styled DOCX runs and verify readback on the edited copy.
+  - id: quicklook_bridge
+    label: quicklook_bridge.py
+    script: scripts/quicklook_bridge.py
+    visible_block: documents + reporting
+    kind: supporting_tool
+    support_level: platform_bound
+    platform: macos
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: full
+    short_description: Generate native Quick Look previews with early capability reporting and safe fallbacks.
+  - id: keynote_export
+    label: keynote_export.py
+    script: scripts/keynote_export.py
+    visible_block: documents + reporting
+    kind: supporting_tool
+    support_level: platform_bound
+    platform: macos
+    requires_datanalysis: false
+    preflight_mode: explicit
+    smoke_tier: none
+    short_description: Export a copied deck to PDF through Keynote when the GUI path is the only faithful option.
+  - id: latex_workbench.scaffold
+    label: latex_workbench.py scaffold
+    script: scripts/latex_workbench.py
+    visible_block: documents + reporting
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: full
+    short_description: Scaffold a LaTeX project for reports, notes, and academic submissions.
+  - id: latex_workbench.review
+    label: latex_workbench.py review
+    script: scripts/latex_workbench.py
+    visible_block: documents + reporting
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: full
+    short_description: Review LaTeX structure, portability, and likely build issues before compile time.
+  - id: latex_workbench.compile
+    label: latex_workbench.py compile
+    script: scripts/latex_workbench.py
+    visible_block: documents + reporting
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: full
+    short_description: Compile a LaTeX project in a copied work directory and emit build artifacts.
+  - id: scientific_writeup_review
+    label: scientific_writeup_review.py
+    script: scripts/scientific_writeup_review.py
+    visible_block: documents + reporting
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: core
+    short_description: Critique the scientific write-up itself for methodology, interpretation, limitations, and tone.
+  - id: deliverable_factory.scaffold
+    label: deliverable_factory.py scaffold
+    script: scripts/deliverable_factory.py
+    visible_block: documents + reporting
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: core
+    short_description: Scaffold reusable non-destructive deliverables such as status reports and handoff packs.
+  - id: semantic_diff
+    label: semantic_diff.py
+    script: scripts/semantic_diff.py
+    visible_block: documents + reporting
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: core
+    short_description: Compare tables or documents semantically and summarize meaningful differences.
+
+  - id: profile_table
+    label: profile_table.py
+    script: scripts/profile_table.py
+    visible_block: notebooks + cross-domain
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: core
+    short_description: Profile tabular data before cleaning, plotting, or modeling.
+  - id: duckdb_workbench
+    label: duckdb_workbench.py
+    script: scripts/duckdb_workbench.py
+    visible_block: notebooks + cross-domain
+    kind: supporting_tool
+    support_level: optional
+    platform: portable
+    requires_datanalysis: true
+    preflight_mode: inline
+    smoke_tier: none
+    short_description: Query mixed tables with DuckDB while keeping the temporary source naming explicit.
+  - id: cross_domain_data_workbench
+    label: cross_domain_data_workbench.py
+    script: scripts/cross_domain_data_workbench.py
+    visible_block: notebooks + cross-domain
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: inline
+    smoke_tier: core
+    short_description: Inventory mixed non-astro data, run a first SQL pass, and build a lightweight report bundle.
+  - id: bootstrap_analysis_notebook
+    label: bootstrap_analysis_notebook.py
+    script: scripts/bootstrap_analysis_notebook.py
+    visible_block: notebooks + cross-domain
+    kind: golden_path
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: core
+    short_description: Scaffold a starter analysis notebook with domain-aware metadata and cells.
+  - id: notebook_workbench.execute-copy
+    label: notebook_workbench.py execute-copy
+    script: scripts/notebook_workbench.py
+    visible_block: notebooks + cross-domain
+    kind: golden_path
+    support_level: stable
+    platform: datanalysis
+    requires_datanalysis: true
+    preflight_mode: explicit
+    smoke_tier: full
+    short_description: Execute a notebook copy safely and keep the original notebook untouched.
+  - id: coursework_notebook_fidelity_check
+    label: coursework_notebook_fidelity_check.py
+    script: scripts/coursework_notebook_fidelity_check.py
+    visible_block: notebooks + cross-domain
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Check professor-provided coursework notebooks for fidelity, answer-cell, input, sidecar, and Plotly portability risks.
+  - id: notebook_branch_compare
+    label: notebook_branch_compare.py
+    script: scripts/notebook_branch_compare.py
+    visible_block: notebooks + cross-domain
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Compare group coursework notebook/product branches and surface missing or duplicate outputs.
+  - id: spectra_ascii_coursework_workbench
+    label: spectra_ascii_coursework_workbench.py
+    script: scripts/spectra_ascii_coursework_workbench.py
+    visible_block: notebooks + cross-domain
+    kind: golden_path
+    support_level: stable
+    platform: datanalysis
+    requires_datanalysis: true
+    preflight_mode: inline
+    smoke_tier: full
+    short_description: Bridge reduced ASCII spectra, existing notebooks, and coursework reporting in one bundle.
+  - id: timeseries_forecasting_workbench
+    label: timeseries_forecasting_workbench.py
+    script: scripts/timeseries_forecasting_workbench.py
+    visible_block: notebooks + cross-domain
+    kind: golden_path
+    support_level: stable
+    platform: datanalysis
+    requires_datanalysis: true
+    preflight_mode: inline
+    smoke_tier: none
+    short_description: Build reproducible forecasting notebooks and side products from regular time series.
+  - id: inspect_data_container
+    label: inspect_data_container.py
+    script: scripts/inspect_data_container.py
+    visible_block: notebooks + cross-domain
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: core
+    short_description: Inspect scientific containers and archives before deeper extraction or conversion.
+  - id: catalog_workbench.crossmatch-sky
+    label: catalog_workbench.py crossmatch-sky
+    script: scripts/catalog_workbench.py
+    visible_block: notebooks + cross-domain
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: true
+    preflight_mode: none
+    smoke_tier: core
+    short_description: Perform a compact TopCat-like sky cross-match with shared tabular readers.
+  - id: physical_qa
+    label: physical_qa.py
+    script: scripts/physical_qa.py
+    visible_block: notebooks + cross-domain
+    kind: supporting_tool
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Run robust light sanity checks over FITS headers/data, spectra, and scientific tables.
+
+  - id: capability_probe_matrix
+    label: capability_probe_matrix.py
+    script: scripts/capability_probe_matrix.py
+    visible_block: core / routing
+    kind: maintainer_only
+    support_level: stable
+    platform: portable
+    requires_datanalysis: true
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Maintainer probe matrix for public capabilities that intentionally have no direct smoke tier.
+  - id: portable_smoke_test
+    label: portable_smoke_test.py
+    script: scripts/portable_smoke_test.py
+    visible_block: core / routing
+    kind: maintainer_only
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Portable regression smoke for fresh machines and distribution checks.
+  - id: validate_skill_samples
+    label: validate_skill_samples.py
+    script: scripts/validate_skill_samples.py
+    visible_block: core / routing
+    kind: maintainer_only
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Maintainer sample validation with quick and deep profiles for regression and release checks.
+  - id: sync_public_surface_docs
+    label: sync_public_surface_docs.py
+    script: scripts/sync_public_surface_docs.py
+    visible_block: core / routing
+    kind: maintainer_only
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Regenerate or check registry-derived public-surface snapshots in the user-facing docs.
+  - id: skill_surface_audit
+    label: skill_surface_audit.py
+    script: scripts/skill_surface_audit.py
+    visible_block: core / routing
+    kind: maintainer_only
+    support_level: stable
+    platform: portable
+    requires_datanalysis: false
+    preflight_mode: none
+    smoke_tier: none
+    short_description: Maintainer audit for registry, generated snapshots, script references, and hygiene drift.

@@ -1,0 +1,3 @@
+canonical_registry: .cache/archived_references/public_surface_registry.yaml
+release: v2.8
+purpose: Compact registry stub; the canonical 61-row public surface registry is preserved in .cache/archived_references for runtime and release gates.

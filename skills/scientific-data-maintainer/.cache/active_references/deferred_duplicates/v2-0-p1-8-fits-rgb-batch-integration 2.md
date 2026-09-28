@@ -1,0 +1,1 @@
+../../../references/v2-0-p1-8-fits-rgb-batch-integration.md

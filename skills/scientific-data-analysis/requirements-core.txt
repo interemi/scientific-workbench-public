@@ -1,0 +1,17 @@
+# Stable v1 core stack for the scientific-data-analysis skill.
+# This set is the portable base and should be enough for the core workflows.
+# Install this first when you want the minimum reliable setup.
+
+numpy
+scipy
+pandas
+matplotlib
+astropy
+pypdf
+python-docx
+python-pptx
+openpyxl
+PyYAML
+xarray
+h5py
+requests

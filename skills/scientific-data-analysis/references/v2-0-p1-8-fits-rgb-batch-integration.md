@@ -1,0 +1,1 @@
+../.cache/active_references/deferred_docs/v2-0-p1-8-fits-rgb-batch-integration.md

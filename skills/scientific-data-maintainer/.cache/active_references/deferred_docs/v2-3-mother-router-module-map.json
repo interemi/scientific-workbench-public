@@ -1,0 +1,24 @@
+{
+  "archived": true,
+  "canonical_fixture": ".cache/archived_references/v2-3-mother-router-module-map.json",
+  "schema_version": "1.0",
+  "release": "v2.3",
+  "purpose": "Compact v2.5 budget stub for the maintainer copy of the mother-router delegation map.",
+  "public_capability_count": 61,
+  "routing_states": {
+    "direct": "Mother skill keeps and invokes the historical command directly.",
+    "delegated": "Mother skill should route to a child skill while keeping the historical wrapper path until migration is complete.",
+    "multi_module_plan": "Mother skill should compose a plan involving shared contract/helper behavior across modules.",
+    "blocked_optional": "Route is optional/backend-bound; app/router must preflight and block cleanly when unavailable.",
+    "maintainer_only": "Route is for release or maintenance workflows and must not appear as a normal user action."
+  },
+  "child_skills": {
+    "mother": "scientific-data-analysis",
+    "astro": "scientific-data-astro",
+    "documents": "scientific-data-documents",
+    "notebooks": "scientific-data-notebooks",
+    "maintainer": "scientific-data-maintainer",
+    "shared": "scientific-data-analysis"
+  },
+  "reason": "The full module map is runtime/test data. v2.5 stores the full body in .cache/archived_references so plugin-eval deferred budget stays lower while canonical-regression readers still load the full JSON."
+}

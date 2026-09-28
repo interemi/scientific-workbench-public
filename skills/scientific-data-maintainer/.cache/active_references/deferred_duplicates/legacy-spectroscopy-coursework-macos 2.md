@@ -1,0 +1,1 @@
+../../../references/legacy-spectroscopy-coursework-macos.md

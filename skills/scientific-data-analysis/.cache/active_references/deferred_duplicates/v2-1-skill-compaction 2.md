@@ -1,0 +1,1 @@
+../../../references/v2-1-skill-compaction.md

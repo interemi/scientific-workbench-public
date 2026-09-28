@@ -1,0 +1,23 @@
+# Public source exclusions
+#
+# Add only reviewed repository-relative paths. A trailing slash excludes a
+# complete directory. Each exclusion must have a documented reason in
+# docs/PUBLIC_SOURCE_HANDOFF.md before the final export.
+#
+# The private repository remains the preservation record. English publication
+# editions retain source hashes and dated evidence for these originals.
+docs/M102_GUIDED_COVERAGE.md
+docs/M103_PERSISTENCE_EVOLUTION.md
+docs/PUBLIC_PREPARATION_2026-09-14.md
+docs/PUBLIC_FULL_VALIDATION_2026-09-15.md
+docs/PUBLIC_FULL_LOCK_2026-09-15.md
+docs/PUBLIC_PRIVACY_REVIEW_2026-09-14.md
+docs/PUBLIC_SECURITY_REVIEW_2026-09-16.md
+docs/PUBLIC_DEPENDENCY_REVIEW_2026-09-15.md
+docs/ASSET_AND_FIXTURE_PROVENANCE.md
+M101_CHECKPOINT_2026-09-13.md
+docs/PRIVATE_CHECKPOINT_2026-09-14.md
+docs/UPLOAD_PRIVATE.md
+Guides/ScientificWorkbench_Guia.tex
+Guides/ScientificWorkbench_Guia.pdf
+distribution/private-code-path-map.json

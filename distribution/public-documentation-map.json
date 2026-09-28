@@ -1,0 +1,250 @@
+{
+  "replacements": [
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_8.en.tex",
+      "edition_sha256": "758f165536b929401100410663aef449301cce311bac53957bb4f2694791543d",
+      "path": "skills/scientific-data-analysis/.cache/active_references/guides/guia_scientific_data_analysis_v2_8.tex",
+      "reason": "English publication edition of the preserved v2.8 guide; retains dated claims without asserting current installed-family promotion.",
+      "source_sha256": "1ce624029567acb477df6c286dfcb9e7876c338f238cfd38a3878fffe7847cdc"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_8.en.pdf",
+      "edition_sha256": "07ca3e72030dc47209e839e2929c9a64f0614cfa98567380c6264f155dc0d1b7",
+      "path": "skills/scientific-data-analysis/.cache/active_references/guides/guia_scientific_data_analysis_v2_8.pdf",
+      "reason": "English publication edition of the preserved v2.8 guide; retains dated claims without asserting current installed-family promotion.",
+      "source_sha256": "3506fa3576b2f6f2b4eebd7ce4f4036d58fd420988ff12f3b493a25ab1b737bf"
+    },
+    {
+      "edition": "docs/skill-records/legacy-spectroscopy-README.en.txt",
+      "edition_sha256": "348f619b5312726652fd89b7248b4f650cb1e8e2f28581e45b88fd35b2b91111",
+      "path": "skills/scientific-data-analysis/.cache/active_examples/science/legacy_spectroscopy_mini/README.txt",
+      "reason": "English publication edition of the synthetic spectroscopy example README; fixture data and executable behavior remain unchanged.",
+      "source_sha256": "6f362c240fe236faafd38b2cfd7110b0df7dd3ee4e3f99f524ff70b13fe66bff"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_5.en.pdf",
+      "edition_sha256": "1313ce9946e1860029f64999989c94c6c915106c3a85dfd2a99483e633141203",
+      "path": "skills/scientific-data-analysis/.cache/active_references/guides/guia_scientific_data_analysis_v2_5.pdf",
+      "reason": "English publication edition of the preserved v2.5 guide; retains historical commands, results, and limits without asserting current validation.",
+      "source_sha256": "bce6edf03cec7c1c4acb3c61e0b3d6e2c5c8af02b3c82232c31a191968757849"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_5.en.tex",
+      "edition_sha256": "8fce4a03b8710319254eaa99ecf2d656b67e8defe56aa3c06520c2d930dc4baf",
+      "path": "skills/scientific-data-analysis/.cache/active_references/guides/guia_scientific_data_analysis_v2_5.tex",
+      "reason": "English publication edition of the preserved v2.5 guide; retains historical commands, results, and limits without asserting current validation.",
+      "source_sha256": "08040631e64ed58e00e7a472d7f744af6c71f9add402accac15cfdf1c6c684c1"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_6.en.pdf",
+      "edition_sha256": "7b5c7f4e0bc55f84c4c267aa97f089e495fa9386c798f6754b55e6f3e41c1029",
+      "path": "skills/scientific-data-analysis/.cache/active_references/guides/guia_scientific_data_analysis_v2_6.pdf",
+      "reason": "English publication edition of the preserved v2.6 guide; retains historical commands, results, and limits without asserting current validation.",
+      "source_sha256": "9dee9cdc2cef0bd15fefddb8e7dc79ea5d2c5c1f0c2fbc50e0fb3bb54f35260e"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_6.en.tex",
+      "edition_sha256": "dfbfbb68771aac9760920dc5617bbc60032f0a2f0a5578b58a273127dd49f2c3",
+      "path": "skills/scientific-data-analysis/.cache/active_references/guides/guia_scientific_data_analysis_v2_6.tex",
+      "reason": "English publication edition of the preserved v2.6 guide; retains historical commands, results, and limits without asserting current validation.",
+      "source_sha256": "86bf78142300618242b3036d4537e88009ac353d30b96a798d4c2d66a562c131"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_7.en.pdf",
+      "edition_sha256": "abb78b61dfef64918c9934d11ca9af41ac3c4d8d3297c743da525a4be5c94482",
+      "path": "skills/scientific-data-analysis/.cache/active_references/guides/guia_scientific_data_analysis_v2_7.pdf",
+      "reason": "English publication edition of the preserved v2.7 guide; retains historical commands, results, and limits without asserting current validation.",
+      "source_sha256": "7cf7ccb14301cb1a2c6f42b7c59aed5048d51c053b94b6a4182d47f6eeeafb73"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_7.en.tex",
+      "edition_sha256": "ef5091b5b403ef8f784f3edd8272e4d0b3875b505745204e4bc809732831a970",
+      "path": "skills/scientific-data-analysis/.cache/active_references/guides/guia_scientific_data_analysis_v2_7.tex",
+      "reason": "English publication edition of the preserved v2.7 guide; retains historical commands, results, and limits without asserting current validation.",
+      "source_sha256": "9e10ef1a7e63f5e3f3ac6e41a0eb1d6d419f363fd8faf0dbb827ec10aef89c93"
+    },
+    {
+      "edition": "docs/skill-records/output-and-colab-policy.en.md",
+      "edition_sha256": "a840cc1c8af10e98d8936b6f412257c3d80aad9b35016e3a79739010f5708b7d",
+      "path": "skills/scientific-data-analysis/.cache/archived_references/references/output-and-colab-policy.md",
+      "reason": "English publication edition with portable path aliases; preserves historical evidence and original private documents.",
+      "source_sha256": "bcfe6ad49960b0f50ebbba4a06b428e8814d41abe9e7d6e1daf8b40f5918bd83"
+    },
+    {
+      "edition": "docs/skill-records/astro-transferable-patterns.en.md",
+      "edition_sha256": "bba92bfdd2bb58f0a33d802570ea172be531041928345767f3d6a45a71ef1920",
+      "path": "skills/scientific-data-astro/.cache/archived_references/references/astro-transferable-patterns.md",
+      "reason": "English publication edition with portable path aliases; preserves historical evidence and original private documents.",
+      "source_sha256": "1796c6a9ea1e0da30e181bd0d6b389d252f083c8cd5aadd3989a891246fc98ce"
+    },
+    {
+      "edition": "docs/skill-records/scientific-data-astro-real-world-measurement-patterns.en.md",
+      "edition_sha256": "3286371b2c502910f1a30100c30bd0e38adc99b0ece4d04bc97e98e727d088ec",
+      "path": "skills/scientific-data-astro/.cache/archived_references/references/real-world-measurement-patterns.md",
+      "reason": "English publication edition with portable path aliases; preserves historical evidence and original private documents.",
+      "source_sha256": "b155ed9da238d53b737511fa821f6a0e06e227beaf31d88bb0735b3804ca4c6e"
+    },
+    {
+      "edition": "docs/skill-records/legacy-spectroscopy-README.en.txt",
+      "edition_sha256": "348f619b5312726652fd89b7248b4f650cb1e8e2f28581e45b88fd35b2b91111",
+      "path": "skills/scientific-data-astro/examples/science/legacy_spectroscopy_mini/README.txt",
+      "reason": "English publication edition of the synthetic spectroscopy example README; fixture data and executable behavior remain unchanged.",
+      "source_sha256": "6f362c240fe236faafd38b2cfd7110b0df7dd3ee4e3f99f524ff70b13fe66bff"
+    },
+    {
+      "edition": "docs/skill-records/legacy-spectroscopy-README.en.txt",
+      "edition_sha256": "348f619b5312726652fd89b7248b4f650cb1e8e2f28581e45b88fd35b2b91111",
+      "path": "skills/scientific-data-maintainer/.cache/active_examples/science/legacy_spectroscopy_mini/README.txt",
+      "reason": "English publication edition of the synthetic spectroscopy example README; fixture data and executable behavior remain unchanged.",
+      "source_sha256": "6f362c240fe236faafd38b2cfd7110b0df7dd3ee4e3f99f524ff70b13fe66bff"
+    },
+    {
+      "edition": "docs/skill-records/output-and-colab-policy.en.md",
+      "edition_sha256": "a840cc1c8af10e98d8936b6f412257c3d80aad9b35016e3a79739010f5708b7d",
+      "path": "skills/scientific-data-maintainer/.cache/archived_references/references/output-and-colab-policy.md",
+      "reason": "English publication edition with portable path aliases; preserves historical evidence and original private documents.",
+      "source_sha256": "bcfe6ad49960b0f50ebbba4a06b428e8814d41abe9e7d6e1daf8b40f5918bd83"
+    },
+    {
+      "edition": "docs/skill-records/v1-8-app-ready-backend.en.md",
+      "edition_sha256": "0fdda233b0f412a012ef472b43f68cc351a0bc4c3e8df7152bf38381452620af",
+      "path": "skills/scientific-data-maintainer/.cache/archived_references/v1-8-app-ready-backend.md",
+      "reason": "English publication edition with portable path aliases; preserves historical evidence and original private documents.",
+      "source_sha256": "1509971e48fb3e7b51c3fdb3cfab55a21610a5bf4abdef14e65be9863f9d39d4"
+    },
+    {
+      "edition": "docs/skill-records/v2-0-integrated-release-charter.en.md",
+      "edition_sha256": "dc10e9ca53ecca3142bccbd0fc87dd651de406f6704854ad9d05aa12ebac1e86",
+      "path": "skills/scientific-data-maintainer/.cache/archived_references/v2-0-integrated-release-charter.md",
+      "reason": "English publication edition with portable path aliases; preserves historical evidence and original private documents.",
+      "source_sha256": "f2bd0cacb6ad7a783bf383246af3e5da9c8d9de1924eee53d2623a0c7ca2a26e"
+    },
+    {
+      "edition": "docs/skill-records/v2-0-sync-and-validation-plan.en.md",
+      "edition_sha256": "8f438545a0a6636c881a35a1c4da0f39ffcf3b8d0a1a0c03f4684ef0f1b5f57b",
+      "path": "skills/scientific-data-maintainer/fixtures/archived_references/v2-0-sync-and-validation-plan.md",
+      "reason": "English publication edition with portable path aliases; preserves historical evidence and original private documents.",
+      "source_sha256": "5990c5b3ce484dade3230496717fe05b4cdc5a3fff99b4b2d83e10de55d2be57"
+    },
+    {
+      "edition": "docs/skill-records/scientific-data-notebooks-real-world-measurement-patterns.en.md",
+      "edition_sha256": "7b7247fab50234410752777bf570dceb5c3b38a280b0794721d0c7fb4071903b",
+      "path": "skills/scientific-data-notebooks/.cache/archived_references/references/real-world-measurement-patterns.md",
+      "reason": "English publication edition with portable path aliases; preserves historical evidence and original private documents.",
+      "source_sha256": "713c4f27b51fb4596f0ff178a49e4a59b4f55a2dcf67695bb3cc5adc63e7b01c"
+    },
+    {
+      "edition": "docs/skill-records/real-world-package-playbooks.en.md",
+      "edition_sha256": "d78648e35ac5a1f6abd5031fa193599dfc6e5a8ab0d9609decab9fdc771a1725",
+      "path": "skills/scientific-data-notebooks/.cache/archived_references/references/real-world-package-playbooks.md",
+      "reason": "English publication edition with portable path aliases; preserves historical evidence and original private documents.",
+      "source_sha256": "5a81270001d3b94bf2050416165dcc12a8d87d103f08938b0f9d68cba2226a53"
+    },
+    {
+      "edition": "docs/skill-records/real-world-capability-classification-v1-7.en.md",
+      "edition_sha256": "44fbc42f442ba30cedc759bcf455f9ed3146daf1f2678dea2cce9800e069ba4d",
+      "path": "skills/scientific-data-maintainer/.cache/archived_references/real-world-capability-classification-v1-7.md",
+      "reason": "English publication edition of the preserved historical 59-capability matrix; retains row identities, classifications, technical contracts, and deferred decisions.",
+      "source_sha256": "91c03af11b72da582912ea68c7e443ecd68dcb45db62f1c2de0815f306865431"
+    },
+    {
+      "edition": "docs/skill-records/v1-8-app-readiness-matrix.en.md",
+      "edition_sha256": "42389ea9c0c602c12eb0a8a052e04c90cd81c6159761ffc91bcdd76e5efc2cc2",
+      "path": "skills/scientific-data-maintainer/.cache/archived_references/v1-8-app-readiness-matrix.md",
+      "reason": "English publication edition of the preserved historical 59-capability matrix; retains row identities, classifications, technical contracts, and deferred decisions.",
+      "source_sha256": "9afcfc0c13006ca17b6ddeb4270823fdd4402445def5affe030b5436f9793ac5"
+    },
+    {
+      "edition": "docs/skill-records/v1-9-debt-inventory.en.md",
+      "edition_sha256": "e593e8594fd765c4b8e39c9943c95852fa39ee1f266970070a438e1a73ec97f7",
+      "path": "skills/scientific-data-maintainer/.cache/archived_references/v1-9-debt-inventory.md",
+      "reason": "English publication edition of the preserved historical 59-capability matrix; retains row identities, classifications, technical contracts, and deferred decisions.",
+      "source_sha256": "dce2ffc43af2a0065fcf197354b76caca2446612492b509b590f8f1241e455a4"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_1.en.pdf",
+      "edition_sha256": "e67520e5a8cad3700cb06c756912d494c1f9da15daa6f6954e7b2348f18dcfc4",
+      "path": "skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v2_1.pdf",
+      "reason": "English publication edition of the preserved v2.1 guide with portable path aliases; retains historical contracts, verification scope, and original records.",
+      "source_sha256": "db0cb5e29540abbbfb87849106d19be80bc1a72f04435dae3e727ba0a91f633e"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_1.en.tex",
+      "edition_sha256": "78046c50fee175aeb2528d03e55d2a916ab39c764fdbcad6543f05de4a90f635",
+      "path": "skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v2_1.tex",
+      "reason": "English publication edition of the preserved v2.1 guide with portable path aliases; retains historical contracts, verification scope, and original records.",
+      "source_sha256": "62d605394261d9603a680bb93f62d5ecf13a02faa10609bd4d79979f322ab720"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_2.en.pdf",
+      "edition_sha256": "9b42e78c3704fa70b537899667f44a5c69169a8f5a5a65003ae7fff164030b66",
+      "path": "skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v2_2.pdf",
+      "reason": "English publication edition of the preserved v2.2 guide with portable path aliases; retains historical contracts, verification scope, and original records.",
+      "source_sha256": "e59cd6d28101734048ed62b1db97464902b7af9a2712f089b57d0e4a35f7ca15"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_2.en.tex",
+      "edition_sha256": "b05d23398260c844cb26ac17eef1ec2bc196a0d72a0ab4abfef3a045a08ffeae",
+      "path": "skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v2_2.tex",
+      "reason": "English publication edition of the preserved v2.2 guide with portable path aliases; retains historical contracts, verification scope, and original records.",
+      "source_sha256": "9f9dd5ab069c07b65ba905586de2937caf4f13d024f1c80eec58afe3fde62a95"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v1_9.en.pdf",
+      "edition_sha256": "77097bbc06649af5fd9d811cd328de4926a3a64239a6732c2f02a778a96f6b7a",
+      "path": "skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v1_9.pdf",
+      "reason": "English publication edition of the preserved v1.9 guide; retains historical contracts, counts, and deferred scope without asserting current validation.",
+      "source_sha256": "fe31f687e62bb8bcb82cca09526dee4c0e44593c701871203d2a6deda6c26c1d"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v1_9.en.tex",
+      "edition_sha256": "a55b779212ce4f853f55092eceeea4f9e6539e56a8e59f0c7766c08402d289d3",
+      "path": "skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v1_9.tex",
+      "reason": "English publication edition of the preserved v1.9 guide; retains historical contracts, counts, and deferred scope without asserting current validation.",
+      "source_sha256": "37247e3ded372906cdca842b400c81b1264a6ecb343226dac5b50a6be8022ae2"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_0.en.pdf",
+      "edition_sha256": "d8a1277e3b98d7c34a32339c61a774e50b547798e81b05480db6c357f2b98224",
+      "path": "skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v2_0.pdf",
+      "reason": "English publication edition of the preserved v2.0 guide with portable path aliases; retains the historical integrated-release and post-synchronization scope.",
+      "source_sha256": "74dc5803dfe59825c6247f9d5e698cd6ec21301320354d4505b940a658bc2d5b"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v2_0.en.tex",
+      "edition_sha256": "7b3ab233b9d550967641cfa2956a9496b6ea52365248581a09b6e5632edd7f5f",
+      "path": "skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v2_0.tex",
+      "reason": "English publication edition of the preserved v2.0 guide with portable path aliases; retains the historical integrated-release and post-synchronization scope.",
+      "source_sha256": "c154c0c20a8083a8e1ac8e315d6f2211f496a594a783200b1d78061db7a90701"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v1_7.en.pdf",
+      "edition_sha256": "b943fb1cb991dc42cd51d0e936d487671ee71b56b4e2975d464a6cc5eec63e75",
+      "path": "skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v1_7.pdf",
+      "reason": "English publication edition of the preserved v1.7 guide; retains historical capability classifications, contracts, and scope without asserting current validation.",
+      "source_sha256": "508ec0551dbb8f15835fa2a140fe411c8dd950d3321391bb36b6c73f20c2fc8c"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v1_7.en.tex",
+      "edition_sha256": "358a8234b218bd32b48201e1db3f7dfc56de76fc1c3779fe9671280d4a26d04e",
+      "path": "skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v1_7.tex",
+      "reason": "English publication edition of the preserved v1.7 guide; retains historical capability classifications, contracts, and scope without asserting current validation.",
+      "source_sha256": "a863704d5bfa264afee727339a83e752fab569e57e7e1f2c5cfb85af43c303e8"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v1_8.en.pdf",
+      "edition_sha256": "dda95150a9bc6183dbcd2f2c925656e82b9b7ecee7dd844678cad2a0cc76324d",
+      "path": "skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v1_8.pdf",
+      "reason": "English publication edition of the preserved v1.8 guide; retains historical capability classifications, contracts, and scope without asserting current validation.",
+      "source_sha256": "96ddd9bf1a50d51aad3be74ab4811fa4dae6c4f2678a9ccd141836caa9407d01"
+    },
+    {
+      "edition": "docs/skill-guides/scientific_data_analysis_v1_8.en.tex",
+      "edition_sha256": "61ad1c8ad6b0ae877bc7b6b593c17dd34c78c11b1db989e30badcf64b801ea7a",
+      "path": "skills/scientific-data-maintainer/.cache/active_references/guides/guia_scientific_data_analysis_v1_8.tex",
+      "reason": "English publication edition of the preserved v1.8 guide; retains historical capability classifications, contracts, and scope without asserting current validation.",
+      "source_sha256": "41c5839931276961b04a6377cd247591fcf30940f120361b9b95a9b8583efdcf"
+    }
+  ],
+  "schema_version": 1
+}

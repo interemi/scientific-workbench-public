@@ -1,0 +1,232 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{tocloft}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{listings}
+\usepackage{titlesec}
+\geometry{margin=2.15cm}
+\setlength{\headheight}{14pt}
+\setlength{\emergencystretch}{3em}
+\setlist{itemsep=3pt,parsep=1pt,topsep=4pt}
+\definecolor{titleblue}{HTML}{123B5D}
+\definecolor{softblue}{HTML}{EDF5FB}
+\definecolor{softgray}{HTML}{F5F7FA}
+\definecolor{accent}{HTML}{0F6E8C}
+\hypersetup{
+  colorlinks=true,linkcolor=titleblue,urlcolor=accent,
+  pdftitle={Scientific Data Analysis v2.7: English publication edition},
+  pdfauthor={interemi},
+  pdfsubject={Senior integration hardening and preparation for Scientific Workbench synchronization}
+}
+\titleformat{\section}{\Large\bfseries\color{titleblue}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection.}{0.6em}{}
+\setlength{\cftsecnumwidth}{2.8em}
+\tocloftpagestyle{fancy}
+\lstdefinestyle{promptstyle}{
+  basicstyle=\ttfamily\small,backgroundcolor=\color{softgray},
+  frame=single,rulecolor=\color{softblue},breaklines=true,columns=fullflexible
+}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Scientific Data Analysis}
+\fancyhead[R]{v2.7 guide: English edition}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+
+\begin{document}
+\pagenumbering{gobble}
+\begin{titlepage}
+\centering
+\vspace*{1.0cm}
+{\Huge\bfseries\color{titleblue} Senior Integration Hardening\\[0.15cm]
+Scientific Data Analysis v2.7\par}
+\vspace{0.65cm}
+{\Large Mother and children prepared for deliberate synchronization with Scientific Workbench\par}
+\vspace{0.8cm}
+{\large Architectural health: canonical registry, multi-root ownership,
+accurate coverage claims, stub integrity, and an app-side plan\par}
+\vspace{0.8cm}
+{\large English publication edition: September 22, 2026\par}
+\vspace{0.5cm}
+\begin{minipage}{0.93\textwidth}
+\small
+\raggedright
+Translation of the preserved private v2.7 guide at commit \code{d6583f1}.
+Original TeX SHA-256:
+\nolinkurl{9e10ef1a7e63f5e3f3ac6e41a0eb1d6d419f363fd8faf0dbb827ec10aef89c93}.
+Private source:
+\nolinkurl{skills/scientific-data-analysis/.cache/active_references/guides/guia_scientific_data_analysis_v2_7.tex}.
+
+This is dated evidence, not current release verification. The original guide
+prepares an integration handoff; it does not perform synchronization. Its
+recorded ratings and open app-side work retain that historical meaning.
+The original remains unchanged privately.
+\end{minipage}
+\vfill
+{\large Prepared with Codex\par}
+{\large Copyright 2026 interemi\par}
+\end{titlepage}
+
+\clearpage
+\pagenumbering{roman}
+\fancyfoot[C]{\thepage}
+\begin{abstract}
+\code{scientific-data-analysis} v2.7 continues v2.6 with a different focus:
+addressing correctable risks identified by the senior AI / Agents / Plugins /
+Skills evaluation before resynchronizing the skill family with Scientific
+Workbench, rather than measuring local cost.
+
+Mother and children already have a recorded \code{100/A} \code{plugin-eval}
+rating. v2.7 adds the missing application contract: resolve compact canonical
+registries, treat mother and children as distinct roots, describe smoke/regression
+coverage accurately, verify symlink/stub integrity, and provide a short app-side
+synchronization plan.
+\end{abstract}
+\tableofcontents
+\newpage
+\pagenumbering{arabic}
+\fancyfoot[C]{\thepage\ of \pageref{LastPage}}
+
+\section{Executive overview}
+
+v2.7 is a senior hardening release. It creates no new capabilities, changes no
+scientific contracts, and does not edit Scientific Workbench. It prepares the
+mother and child skills for app consumption without fragile heuristics.
+
+The product decisions are:
+\begin{itemize}[leftmargin=1.5em]
+\item \code{scientific-data-analysis} remains the normal entrypoint for broad tasks.
+\item \code{scientific-data-astro}, \code{scientific-data-documents}, \code{scientific-data-notebooks}, and \code{scientific-data-maintainer} are independent roots for app-side consumption.
+\item Scientific Workbench must resolve \code{canonical_registry} recursively.
+\item Every capability must execute from its owning root, rather than always from the mother.
+\item Current coverage is smoke/regression coverage, not exhaustive coverage.
+\item Maintainer remains maintainer-only and must not appear as an ordinary action.
+\end{itemize}
+
+\section{From v2.6 to v2.7}
+\begin{longtable}{p{0.31\linewidth}p{0.57\linewidth}}
+\toprule
+\textbf{Area} & \textbf{v2.7 change} \\
+\midrule
+Senior evaluation & Uses the senior evaluation dated July 1, 2026. \\
+P1 app-side & Documents canonical registry resolution and multi-root ownership. \\
+P2 coverage & Documents that \code{coverage-summary.json} describes smoke/regression coverage, not exhaustive coverage. \\
+P2 integrity & Adds regression checks for broken symlinks, unresolved stubs, and incomplete canonical registries. \\
+P2 drift & Freezes the app-side handoff to reduce drift between exposure/app-readiness and Swift code. \\
+Concise documentation & Adds \code{v2-7-scientificworkbench-sync-plan.md} as a short guide for the app task. \\
+Guide & This guide replaces v2.6 as the active document. \\
+\bottomrule
+\end{longtable}
+
+\section{Applied corrections}
+\begin{longtable}{p{0.27\linewidth}p{0.18\linewidth}p{0.43\linewidth}}
+\toprule
+\textbf{Senior finding} & \textbf{Status} & \textbf{Correction} \\
+\midrule
+Resolve \code{canonical_registry} & PASS & Recursive regression reaches YAML with 61 entries. \\
+Do not assume one root & PASS skill-side / WARNING app-side & Multi-root contract documented; app synchronization remains pending. \\
+Non-exhaustive coverage & PASS & Artifacts declare smoke/regression coverage, not exhaustive coverage. \\
+Symlinks/stubs/wrappers & PASS & Regression checks for broken symlinks in \code{references/}. \\
+Exposure/app-readiness drift & Documentation PASS & Handoff requires app drift tests before synchronization is declared. \\
+Dense documentation & PASS & Short plan dedicated to Scientific Workbench. \\
+\bottomrule
+\end{longtable}
+
+\section{Multi-root contract for Scientific Workbench}
+
+The app must load these five installed roots:
+\begin{longtable}{p{0.24\linewidth}p{0.58\linewidth}}
+\toprule
+\textbf{Owner} & \textbf{Installed root} \\
+\midrule
+mother & \code{~/.codex/skills/scientific-data-analysis} \\
+astro & \code{~/.codex/skills/scientific-data-astro} \\
+documents & \code{~/.codex/skills/scientific-data-documents} \\
+notebooks & \code{~/.codex/skills/scientific-data-notebooks} \\
+maintainer & \code{~/.codex/skills/scientific-data-maintainer} \\
+\bottomrule
+\end{longtable}
+
+The mother may remain the visible entrypoint for broad tasks, but command
+construction must use each capability's owning root as \code{workingDirectory}.
+This prevents the app from consuming an incomplete or outdated system view.
+
+\section{Canonical registry contract}
+
+Each \code{public_surface_registry.yaml} may be compact. A consumer must:
+\begin{enumerate}[leftmargin=1.7em]
+\item open the root's registry;
+\item resolve \code{canonical_registry} relative to the stub when present;
+\item repeat until reaching YAML with \code{entries:};
+\item verify the expected 61-entry surface;
+\item retain a fingerprint/cache without rewriting the skill.
+\end{enumerate}
+
+\section{v2.7 regression}
+
+New regression:
+\begin{lstlisting}[style=promptstyle]
+python scripts/audit_v2_7_senior_integration_regression.py
+\end{lstlisting}
+
+It should return \code{PASS} with an accepted warning if Scientific Workbench
+still uses a single \code{DefaultPaths.skillRoot}. That warning is not a skill
+failure; it identifies the work to complete during app synchronization.
+
+\section{Recommended gates}
+\begin{lstlisting}[style=promptstyle]
+python3 -m py_compile scripts/audit_v2_7_senior_integration_regression.py
+python scripts/audit_v2_7_senior_integration_regression.py
+python scripts/audit_v2_7_plugin_eval_coverage_artifacts.py
+python scripts/audit_v2_6_benchmark_matrix_regression.py
+python scripts/audit_v2_5_budget_deferral_regression.py
+python scripts/sync_public_surface_docs.py --check
+python scripts/portable_smoke_test.py --profile core
+\end{lstlisting}
+
+In maintainer, the complete regression lives in \code{fixtures/}; the mother
+retains a compatible wrapper.
+
+\newpage
+\section{Short Scientific Workbench synchronization plan}
+
+App-side synchronization must follow this order:
+\begin{enumerate}[leftmargin=1.7em]
+\item Verify the installed skill using the v2.7 gates.
+\item Create \code{SkillRootCatalog} or its equivalent in the app.
+\item Resolve \code{canonical_registry} recursively for each root.
+\item Associate every \code{CapabilityEntry} with its owning root.
+\item Update \code{CapabilityCommandBuilder} to execute from the owning root.
+\item Keep \code{ToolEnvelopeParser} and \code{ArtifactDiscovery} compatible with v1.8, v1.9, and v2.x.
+\item Hide maintainer-only actions in normal mode.
+\item Run Swift tests, the quality gate, and smoke cases for tables, documents, notebooks, FITS, and an absent optional backend.
+\end{enumerate}
+
+\section{Non-goals}
+\begin{itemize}[leftmargin=1.5em]
+\item Do not synchronize Scientific Workbench during this phase.
+\item Do not copy skills into the app bundle.
+\item Do not turn maintainer into an ordinary user action.
+\item Do not present smoke/regression coverage as exhaustive.
+\item Do not change correct scientific behavior to satisfy the app.
+\end{itemize}
+
+\section{Conclusion}
+
+v2.7 prepares the skill family with a recorded automatic \code{100/A} rating,
+approved senior evaluation, closed skill-side P1/P2 corrections, and a concrete
+plan for Scientific Workbench to stop depending on a single root. The recorded
+next step is deliberate application synchronization using this contract.
+
+\end{document}

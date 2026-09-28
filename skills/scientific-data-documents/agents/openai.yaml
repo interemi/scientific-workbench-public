@@ -1,0 +1,6 @@
+interface:
+  display_name: "Scientific Data Documents"
+  short_description: "Build and review reproducible scientific documents"
+  default_prompt: "Use $scientific-data-documents to inspect or produce a scientific document on safe copies, preserving source files and validating semantic and visual outputs."
+policy:
+  allow_implicit_invocation: true

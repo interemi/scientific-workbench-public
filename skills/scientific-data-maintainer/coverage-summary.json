@@ -1,0 +1,43 @@
+{
+  "scientific_data_analysis": {
+    "coverage_kind": "smoke_observed_lines",
+    "not_exhaustive_project_coverage": true,
+    "probe": {
+      "command": [
+        "scripts/audit_v2_6_benchmark_matrix_regression.py"
+      ],
+      "error": null,
+      "observed_files": [
+        {
+          "observed_lines": 13,
+          "path": "fixtures/_internal/fixture_script_dispatch.py"
+        },
+        {
+          "observed_lines": 3,
+          "path": "fixtures/audit_v2_6_benchmark_matrix_regression.py"
+        },
+        {
+          "observed_lines": 71,
+          "path": "fixtures/v2_6_measured_usage_common.py"
+        },
+        {
+          "observed_lines": 2,
+          "path": "scripts/audit_v2_6_benchmark_matrix_regression.py"
+        }
+      ],
+      "observed_lines": 89,
+      "status": "PASS",
+      "stderr_preview": "",
+      "stdout_preview": "{\n  \"covered_skills\": [\n    \"scientific-data-analysis\",\n    \"scientific-data-astro\",\n    \"scientific-data-documents\",\n    \"scientific-data-maintainer\",\n    \"scientific-data-notebooks\"\n  ],\n  \"errors\": [],\n  \"next_actions\": [],\n  \"original_modified\": false,\n  \"scenario_count\": 8,\n  \"status\": \"PASS\",\n  \"tool\": \"audit_v2_6_benchmark_matrix_regression\",\n  \"warnings\": []\n}\n"
+    },
+    "purpose": "Satisfy plugin-eval coverage artifact detection with a real traced smoke/regression probe."
+  },
+  "total": {
+    "lines": {
+      "covered": 89,
+      "pct": 100,
+      "skipped": 0,
+      "total": 89
+    }
+  }
+}

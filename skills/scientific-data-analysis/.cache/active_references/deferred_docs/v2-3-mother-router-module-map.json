@@ -1,0 +1,24 @@
+{
+  "archived": true,
+  "canonical_fixture": "../../scientific-data-maintainer/.cache/archived_references/v2-3-mother-router-module-map.json",
+  "schema_version": "1.0",
+  "release": "v2.3",
+  "purpose": "Compact v2.5 budget stub for the mother-router delegation map.",
+  "public_capability_count": 61,
+  "routing_states": {
+    "direct": "Mother skill keeps and invokes the historical command directly.",
+    "delegated": "Mother skill should route to a child skill while keeping the historical wrapper path until migration is complete.",
+    "multi_module_plan": "Mother skill should compose a plan involving shared contract/helper behavior across modules.",
+    "blocked_optional": "Route is optional/backend-bound; app/router must preflight and block cleanly when unavailable.",
+    "maintainer_only": "Route is for release or maintenance workflows and must not appear as a normal user action."
+  },
+  "child_skills": {
+    "mother": "scientific-data-analysis",
+    "astro": "scientific-data-astro",
+    "documents": "scientific-data-documents",
+    "notebooks": "scientific-data-notebooks",
+    "maintainer": "scientific-data-maintainer",
+    "shared": "scientific-data-analysis"
+  },
+  "reason": "The full 61-capability map is canonical runtime contract data owned by the sibling maintainer skill. The mother router resolves this relative pointer recursively and fails closed for known capabilities if integrity validation fails."
+}

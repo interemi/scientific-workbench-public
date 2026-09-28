@@ -1,0 +1,1 @@
+../../../references/fits-rgb-workflow.md

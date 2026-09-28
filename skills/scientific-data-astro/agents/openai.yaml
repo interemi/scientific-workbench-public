@@ -1,0 +1,6 @@
+interface:
+  display_name: "Scientific Data Astro"
+  short_description: "Analyze FITS, photometry, spectra, and WCS safely"
+  default_prompt: "Use $scientific-data-astro to inspect astronomy data, preserve originals, validate units and metadata, and produce reproducible FITS, photometry, spectroscopy, or WCS results."
+policy:
+  allow_implicit_invocation: true
