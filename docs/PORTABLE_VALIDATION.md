@@ -158,25 +158,26 @@ workflows. arm64 uses the lock; Intel probes compatibility with unpinned
 resolution. A matrix entry does not establish platform support before a
 successful hosted execution.
 
-For an earlier private source baseline, hosted Core validation completed
-successfully on 24 September 2026: macOS 15 arm64 with the Core
-lock and macOS 15 Intel with unlocked compatibility resolution. Each job
-reported 300 Swift tests, a fresh Core installation, 23 synthetic workflows,
-and a 1,919-entry unchanged skill snapshot. This is evidence for that exact
-commit only. The public snapshot contains later code, dependency, workflow,
-and documentation changes. Review the [public repository's workflow runs](https://github.com/interemi/scientific-workbench-public/actions/workflows/portable-validation.yml)
-on its exact commit for new hosted evidence. At the date of this record, no
-Full-profile hosted run or manual app session on another Mac had been completed.
+On 28 September 2026, clean-root commit `b57c168` passed the
+[public Core run](https://github.com/interemi/scientific-workbench-public/actions/runs/36435979426):
+macOS 15 arm64 with the Core lock and macOS 15 Intel with unlocked compatibility
+resolution. Each job reported 306 Swift tests, a fresh Core installation,
+23 synthetic workflows, and a 1,926-entry unchanged skill snapshot. The
+[manual Full run](https://github.com/interemi/scientific-workbench-public/actions/runs/36437566460)
+also passed on the same SHA: fresh Full locked installation on arm64, 23 Core
+cases, and 39 document tests. This is evidence for that commit only. Review the
+[public repository's workflow runs](https://github.com/interemi/scientific-workbench-public/actions/workflows/portable-validation.yml)
+on the exact commit being used. No manual app session on another Mac has been
+completed.
 
 The workflow also defines a manual `workflow_dispatch` choice. `core` runs the
 two established Core jobs; `full` selects a separate macOS 15 arm64 job that
 installs the current 200-package Full lock into a new environment, runs the
 23-case Core synthetic smoke with that interpreter, and runs the document unit
 tests. It checks the source snapshot and lock first, records the exact commit
-and environment, and retains focused diagnostics for 14 days. This job is
-prepared locally; at the date of this record it had **not** been executed. Its success would
-establish fresh Full-lock installation and these focused checks on one hosted
-runner, not Full scientific-workflow coverage. The 38-case Full smoke compiles
+and environment, and retains focused diagnostics for 14 days. The 2026-09-28
+run established fresh Full-lock installation and these focused checks on one
+hosted runner, not Full scientific-workflow coverage. The 38-case Full smoke compiles
 LaTeX and therefore still needs an external TeX engine; this manual job does
 not install one or run those 38 cases. Nor does it exercise a manual app session
 or all optional backends.

@@ -29,7 +29,15 @@ are described in the [backend guide](OPTIONAL_BACKENDS.md).
   2026-09-24: arm64 with locked dependencies and Intel with an unlocked
   compatibility resolution. That private run is dated evidence for the older
   baseline only and cannot validate this new public history.
-- The later source candidate was checked locally on the development Mac:
+- The clean-root public-source commit `b57c168` passed the
+  [Core run](https://github.com/interemi/scientific-workbench-public/actions/runs/36435979426)
+  on 2026-09-28: arm64 locked and Intel unlocked, 306/306 Swift tests and 23/23
+  synthetic Core cases in each job, with the 1,926-entry snapshot intact. Its
+  separate [manual Full run](https://github.com/interemi/scientific-workbench-public/actions/runs/36437566460)
+  installed the 200-package Full lock plus three pinned tools in a fresh hosted
+  arm64 environment, passed 23/23 Core cases and 39/39 document tests. The
+  results apply to that SHA only.
+- The same `b57c168` source candidate was checked locally on the development Mac:
   306/306 Swift tests, a 16/16 quality gate without the DOCUS benchmark, and
   a 1,926-entry bundled-skill snapshot passed. A synthetic Full smoke passed
   38/38 cases in an existing Python 3.11 environment. That smoke does not
@@ -47,9 +55,9 @@ Older green runs do not validate newer commits.
 
 - This is a source distribution. There is no signed or notarized downloadable
   app release, independent-Mac UI acceptance, or validated Intel dependency
-  lock. At the date of this record, a fresh hosted installation of the Full
-  lock on the final candidate was still pending; a local smoke in an existing
-  environment is different evidence.
+  lock. The fresh hosted Full installation checked Core cases and document
+  tests; the separate 38-case Full smoke ran locally in an existing environment.
+  Neither covers every optional backend or interactive app use on another Mac.
 - Documentation covers 55 capabilities, but not every optional backend,
   account, model, or scientific route has been exercised end to end. Some
   require separate software, permissions, or paid services. TEAREDUCE is an

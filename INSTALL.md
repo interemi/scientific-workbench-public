@@ -5,10 +5,11 @@ were installed in new, isolated Python environments on the development Mac,
 preserving existing environments. Their synthetic smoke tests passed 23/23 and
 38/38 cases respectively. The current Full lock has since replaced PyMuPDF
 with pypdfium2: static lock checks and a 38/38 local smoke using an existing
-environment passed, but a fresh installation of the revised lock is pending.
-The app has **not been manually tested on another Mac**. An earlier private
-source baseline passed hosted macOS 15 Core CI on arm64 and Intel, but that
-result does not validate this public snapshot or its user interface. Check the
+environment passed. On 2026-09-28, commit `b57c168` also passed a fresh hosted
+installation of the revised Full lock with focused Core and document tests.
+The app has **not been manually tested on another Mac**. That commit passed
+hosted macOS 15 Core CI on arm64 and Intel, but automated checks do not test
+its user interface. Check the
 [current repository's runs](https://github.com/interemi/scientific-workbench-public/actions/workflows/portable-validation.yml)
 for the exact commit you use. Core has
 a lock for native Python 3.11 on Apple Silicon;
@@ -23,8 +24,9 @@ correctness, data preservation in every circumstance, or suitability for your ta
 
 ## 1. Requirements
 
-- macOS 14 or later. Local full-profile evidence comes from Apple Silicon;
-  an earlier private baseline passed hosted Core CI on macOS 15 arm64 and Intel.
+- macOS 14 or later. Local Full smoke evidence comes from Apple Silicon;
+  commit `b57c168` passed hosted Core CI on macOS 15 arm64 and Intel, and a
+  focused fresh Full installation on macOS 15 arm64.
 - Apple developer tools with Swift 6 or later to build the app.
 - Python 3.11 for the scientific backend.
 - An Internet connection to download dependencies and, for local AI, the chosen
@@ -91,9 +93,9 @@ recorded local run used macOS 26.6.2. Other architectures, incompatible wheels,
 and hash mismatches are rejected without resolving alternative versions.
 
 On Intel, omit `--locked`. This resolves currently available dependencies and
-is not a pinned environment. An earlier private macOS 15 Intel Core job passed,
-but that does not establish a repeatable Intel lock, full-profile coverage, or
-manual app use on another Mac. Check the public repository's exact-commit CI.
+is not a pinned environment. The public macOS 15 Intel Core job passed on
+`b57c168`, but that does not establish a repeatable Intel lock, full-profile
+coverage, or manual app use on another Mac. Check exact-commit CI.
 The core lock covers the Python runtime packages, excluding the interpreter,
 bootstrap pip/setuptools, Apple tools, and external applications. See
 [portable validation](docs/PORTABLE_VALIDATION.md) for its limits.
@@ -128,10 +130,11 @@ archive using pinned pip/setuptools/wheel inside the new environment, without
 implicit build-dependency downloads. The macOS 15 minimum comes from the
 selected debugpy wheel; core retains its macOS 14 minimum.
 
-An optional manual GitHub Actions job is prepared to install this revised Full
-lock from scratch on hosted macOS 15 arm64. It has not run yet. That job checks
-Core synthetic cases and document tests in the new environment, not the entire
-38-case Full smoke: the latter also requires an external LaTeX engine. See
+The optional manual [GitHub Actions Full job](https://github.com/interemi/scientific-workbench-public/actions/runs/36437566460)
+installed this revised lock from scratch on hosted macOS 15 arm64 for commit
+`b57c168`. It passed 23/23 Core synthetic cases and 39/39 document tests in
+the new environment, not the entire 38-case Full smoke: the latter also
+requires an external LaTeX engine. See
 [portable validation](docs/PORTABLE_VALIDATION.md) for the exact CI scope.
 
 Full does not install external applications such as LaTeX, LibreOffice, or IRAF.

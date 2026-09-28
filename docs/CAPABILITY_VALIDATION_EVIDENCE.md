@@ -2,17 +2,20 @@
 
 This record distinguishes registry coverage, a narrow diagnostic probe, and full scientific or interface acceptance. It includes local runs through 28 September 2026. Checks on a later changed tree must be repeated before relying on them. The registry has 55 user-facing IDs; six maintainer gates are outside this table. [Setup requirements](CAPABILITY_SETUP_MATRIX.md) and [portable validation](PORTABLE_VALIDATION.md) explain how to run a selected route.
 
-**Core tier:** an earlier private baseline passed hosted macOS 15 Core CI on
-arm64 (locked) and Intel (unlocked), with 23 synthetic workflows per job.
+**Core tier:** clean-root public-source commit `b57c168` passed
+[hosted macOS 15 Core CI](https://github.com/interemi/scientific-workbench-public/actions/runs/36435979426)
+on arm64 (locked) and Intel (unlocked), with 23 synthetic workflows per job.
 Its tier coverage report marks all 16 Core IDs below as covered. These dated
-results do not validate the new public commit; check its own workflow runs.
+results validate only that SHA; check the exact commit's own workflow runs.
 
 **Full tier:** on 28 September 2026, the clean-root local source candidate
 passed 38/38 synthetic Full cases with the 1,926-entry backend snapshot intact
 before and after and `original_modified=false`. The run used the maintainer's
 existing Python 3.11.15 environment. It was **not** a fresh installation of
 the current 200-package Full lock, and it did not exercise every optional
-backend. The manual hosted Full job for the public repository remains pending.
+backend. The separate [manual hosted Full job](https://github.com/interemi/scientific-workbench-public/actions/runs/36437566460)
+passed a fresh locked installation, 23 Core synthetic cases, and 39 document
+tests on `b57c168`; it did **not** run the 38-case Full smoke.
 See [portable validation](PORTABLE_VALIDATION.md) for the run scope.
 
 **No smoke tier:** on 28 September 2026, the clean-root local source candidate

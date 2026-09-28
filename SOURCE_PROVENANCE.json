@@ -85,10 +85,10 @@
       "sha256": "54310fde3e32c49eae384a5831a0ce63336fb442fcdf4394bb5bd0d4e12e7624"
     },
     {
-      "bytes": 13497,
+      "bytes": 13633,
       "mode": "100644",
       "path": "INSTALL.md",
-      "sha256": "3726904def2fee75a816b20a5f5750ba983b553fa76eb611b5ed14c15bb8cfa1"
+      "sha256": "5e26906f4e4dc4a756c05c24fcba3cc53713b8c3aa8ece02542638db4997889a"
     },
     {
       "bytes": 4563,
@@ -121,10 +121,10 @@
       "sha256": "98c17481429e6e6f50fff130a5b5fc7c9b2a8ac52eea12546b579bdae3262fff"
     },
     {
-      "bytes": 10912,
+      "bytes": 11304,
       "mode": "100644",
       "path": "README.md",
-      "sha256": "865da163990caebc9ad3aad8209a03a31daefb22dc0ed22f4643adf8ea1a7982"
+      "sha256": "fa48c3ca8731c9c119e8bacaee8b4f3bd81a143c56d766dbb8c9261de10e7f30"
     },
     {
       "bytes": 7608,
@@ -1147,16 +1147,16 @@
       "sha256": "5986fa23246fc327f5b33a7b2f3bf452c9c7acfda3face1c51b4e20b4e1014e0"
     },
     {
-      "bytes": 9797,
+      "bytes": 10085,
       "mode": "100644",
       "path": "docs/CAPABILITY_VALIDATION_EVIDENCE.md",
-      "sha256": "73f7ffbb27c4c7d3c9eec7670059e9b5a468ce4d1d1af5d85355a412f99b322f"
+      "sha256": "a080f369a29757ce13cc933b77242065f31bb7fb9676ef08769bd413898b151b"
     },
     {
       "bytes": 3248,
       "mode": "100644",
       "path": "docs/CLEAN_INSTALL_ACCEPTANCE.md",
-      "sha256": "b762e7417f40bed279baa842b3ad7c4f4b05c5e93bbc4ef87fb9628e8f4d5106"
+      "sha256": "0e9fc4c985a1b7d7359a9b92adc15b71947777cac027432a5f4fdb027d1d15df"
     },
     {
       "bytes": 19261,
@@ -1171,10 +1171,10 @@
       "sha256": "7c7e416c2baf8ca53ae7979560fa729b0e33389e63fc03f2290e2d355e64d0e1"
     },
     {
-      "bytes": 4485,
+      "bytes": 4575,
       "mode": "100644",
       "path": "docs/LICENSE_DECISION.md",
-      "sha256": "205d40b23e2c305c40a5a9b478ae8ca2a51ad974a29e43b28fd4fe22c9f35ac9"
+      "sha256": "d2c1d617a72d4807030f5e4456a9a02bd82eb3f96a6128b74f267238b2933a47"
     },
     {
       "bytes": 4915,
@@ -1207,10 +1207,10 @@
       "sha256": "c7736721586bb9c97e9e8e197544a2fb4be76b5fc00a9260742012314a6f5fbb"
     },
     {
-      "bytes": 13938,
+      "bytes": 13956,
       "mode": "100644",
       "path": "docs/PORTABLE_VALIDATION.md",
-      "sha256": "bd4f3bfebafc874fd6f16faefc11675a932acc676b56c1bc0f303c0d463c2d0a"
+      "sha256": "6bd755a0477c0701000003011274f8c24bcb8dbfaf53967b7a0350770e3f8fc3"
     },
     {
       "bytes": 7445,
@@ -1243,10 +1243,10 @@
       "sha256": "aa06881e33b400eb1287637c7fbcd7791c49fcda211306054c325894509539b3"
     },
     {
-      "bytes": 3920,
+      "bytes": 4585,
       "mode": "100644",
       "path": "docs/PUBLIC_READINESS.md",
-      "sha256": "9d5d06ffba939d0f5fade51b046e5948d768875e615994a8482b173b2dabcfae"
+      "sha256": "f1ddc00aab74c8a8a3c3c2d56e53106b40852d22c388dc9de90b62e38a573023"
     },
     {
       "bytes": 5186,
@@ -1255,10 +1255,10 @@
       "sha256": "e916c3e334c9e6005655804d976f14c1a49246cbdea48e6b77b8612d0229ae56"
     },
     {
-      "bytes": 11375,
+      "bytes": 11632,
       "mode": "100644",
       "path": "docs/PUBLIC_SOURCE_HANDOFF.md",
-      "sha256": "ada400d00241ac17467d430fa1afe9579f141447af4d94157bc87f56a302d748"
+      "sha256": "fd328917e0bfe317887403b361668b07ef2faa621665032e09ad914d8f9f75b4"
     },
     {
       "bytes": 9951,
@@ -13731,7 +13731,7 @@
   "private_code_path_map_sha256": "6e3e41250c07218b10b01e676b24a6daaa6ef2c2171149e4e8aad7b6f24f739b",
   "product": "Scientific Workbench",
   "schema_version": 2,
-  "source_commit": "c1a14156ba41506fb172a94ce622c215ec77260c",
-  "source_tree": "534b1776817edbc2d986717bc1e35c26b57ec013",
+  "source_commit": "8d2e6c74e8d7c4fba96b585f3fed4c78d3dff885",
+  "source_tree": "c9cf8da68e9d119fd9428aacfe41ce0ca1757aee",
   "tracked_entries": 2225
 }

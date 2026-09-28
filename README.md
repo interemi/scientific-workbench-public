@@ -8,9 +8,10 @@ for local AI and optional cloud providers with explicit consent.
 trust-boundary hardening, M102 guided workflows, M103 persistence migrations,
 and M104 connection/navigation improvements. It has been exercised on the
 maintainer's Apple Silicon Mac. **It has not been manually tested on another
-Mac**, and no independent user has evaluated its interface. An earlier private
-source baseline passed hosted macOS 15 Core checks on arm64 and Intel; that
-result does not validate this public snapshot.
+Mac**, and no independent user has evaluated its interface. The clean-root
+source commit `b57c168` passed hosted macOS 15 Core checks on arm64 and Intel
+and a separate focused Full installation check on arm64 on 2026-09-28.
+Those results apply to that commit; check Actions for the commit you use.
 There is no signed or notarized downloadable release.
 
 ## Get started
@@ -77,8 +78,9 @@ bootstrap tools. The [dated full-lock evidence](docs/PUBLIC_FULL_LOCK_2026-09-15
 describes the earlier 215-package lock. The current lock uses pypdfium2 for PDF
 work, retains `olefile` for legacy Office metadata, and excludes automatic
 TEAREDUCE and oletools installation. See [optional backends](docs/OPTIONAL_BACKENDS.md)
-for the separate, unverified TEAREDUCE notebook route. A fresh locked
-installation of this revised set is still pending.
+for the separate, unverified TEAREDUCE notebook route. The revised Full lock
+installed in a fresh hosted macOS 15 arm64 environment on 2026-09-28; that
+focused job did not run the 38-case Full smoke or external tools.
 
 The [source distribution boundary](docs/SOURCE_DISTRIBUTION_BOUNDARY.md)
 distinguishes material in Git from dependencies and models downloaded into each
@@ -115,13 +117,16 @@ python3 -m unittest discover -s Tests/DistributionTests -v
 ```
 
 [Portable validation](docs/PORTABLE_VALIDATION.md) explains the tests and locks.
-An earlier private baseline passed two macOS 15 Core jobs, one arm64 locked and
-one Intel unlocked. Those dated results are not public-run evidence for this
-snapshot. Check the [portable validation runs](https://github.com/interemi/scientific-workbench-public/actions/workflows/portable-validation.yml)
-for this repository's exact commit. A manual Full-lock installation job is
-prepared: it installs the revised lock in a fresh hosted arm64 environment,
-exercises Core synthetic cases, and runs document tests. It
-does not run the 38-case Full smoke, which also needs an external LaTeX engine.
+On commit `b57c168`, the [Core run](https://github.com/interemi/scientific-workbench-public/actions/runs/36435979426)
+passed both macOS 15 jobs: 306/306 Swift tests and 23/23 synthetic Core cases
+per job, with the 1,926-entry snapshot intact. The separate
+[manual Full run](https://github.com/interemi/scientific-workbench-public/actions/runs/36437566460)
+installed the revised lock in a fresh hosted arm64 environment, passed 23/23
+Core synthetic cases there and 39/39 document tests. It did not run the 38-case
+Full smoke, which also needs an external LaTeX engine. Check the
+[portable validation runs](https://github.com/interemi/scientific-workbench-public/actions/workflows/portable-validation.yml)
+for the exact commit you use; a green run on `b57c168` does not validate a
+later commit.
 See [portable validation](docs/PORTABLE_VALIDATION.md) for the exact scope. The
 [public preparation record](docs/PUBLIC_PREPARATION_2026-09-14.en.md) preserves
 dated results and open limitations.

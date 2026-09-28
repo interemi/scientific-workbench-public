@@ -8,9 +8,10 @@ and evidence that is useful privately but unsuitable for a clean public start.
 A separate private source repository exists at
 `interemi/scientific-workbench-source`. It contains an earlier baseline and
 hosted validation history, including an older internal readiness document.
-Keep it private. The planned public repository is
-`interemi/scientific-workbench-public`, starting from one reviewed source
-snapshot and a new Git root commit. Preserve both private histories.
+Keep it private. The repository intended for public visibility is
+`interemi/scientific-workbench-public`. It was created privately with one
+reviewed source snapshot and a new Git root commit on 2026-09-28. Preserve both
+private histories. Later updates must descend normally from that new root.
 
 ## Before exporting
 
@@ -170,18 +171,19 @@ been reviewed:
    path, file mode, and content hash; make one root commit with the owner's
    approved public identity. The source provenance manifest records the
    private source commit without importing its Git history.
-2. Ask the owner to create an empty **private** repository named
-   `interemi/scientific-workbench-public`, without a GitHub-generated README,
-   license, or `.gitignore`.
-3. Give the owner exact instructions for adding that new remote and making a
-   normal, non-force push of the root commit. Check the remote SHA, repository
-   privacy, and the uploaded tree.
+2. For this project, the owner created an empty **private** repository named
+   `interemi/scientific-workbench-public`, without GitHub-generated files. The
+   initial root commit was uploaded normally; no private history was pushed.
+3. Check the remote SHA, repository privacy, and uploaded tree after each normal
+   non-force push. Never replace the private histories or rewrite the public one.
 4. Run the two hosted Core jobs and the separate opt-in Full job on the exact
-   uploaded commit. Review and retain logs and artifacts; check any Actions
-   minutes or billing implications before the Full job.
+   candidate commit. Review and retain logs and artifacts; check any Actions
+   minutes or billing implications before the Full job. The initial commit
+   `b57c168` passed both runs on 2026-09-28, but later commits need their own
+   runs.
 5. Show the owner the exact public scope, remaining limits, and hosted results
-   before the owner changes visibility. Verify the newly public page and
-   private vulnerability reporting route afterward.
+   for the final candidate before changing visibility. Verify the newly public
+   page and private vulnerability reporting route afterward.
 
 The hosted jobs provide fresh-VM technical installation evidence. If no second
 Mac is available, state prominently that independent interactive acceptance

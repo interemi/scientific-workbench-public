@@ -34,7 +34,7 @@ synthetic data and retain every failure. Do not edit earlier reports.
 
 | Step | Evidence to retain | Result and observations |
 | --- | --- | --- |
-| Clone GitHub following INSTALL.md | Commit and verified 1,919-entry backend snapshot | Pending |
+| Clone GitHub following INSTALL.md | Commit and verified 1,926-entry backend snapshot | Pending |
 | Review the setup plan | Command and new destination | Pending |
 | Install core | Plan, package inventory, pip check, and env-doctor | Pending |
 | Run `run_portable_core.py` | verification.json, logs, and manifest | Pending |
