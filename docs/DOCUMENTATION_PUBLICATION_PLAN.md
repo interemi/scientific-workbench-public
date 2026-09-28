@@ -1,9 +1,9 @@
 # Documentation Publication Plan
 
-All documentation retained in the future public GitHub repository must be in
-English. This is the final editorial phase before the complete publication
-recheck, after code, scope, licensing, security, ownership, and external-test
-decisions are stable.
+Documentation in this source repository is required to be in English. This
+plan records how the English editions were prepared and how later exports must
+be rechecked after changes to code, scope, licensing, security, ownership, or
+external-test evidence.
 
 ## Measured private scope
 
@@ -76,7 +76,7 @@ Generated PDFs must be rebuilt from the English TeX source in a new temporary
 directory. Inspect rendered pages and extracted text before replacing a public
 derivative. Never compile over the private historical PDF.
 
-## Final sequence
+## Export and recheck sequence
 
 1. Record the private source commit and existing local changes.
 2. Save the pre-translation documentation inventory outside the checkout.

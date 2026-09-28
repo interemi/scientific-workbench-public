@@ -33,7 +33,8 @@ of tools outside the Python profiles. The
 links affected IDs to their permission, cost, and recovery limits.
 The dated [capability validation evidence](CAPABILITY_VALIDATION_EVIDENCE.md)
 shows which IDs had Core/Full smoke coverage, a narrower diagnostic, or a
-controlled block; its results must be refreshed for a final public commit.
+controlled block. Read each result against its recorded commit and environment;
+older results do not automatically validate a later checkout.
 
 Each row's second cell gives the app catalog access mode, the starting Python
 profile, and the current app-readiness label. `normal` and `expert` are catalog
@@ -236,8 +237,9 @@ machine. The 29 `none` entries have a **maintainer diagnostic** matrix using
 synthetic or preflight inputs. Its current source-preparation run on 24 September
 2026 recorded 15 PASS, 11 WARNING, and three controlled blocks, with zero FAIL
 and zero unmapped probes. That matrix does not execute every external backend
-or prove end-to-end operation. Exact-commit publication evidence will be added
-after the new source candidate is exported and validated.
+or prove end-to-end operation. For publication evidence, check the dated
+[validation summary](PUBLIC_READINESS.md) and the hosted results for the exact
+commit you are using; results from an earlier commit do not transfer.
 
 For one selected capability, use this sequence:
 

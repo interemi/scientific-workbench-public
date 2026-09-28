@@ -170,7 +170,7 @@ jobs:
             printf -- '- Expected architecture: %s\n' "$CI_EXPECTED_ARCHITECTURE"
             printf -- '- Dependency mode: %s\n' "$CI_DEPENDENCY_MODE"
             printf '\nSee the job result and retained evidence for failures.\n'
-            printf 'This validates core workflows; public-opening approval, full-profile support, and clean-Mac UI acceptance remain separate.\n'
+            printf 'This validates core workflows; scientific correctness, full-profile coverage, and independent UI acceptance remain separate.\n'
             if [[ -f "$CI_EVIDENCE_DIR/platform.log" ]]; then
               printf '\n```text\n'
               cat "$CI_EVIDENCE_DIR/platform.log"

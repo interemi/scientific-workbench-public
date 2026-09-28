@@ -37,7 +37,7 @@ are described in the [backend guide](OPTIONAL_BACKENDS.md).
   installed the 200-package Full lock plus three pinned tools in a fresh hosted
   arm64 environment, passed 23/23 Core cases and 39/39 document tests. The
   results apply to that SHA only.
-- The same `b57c168` source candidate was checked locally on the development Mac:
+- The same `b57c168` source commit was checked locally on the development Mac:
   306/306 Swift tests, a 16/16 quality gate without the DOCUS benchmark, and
   a 1,926-entry bundled-skill snapshot passed. A synthetic Full smoke passed
   38/38 cases in an existing Python 3.11 environment. That smoke does not
@@ -62,7 +62,7 @@ Older green runs do not validate newer commits.
   account, model, or scientific route has been exercised end to end. Some
   require separate software, permissions, or paid services. TEAREDUCE is an
   optional external notebook backend and is not bundled or installed by Full.
-  Legacy `.xls` macro assessment is unavailable in this source candidate.
+  Legacy `.xls` macro assessment is unavailable in this source distribution.
 - Successful execution does not establish scientific correctness. Check
   methods, units, uncertainties, outputs, and original-input hashes for each
   research use. See the [use limitations](../README.md#use-limitations-and-no-warranty).
@@ -70,6 +70,6 @@ Older green runs do not validate newer commits.
   [dependency inventory](DEPENDENCIES_AND_LICENSES.md). A license statement
   for project-authored material does not replace third-party obligations.
 
-For a security concern, follow [SECURITY.md](../SECURITY.md). The private
-reporting button must be verified on the public GitHub repository before it
-is advertised as available. This page does not assert that it is active.
+For a security concern, follow [SECURITY.md](../SECURITY.md). Use GitHub's
+private reporting form only when the repository shows **Report a vulnerability**;
+do not put details in a public issue if that button is absent.

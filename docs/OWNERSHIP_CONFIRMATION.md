@@ -14,14 +14,14 @@ status of every file.
 
 ## Project-authored material
 
-| Scope | Technical evidence | Owner confirmation required |
+| Scope | Technical evidence | Recorded owner statement |
 | --- | --- | --- |
-| Swift app, tests, resources, and scripts | Git history and current source tree | Confirm that the project owner may license the original and AI-assisted code under the selected project license |
-| Five-skill Python family | Complete snapshot and file manifest | Confirm authorship or identify every incorporated source that needs separate terms |
-| Current README, installation, architecture, guides, and decisions | Versioned text and TeX sources | Confirm authority to license the current documentation and its English translations |
-| App icon and generator | The AppKit generator reproduces the ten PNG files and ICNS byte for byte | Confirm ownership of the generator code and visual design |
-| Synthetic FITS fixtures | Two 5,760-byte fixtures with tiny arrays and synthetic identifiers | Confirm who generated them and that they may be redistributed publicly |
-| Other synthetic text/table fixtures | Small deterministic inputs used by tests | Confirm that they were created for the project or are otherwise cleared |
+| Swift app, tests, resources, and scripts | Git history and current source tree | Owner confirms the project-authored original and AI-assisted code under the selected license. |
+| Five-skill Python family | Complete snapshot and file manifest | Owner confirms project-authored material; incorporated third-party material retains its own terms. |
+| Current README, installation, architecture, guides, and decisions | Versioned text and TeX sources | Owner confirms the current documentation and its English editions. |
+| App icon and generator | The AppKit generator reproduces the ten PNG files and ICNS byte for byte | Owner confirms the generator and visual design. |
+| Synthetic FITS fixtures | Two 5,760-byte fixtures with tiny arrays and synthetic identifiers | Owner confirms these fixtures may be distributed with the project. |
+| Other synthetic text/table fixtures | Small deterministic inputs used by tests | Owner confirms project-created fixtures; any third-party input needs separate clearance. |
 
 No copyright or SPDX headers were found in the project source during the
 current text scan. That reduces conflicting-header evidence but does not prove
@@ -72,7 +72,7 @@ technical inventory.
 - Decision date and evidence: **2026-09-22**, the owner's license/ownership
   response and separate attribution-name approval in the project conversation.
 
-The exact historical public/excluded scope remains under editorial review.
-Third-party packages and uncertain incorporated material retain separate
-provenance requirements. Public opening still requires the remaining checks
-and the owner's explicit visibility decision.
+The exported source scope and exclusions are recorded in the export's
+`SOURCE_PROVENANCE.json`. Third-party packages and
+uncertain incorporated material retain separate provenance requirements; this
+owner statement does not grant rights in those components.

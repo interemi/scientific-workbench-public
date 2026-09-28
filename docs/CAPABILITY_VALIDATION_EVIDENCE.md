@@ -25,7 +25,7 @@ ran the 29 narrow probes below: 34 commands, 15 PASS, 11 WARNING, three
 that reported this field. This is not Core/Full smoke coverage or hosted CI
 evidence, and the warnings and controlled blocks remain open limitations.
 
-The table's **Evidence** names the actual smoke case or narrow probe. `PASS` for a probe means only that its stated synthetic operation or preflight completed. A warning or controlled block remains visible. None of these rows proves scientific correctness for real data, installation of every optional application, interactive use on another Mac, or readiness of the final public commit.
+The table's **Evidence** names the actual smoke case or narrow probe. `PASS` for a probe means only that its stated synthetic operation or preflight completed. A warning or controlled block remains visible. None of these rows proves scientific correctness for real data, installation of every optional application, interactive use on another Mac, or readiness of a later checkout.
 
 | Capability ID | Declared tier / observed result | Exact checked scope |
 | --- | --- | --- |
@@ -109,8 +109,8 @@ The command above has not yet been verified in a fresh locked Full environment.
 The 28 September local run used the maintainer's existing `datanalysis` Python
 3.11.15 on Apple Silicon. Its raw summaries and diagnostic logs are retained
 outside Git by the maintainer. The
-public repository's final CI artifacts, if uploaded, must be checked on the
-same exported commit and downloaded before their retention period ends. A
+repository's CI artifacts must be checked on the same commit being used and
+downloaded before their retention period ends. A
 registry row with `smoke_tier: none` has no Core/Full smoke contract, even if
 the narrow probe above passed. Backend availability and scientific correctness
 still require route-specific checks.

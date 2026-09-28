@@ -1,23 +1,23 @@
 # Source Distribution Boundary
 
-Scientific Workbench is currently prepared as a **source repository**, not as a
-redistributable application bundle. This boundary determines which third-party
-materials are present in Git and which are downloaded independently into a
+Scientific Workbench is distributed here as a **source repository**. No
+redistributable application bundle is provided. This boundary determines which
+third-party materials are present in Git and which are downloaded independently into a
 user-owned environment.
 
-This document records engineering evidence. It does not approve a project
-license or replace review of the applicable third-party terms.
+This document records engineering evidence. It does not change the selected
+project license or replace review of the applicable third-party terms.
 
 ## Material present in the repository
 
-The public-source candidate contains:
+This source repository contains:
 
 - the Swift and Python source needed by the app and the five-skill family;
 - setup, validation, and release scripts;
 - core and full lock files containing package names, versions, URLs, and hashes;
 - the reviewed skill snapshot and its manifest;
 - synthetic fixtures and their provenance records; and
-- documentation that must pass the final English, link, and portability gate.
+- documentation checked for English, links, and portable paths.
 
 The repository does not contain Python wheels or source distributions, Python
 environments, ONNX/Ollama model weights, signed app bundles, disk images,
@@ -33,13 +33,13 @@ the platform lock supplies them. Scientific Workbench does not copy those
 downloaded artifacts back into the repository.
 
 This distinction does not make dependency licenses irrelevant. It means that
-opening the source repository and shipping a self-contained app have different
+publishing source and shipping a self-contained app have different
 redistribution scopes and need separate decisions.
 
 | Distribution mode | Third-party payload | Current status |
 | --- | --- | --- |
-| Public source repository | References, lock data, source-level imports, and any third-party material already copied into Git | Candidate boundary implemented; project-authored material uses PolyForm Noncommercial 1.0.0; third-party provenance, license compatibility, and public-tree review remain required |
-| User-created Python environment | Packages downloaded directly for that user | Core has fresh-install evidence on the validated platform; the current Full lock has static and archive checks but still needs a fresh-install run. Package terms still apply to use. |
+| Public source repository | References, lock data, source-level imports, and any third-party material already copied into Git | Reviewed source boundary; project-authored material uses PolyForm Noncommercial 1.0.0. Dependency terms and optional integrations remain separate. |
+| User-created Python environment | Packages downloaded directly for that user | Core and Full locks passed fresh hosted arm64 installation. The focused Full job did not run the 38-case Full smoke. Package terms still apply to use. |
 | Signed or downloadable app bundle | Any runtime, package, model, or backend embedded in the artifact | Not designed or approved; requires a new inventory, notices, license review, signing, notarization, and clean-machine test |
 | Release archive containing dependencies | Redistributed wheels, source archives, model files, or external binaries | Prohibited by the current source boundary |
 
@@ -96,18 +96,17 @@ vendor or bundle this package until the exact notice and authority are obtained
 from an upstream source. A source-only publication may keep the locked
 dependency reference while this package remains downloaded by the user.
 
-## Publication decisions still required
+## Source publication safeguards
 
-Before opening a source repository:
+For this source repository and later updates:
 
 1. preserve the selected PolyForm Noncommercial 1.0.0 license and required attribution for project-owned material;
-2. resolve ownership and notices for fixtures, guides, icons, and copied source;
+2. record ownership and notices for fixtures, guides, icons, and copied source;
 3. keep dependency archives and model files outside Git;
-4. preserve both private repositories and start a separate public repository
-   from one reviewed export commit, without publishing or rewriting either
-   private history; and
-5. rerun the history, secret, documentation, snapshot, test, and quality gates
-   on the exact commit proposed for publication.
+4. preserve the two private preparation histories without publishing or
+   rewriting them; and
+5. run history, secret, documentation, snapshot, test, and quality checks on
+   each source commit before using its results as publication evidence.
 
 A future downloadable app is a separate milestone and must not reuse the
 source-only assessment as proof that bundled dependencies are cleared.

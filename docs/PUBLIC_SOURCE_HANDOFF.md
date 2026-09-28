@@ -8,7 +8,7 @@ and evidence that is useful privately but unsuitable for a clean public start.
 A separate private source repository exists at
 `interemi/scientific-workbench-source`. It contains an earlier baseline and
 hosted validation history, including an older internal readiness document.
-Keep it private. The repository intended for public visibility is
+Keep it private. The source-distribution repository is
 `interemi/scientific-workbench-public`. It was created privately with one
 reviewed source snapshot and a new Git root commit on 2026-09-28. Preserve both
 private histories. Later updates must descend normally from that new root.
@@ -27,8 +27,8 @@ The private commit deliberately retains original historical evidence. The
 exported copy, not the private source tree, must pass strict English,
 portability, secret, snapshot, test, release, and quality checks before its
 content is committed to the new source repository. Hosted clean-runner
-evidence can only follow a private upload;
-it must be reviewed before any public-visibility decision. Unresolved
+evidence can only follow an upload;
+it must be reviewed before a visibility change or a later publication claim. Unresolved
 third-party terms remain blockers for the relevant distribution scope.
 
 Review `distribution/public-source-exclusions.txt`. Every exclusion must be an
@@ -158,35 +158,34 @@ python3 script/audit_public_documentation.py \
 Do not suppress a failure or copy a report from the private checkout. Evidence
 must refer to the commit being published.
 
-## GitHub handoff
+## GitHub history and later updates
 
-The reviewed export must **not** be pushed to either existing private
-repository. Their histories are preservation records. Do not force-push,
-replace, or publish those histories.
+The two earlier private repositories are preservation records. Do not
+force-push, replace, or publish those histories. The owner created a separate
+repository at `interemi/scientific-workbench-public` and uploaded its reviewed
+root commit `b57c168` normally. That root records the private source commit in
+`SOURCE_PROVENANCE.json` without importing the private Git history.
 
-Only after the final export inventory, staged scope, and all local gates have
-been reviewed:
+For each later source update, after reviewing the export inventory, staged
+scope, and local gates:
 
-1. Initialize Git in a separate copy of the exact export. Review every staged
-   path, file mode, and content hash; make one root commit with the owner's
-   approved public identity. The source provenance manifest records the
-   private source commit without importing its Git history.
-2. For this project, the owner created an empty **private** repository named
-   `interemi/scientific-workbench-public`, without GitHub-generated files. The
-   initial root commit was uploaded normally; no private history was pushed.
-3. Check the remote SHA, repository privacy, and uploaded tree after each normal
-   non-force push. Never replace the private histories or rewrite the public one.
-4. Run the two hosted Core jobs and the separate opt-in Full job on the exact
-   candidate commit. Review and retain logs and artifacts; check any Actions
-   minutes or billing implications before the Full job. The initial commit
-   `b57c168` passed both runs on 2026-09-28, but later commits need their own
-   runs.
-5. Show the owner the exact public scope, remaining limits, and hosted results
-   for the final candidate before changing visibility. Verify the newly public
-   page and private vulnerability reporting route afterward.
+1. Clone the current public-source history into a separate clean checkout.
+   Compare the exact export against that checkout by path, content hash, and
+   file mode. Stage only the reviewed differences and create a normal
+   descendant commit with the owner's approved public identity. Do not create
+   another root or rewrite existing commits.
+2. Check the remote SHA, repository visibility, and uploaded tree before and
+   after a normal non-force push. Never replace the private histories or
+   rewrite the public one.
+3. Run both hosted Core jobs and the separate opt-in Full job on the exact new
+   commit. Review and retain logs and artifacts; check any Actions minutes or
+   billing implications before the Full job. The root commit `b57c168` passed
+   both runs on 2026-09-28, but its results do not validate later commits.
+4. Review the exact source scope, remaining limits, and hosted results before
+   claiming validation or announcing an update. Keep the public repository
+   page and private vulnerability reporting route accurate and usable.
 
 The hosted jobs provide fresh-VM technical installation evidence. If no second
 Mac is available, state prominently that independent interactive acceptance
-remains unproven. Changing visibility to public is a separate explicit
-decision. A source repository passing these checks is not a signed or
+remains unproven. A source repository passing these checks is not a signed or
 notarized macOS release.

@@ -49,9 +49,7 @@ including an existing Conda interpreter.
 ## 2. Obtain the complete source
 
 On the [repository page](https://github.com/interemi/scientific-workbench-public),
-choose **Code** to check its HTTPS clone URL. While the new repository is still
-private for its final validation, only accounts granted access can clone it.
-The URL is an argument to
+choose **Code** to check its HTTPS clone URL. The URL is an argument to
 `git clone`; pasting the URL by itself into Terminal does not clone anything.
 Clone into a directory where you want to keep the project:
 
@@ -246,8 +244,9 @@ On 27 September 2026, an isolated GUI session on the development Mac followed
 this path with the skill root from the source checkout. Jobs showed a successful
 run; Results displayed the summary and manifest with the expected values and
 the input SHA-256 unchanged. That Mac already had a scientific Python
-environment. The final public commit and manual use on another Mac remain
-untested. The [capability matrix](docs/CAPABILITY_SETUP_MATRIX.md) includes a
+environment. This GUI exercise has not been repeated on every later source
+commit, and manual use on another Mac remains untested. The
+[capability matrix](docs/CAPABILITY_SETUP_MATRIX.md) includes a
 standalone CLI version of this example if you want to test the backend
 independently.
 

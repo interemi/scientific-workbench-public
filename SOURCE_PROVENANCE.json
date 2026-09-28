@@ -37,10 +37,10 @@
       "sha256": "78a9e932430b0256cf12c3e75e30dac5fb8abc9941cb8cb6a9e3bed9df5ddebd"
     },
     {
-      "bytes": 14881,
+      "bytes": 14883,
       "mode": "100644",
       "path": ".github/workflows/portable-validation.yml",
-      "sha256": "f09fdcad44119cf29f568dd5de891f5583fa3a121d2ee66667f8f3d992634166"
+      "sha256": "a00137b2069850326e3f119c1d009b5f797919f7e086caf6f773eec5d290eeb3"
     },
     {
       "bytes": 253,
@@ -55,10 +55,10 @@
       "sha256": "a772816eb39eae8223b522721254cd0cf82bcf29de5a6dcc5d114488fc283825"
     },
     {
-      "bytes": 3532,
+      "bytes": 3541,
       "mode": "100644",
       "path": "CONTRIBUTING.md",
-      "sha256": "b065f7f5006637dea4f33972c98498cbfbd5152622618ff2e7645d74c9175d1b"
+      "sha256": "f6f27de617f40564f99258a5144c2ee82dea82c994778d87e5abb78d0bc24155"
     },
     {
       "bytes": 1838,
@@ -85,10 +85,10 @@
       "sha256": "54310fde3e32c49eae384a5831a0ce63336fb442fcdf4394bb5bd0d4e12e7624"
     },
     {
-      "bytes": 13633,
+      "bytes": 13569,
       "mode": "100644",
       "path": "INSTALL.md",
-      "sha256": "5e26906f4e4dc4a756c05c24fcba3cc53713b8c3aa8ece02542638db4997889a"
+      "sha256": "5be8124621f6b5a6b2dcc9ed6ae1afc928cd27917ad50341caaaf4330f7a65db"
     },
     {
       "bytes": 4563,
@@ -211,10 +211,10 @@
       "sha256": "13c96b2f5d10aca26214ee9db91939ff546f20a78e1bb0ca053139190d57b134"
     },
     {
-      "bytes": 6092,
+      "bytes": 5945,
       "mode": "100644",
       "path": "SECURITY.md",
-      "sha256": "417c37bfcb6eb0df3d3fd9fa41fd484cf28f95ecf8b219cf6eb243a314ed2a85"
+      "sha256": "cccbc453e90d900f743fdddd6cf78d75e72c11637c52ab810cad1e1cf39d72ef"
     },
     {
       "bytes": 2314,
@@ -1141,16 +1141,16 @@
       "sha256": "c33eafdb552d4094929688a30c771356d3d83bb53a27f1683ea8bcc553c48c96"
     },
     {
-      "bytes": 28091,
+      "bytes": 28243,
       "mode": "100644",
       "path": "docs/CAPABILITY_SETUP_MATRIX.md",
-      "sha256": "5986fa23246fc327f5b33a7b2f3bf452c9c7acfda3face1c51b4e20b4e1014e0"
+      "sha256": "3e747700a68b4a1082cea8682279fc512207d4f26ac5a1fe6f95e6960f3b6313"
     },
     {
-      "bytes": 10085,
+      "bytes": 10053,
       "mode": "100644",
       "path": "docs/CAPABILITY_VALIDATION_EVIDENCE.md",
-      "sha256": "a080f369a29757ce13cc933b77242065f31bb7fb9676ef08769bd413898b151b"
+      "sha256": "c21aedbe6b045ef1f22bc99138e9928a773be12084f5bc441db3183e4d79b4e2"
     },
     {
       "bytes": 3248,
@@ -1159,22 +1159,22 @@
       "sha256": "0e9fc4c985a1b7d7359a9b92adc15b71947777cac027432a5f4fdb027d1d15df"
     },
     {
-      "bytes": 19261,
+      "bytes": 19721,
       "mode": "100644",
       "path": "docs/DEPENDENCIES_AND_LICENSES.md",
-      "sha256": "b91a502c0e4a35034f0cc4c1051c19fb8a7d03e0e4ecc9bfb6dca9cfaa99239d"
+      "sha256": "13ab1fa2302cf54a3c38dad99bc9c5e59394d0b837ea6ea036bd7ec50bd89a86"
     },
     {
-      "bytes": 5062,
+      "bytes": 5079,
       "mode": "100644",
       "path": "docs/DOCUMENTATION_PUBLICATION_PLAN.md",
-      "sha256": "7c7e416c2baf8ca53ae7979560fa729b0e33389e63fc03f2290e2d355e64d0e1"
+      "sha256": "81c0376ab25223ca9a6b7afdef3d9d39ae8738417944b986c6b9d81faeab07ec"
     },
     {
-      "bytes": 4575,
+      "bytes": 4564,
       "mode": "100644",
       "path": "docs/LICENSE_DECISION.md",
-      "sha256": "d2c1d617a72d4807030f5e4456a9a02bd82eb3f96a6128b74f267238b2933a47"
+      "sha256": "fdb39c95cf9758dd079082d3084db2d822d509f10f3ed6efa6f3b2a15d4346ae"
     },
     {
       "bytes": 4915,
@@ -1195,22 +1195,22 @@
       "sha256": "24d23e07a3a7ba55ba0b63be5459e378f043e60b0846d633dcfcd9f39beddb80"
     },
     {
-      "bytes": 17826,
+      "bytes": 17820,
       "mode": "100644",
       "path": "docs/OPTIONAL_BACKENDS.md",
-      "sha256": "666f173812474bfdbf935d90204d13e33a806f622fcea908e3c5516e413cb552"
+      "sha256": "ea1eeaae0ae53028610ec57ca9b2b2276950346e35c7a29c928dda741477edc4"
     },
     {
-      "bytes": 4325,
+      "bytes": 4294,
       "mode": "100644",
       "path": "docs/OWNERSHIP_CONFIRMATION.md",
-      "sha256": "c7736721586bb9c97e9e8e197544a2fb4be76b5fc00a9260742012314a6f5fbb"
+      "sha256": "cea808041542b955f5407910fcfaa9ed4091c57b013933e662e596fb43f6d38b"
     },
     {
-      "bytes": 13956,
+      "bytes": 14096,
       "mode": "100644",
       "path": "docs/PORTABLE_VALIDATION.md",
-      "sha256": "6bd755a0477c0701000003011274f8c24bcb8dbfaf53967b7a0350770e3f8fc3"
+      "sha256": "bdb78708cca3d3fb166a52578bd9b375e615bd6c7617f5ed41004eb5ee2d0f44"
     },
     {
       "bytes": 7445,
@@ -1243,10 +1243,10 @@
       "sha256": "aa06881e33b400eb1287637c7fbcd7791c49fcda211306054c325894509539b3"
     },
     {
-      "bytes": 4585,
+      "bytes": 4582,
       "mode": "100644",
       "path": "docs/PUBLIC_READINESS.md",
-      "sha256": "f1ddc00aab74c8a8a3c3c2d56e53106b40852d22c388dc9de90b62e38a573023"
+      "sha256": "66da1af2286f29f047b6143cadd169f458edf46403b0310e6cd39b2ccd531ce0"
     },
     {
       "bytes": 5186,
@@ -1255,10 +1255,10 @@
       "sha256": "e916c3e334c9e6005655804d976f14c1a49246cbdea48e6b77b8612d0229ae56"
     },
     {
-      "bytes": 11632,
+      "bytes": 11625,
       "mode": "100644",
       "path": "docs/PUBLIC_SOURCE_HANDOFF.md",
-      "sha256": "fd328917e0bfe317887403b361668b07ef2faa621665032e09ad914d8f9f75b4"
+      "sha256": "408b0aad3222835c2a59f1a1adac3cc9e7c2a6288ff354e0f204768ffcc77e4a"
     },
     {
       "bytes": 9951,
@@ -1267,16 +1267,16 @@
       "sha256": "2c7246a38bd2ff3dede45e55990e0c9dc5d1fe31a2cdc4ca85dee158a225737b"
     },
     {
-      "bytes": 6428,
+      "bytes": 6290,
       "mode": "100644",
       "path": "docs/SOURCE_DISTRIBUTION_BOUNDARY.md",
-      "sha256": "8ae36202312be94f440dc7a33185f86be95fe8e6ff727d022aa6939f3e585636"
+      "sha256": "6d009fae4792dcbf51368bbabefbd8649ee0bd8743f301d947eb8ab074b6aa55"
     },
     {
-      "bytes": 8493,
+      "bytes": 8398,
       "mode": "100644",
       "path": "docs/TROUBLESHOOTING.md",
-      "sha256": "218276ca41d8390a0432be28d8a29244199ec249e36102743d6db742b3887de6"
+      "sha256": "ed47479f689e2c2aef52f4b6623fbd333fe8ce78bc0e3a6bb3a4cd9d935babd7"
     },
     {
       "bytes": 9697,
@@ -13731,7 +13731,7 @@
   "private_code_path_map_sha256": "6e3e41250c07218b10b01e676b24a6daaa6ef2c2171149e4e8aad7b6f24f739b",
   "product": "Scientific Workbench",
   "schema_version": 2,
-  "source_commit": "8d2e6c74e8d7c4fba96b585f3fed4c78d3dff885",
-  "source_tree": "c9cf8da68e9d119fd9428aacfe41ce0ca1757aee",
+  "source_commit": "8315c53fc99c7dbbec1f1c9974290a8d49d86283",
+  "source_tree": "516e8c943b5ae0b96220360ffc52048532ad6297",
   "tracked_entries": 2225
 }

@@ -127,8 +127,10 @@ It retains `olefile` for legacy Office metadata without claiming `.xls` macro
 detection. Static lock and archive checks passed; the current source worktree
 also passed 38/38 synthetic Full cases on 27 September 2026 in an existing
 Python 3.11 environment, with the 1,926-entry snapshot intact before and after.
-The current lock has not yet been installed from scratch; the earlier 38-case
-run below remains dated evidence for its own tree.
+The [hosted Full job](https://github.com/interemi/scientific-workbench-public/actions/runs/36437566460)
+installed this lock from scratch on arm64 for commit `b57c168`, then passed
+23 Core synthetic cases and 39 document tests. It did not run the 38-case Full
+smoke; the local run below remains dated evidence for its own tree.
 
 On 25 September 2026, local preparation commit `3c979e6` passed the Full
 portable wrapper with 38/38 synthetic cases, Core and Full tier coverage with
@@ -207,10 +209,10 @@ cancel a Core run on the same ref. It does not package, sign, notarize, or
 publish an app.
 GitHub-hosted macOS jobs run on fresh virtual machines, making them useful
 technical clean-environment evidence; their preinstalled image and automated
-core smoke do not prove a consumer install or interactive usability. On a
-private repository, macOS jobs consume Actions minutes and may incur charges
-after the account's allowance; manually selecting Full adds another macOS job.
-Check Actions billing settings before uploading or dispatching the workflow.
+core smoke do not prove a consumer install or interactive usability.
+GitHub Actions usage and billing depend on the account and repository settings;
+manually selecting Full adds another macOS job. Check the current Actions
+billing settings before dispatching the workflow.
 
 After uploading, open Actions. Record the run URL, commit, architecture,
 versions, and each job's result in new evidence. On failure, inspect the failed
@@ -231,10 +233,10 @@ complete scientific-output directories. Download evidence before expiry if a
 durable record is needed. Artifact-upload failure remains visible in the job
 result.
 
-The documentation step inventories the private preservation checkout. When
-`SOURCE_PROVENANCE.json` identifies a public export, the same CI step requires
-English text and PDF content, valid local links, and portable paths. This
-condition lets the private branch retain its original historical records while
-making an exported public candidate fail on documentation regressions.
+The documentation script can also inventory the private preservation checkout.
+When `SOURCE_PROVENANCE.json` identifies a public export, CI requires English
+text and PDF content, valid local links, and portable paths. This condition
+lets the private branch retain its historical records while a public source
+checkout fails on documentation regressions.
 `--check-secrets` does not resolve all privacy findings. Check the hosted run
 for the exact exported commit before claiming a portable validation PASS.

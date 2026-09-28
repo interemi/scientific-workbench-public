@@ -50,8 +50,8 @@ Inspect logs and screenshots before sharing: do not attach original scientific
 data, credentials, unnecessary personal paths, or unreviewed support bundles.
 
 Do not report suspected vulnerabilities or credentials in public issues.
-Follow [SECURITY.md](SECURITY.md). A verified private security-reporting channel
-is still required before public use.
+Follow [SECURITY.md](SECURITY.md) for the private reporting route and what to do
+if GitHub does not show its reporting button.
 
 ## License and publication
 

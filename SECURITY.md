@@ -9,20 +9,18 @@ requests, or discussions.
 
 If this repository's **Security and quality > Advisories** page shows **Report a
 vulnerability**, use that GitHub form to send details privately to the owner.
-The button is available only after the owner enables private vulnerability
-reporting for a public repository. Its presence has **not** yet been verified
-for this project. Existing private collaborators can use their established
-private contact with the owner; no general public contact address is offered
-until the reporting route is confirmed. If the button is absent, do not post
-the details publicly.
+GitHub shows that button when private vulnerability reporting is enabled.
+If the button is absent, do not post the details publicly. Existing
+collaborators can use their established private contact with the owner; this
+repository does not publish a general security contact address.
 
-Before announcing a public opening, the owner should follow
+The owner should keep the reporting route enabled and follow
 [GitHub's repository instructions](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository):
 open **Settings > Security and quality > Advanced Security**, enable **Private
 vulnerability reporting**, then confirm that **Report a vulnerability** appears
 on **Security and quality > Advisories**. The owner should also enable GitHub
-notifications for security alerts. Do not claim that this channel works until
-those checks are complete.
+notifications for security alerts. Verify the button after any visibility or
+security-settings change.
 
 A useful report includes the affected commit, macOS version and architecture,
 entry point, expected and observed behavior, impact, and a minimal synthetic
@@ -109,5 +107,5 @@ not proof of the absence of secrets in every format. Historical recovery files
 may contain personal paths or older logs and require review before sharing.
 
 Automated regression tests do not establish exhaustive security or scientific
-correctness. Hosted CI, clean-Mac acceptance, and a verified public reporting
-channel remain separate evidence requirements.
+correctness. Hosted CI, clean-Mac acceptance, and a verified reporting channel
+are separate checks.

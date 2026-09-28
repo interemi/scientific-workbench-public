@@ -1,9 +1,10 @@
 # Dependencies, provenance, and distribution limits
 
 The app descends from M101 commit
-`f686c3bd556d4fab684ee051a04cf248d50fdf64`, whose history is preserved in this
-private checkout. The current backend snapshot contains 1,446 regular files and 480
-internal relative symlinks. The complete inventory is in
+`f686c3bd556d4fab684ee051a04cf248d50fdf64`. The private preparation
+repository retains that history; this public source distribution has its own
+clean Git history. The current backend snapshot contains 1,446 regular files
+and 480 internal relative symlinks. The complete inventory is in
 [distribution/skill-manifest.json](../distribution/skill-manifest.json).
 
 | Component | Current distribution | Remaining review |
@@ -11,7 +12,7 @@ internal relative symlinks. The complete inventory is in
 | Project-authored Swift/SwiftUI code | Source/resources under PolyForm Noncommercial 1.0.0; Apple supplies its frameworks | Platform and distribution acceptance |
 | Five scientific-data skills | Project-authored source, fixtures, and documentation under PolyForm Noncommercial 1.0.0 | Incorporated third-party material, license compatibility, and release review |
 | Python core | 13 direct requirements; arm64/Python 3.11 lock for 32 runtime packages tested in a new environment | Other platform locks and exact license terms |
-| Python full | arm64/Python 3.11/macOS 15+ lock: 200 runtime packages and three build tools, hashes, and inventory | Fresh installation of the current lock, other platforms, and exact license terms |
+| Python full | arm64/Python 3.11/macOS 15+ lock: 200 runtime packages and three build tools, hashes, and inventory; fresh hosted arm64 installation passed | Other platforms, exact license terms, and optional workflow acceptance |
 | Ollama and models | External installation/download | Resource requirements and each model's license |
 | LaTeX, LibreOffice, iWork, OCR, astronomy backends | Optional external components | Workflow-specific setup and use/distribution terms |
 
@@ -56,10 +57,14 @@ for its build. It excludes automatic TEAREDUCE and oletools/pcodedmp installatio
 and retains `olefile` for legacy Office metadata. Static checks and the archive
 audit below passed. On 27 September 2026, this source worktree passed a 38/38
 synthetic Full smoke in the maintainer's existing Python 3.11 environment,
-with its 1,926-entry backend snapshot intact. That environment is not an
-installation of the 200-package lock; fresh locked installation remains open.
-Intel remains pending. Python and initial `venv` bootstrap remain outside the
-lock; after bootstrap, full installs and uses verified pip 26.2.1.
+with its 1,926-entry backend snapshot intact. That local environment was not an
+installation of the 200-package lock. Separately, clean-root public source
+commit `b57c168` passed a [fresh hosted macOS 15 arm64 Full installation](https://github.com/interemi/scientific-workbench-public/actions/runs/36437566460)
+with 23/23 Core synthetic cases and 39/39 document tests. That job did not run
+the 38-case Full smoke; later commits need their own hosted checks. A locked
+Intel Full installation remains pending. Python and initial `venv` bootstrap
+remain outside the lock; after bootstrap, full installs and uses verified pip
+26.2.1.
 
 The [core wheel inventory](../distribution/core-wheel-inventory.json) contains
 metadata from downloaded packages, rather than licenses inferred from names.
@@ -137,7 +142,7 @@ license compatibility or complete attribution. The three wheels without named
 notices, incorporated material, external GPL routes, and any future bundled-app
 review remain open.
 
-## Copyleft integration decision before public opening
+## Copyleft integration and remaining limits
 
 Current PDF workflows use pypdfium2 for rendering, embedded-image extraction,
 Quick Look fallback, presentation previews, and the compiled-report preview in
@@ -177,9 +182,9 @@ settle how each Scientific Workbench route would be treated in every
 jurisdiction or distribution scenario. The technical
 finding is **open**; absence of wheels and model weights from Git does not by
 itself clear it. Do not represent the full profile or a downloadable bundle as
-license-cleared until the applicable terms and integration are reviewed. A
-source-only publication decision needs an explicit resolution or a documented
-scope change that preserves the private original and its evidence.
+license-cleared until the applicable terms and integration are reviewed. The
+source-only scope change is documented below; it does not establish legal
+clearance for optional integrations or a future bundle.
 
 ## Concrete resolution work
 
@@ -194,9 +199,9 @@ The alternative Conda recipe, `skills/scientific-data-analysis/environment.yml`,
 also names pypdfium2 in place of PyMuPDF; it is not covered by the pip lock or
 the fresh-install evidence for that lock.
 
-| Integration | Preferred technical route if rights are not cleared | Verification before changing public instructions |
+| Integration | Current technical route | Remaining verification |
 | --- | --- | --- |
-| PDF recovery, OCR, Quick Look, presentation preview, and spectroscopy compiled-report preview | Current capability paths use pypdfium2, and PyMuPDF is absent from the revised Full lock. | The local 38/38 Full smoke and focused PDF rendering/image-extraction test passed with installed pypdfium2 5.6.0, while the lock pins 5.13.0. On 28 September 2026, a focused synthetic test rendered the astronomy and notebooks helpers and verified unchanged input; the maintainer regression's matplotlib PDF yielded extractable text. A fresh locked install, current wheel notices, and exact exported-candidate review remain necessary. |
+| PDF recovery, OCR, Quick Look, presentation preview, and spectroscopy compiled-report preview | Current capability paths use pypdfium2, and PyMuPDF is absent from the revised Full lock. | The local 38/38 Full smoke and focused PDF rendering/image-extraction test passed with installed pypdfium2 5.6.0, while the lock pins 5.13.0. On 28 September 2026, a focused synthetic test rendered the astronomy and notebooks helpers and verified unchanged input; the maintainer regression's matplotlib PDF yielded extractable text. The revised lock installed from scratch on hosted arm64, but these focused PDF operations were not rerun there with pypdfium2 5.13.0. Exact-version functional acceptance and wheel notice review remain open. |
 | TEAREDUCE external notebooks | Healthcheck and bridge no longer import TEAREDUCE; bridge numerical and image results are native and must not be described as TEAREDUCE-equivalent. Full no longer installs the package. Copied user notebooks remain an external route with explicit code trust and a selected kernel. | Verify selected-kernel operation on a safe external notebook and protected inputs; do not infer kernel availability from a healthcheck of the launcher. Review the applicable license interaction before claiming the route is cleared. |
 | oletools/pcodedmp | The `.xls` inspection preserves stream and metadata extraction through direct `olefile`, but deliberately does not claim macro detection. The previous `has_vba` value is no longer produced for `.xls`; no substitute parser is claimed. The chain is absent from the current lock. | Retain the limitation in user docs and test actual `.xls` samples only when safe fixtures are available. |
 | External iSTARMOD | Keep the user-provided tree outside Git and establish which upstream version/layout the legacy adapter supports. Seek permission or redesign if a future bundle would include its GPL code. | Demonstrate `inspect-tree`, `prepare-copy`, and a real run on a safe copy of a known compatible tree; retain version, source, and license evidence. |

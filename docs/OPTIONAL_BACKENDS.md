@@ -85,7 +85,7 @@ not silently switch providers or models. Actual cloud chat and workflow
 planning present an outbound-data review before sending; the default approval
 covers only that request. Do not put API keys in Git, a copied command, an
 issue, or a support log. We have not tested these paid providers with real keys
-for this public-source candidate. Web Astrometry.net solving is a separate
+for this source repository. Web Astrometry.net solving is a separate
 upload/API choice described below.
 
 ## LaTeX

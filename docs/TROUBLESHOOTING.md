@@ -170,12 +170,10 @@ A useful report contains:
 - the smallest synthetic fixture that reproduces the problem.
 
 Review the bundle before sharing it. Heavy or personal artifacts remain in the
-run folder and are listed rather than copied. The repository has an approved
-[security policy](../SECURITY.md), but its GitHub private-reporting button has
-not yet been verified. Do not publish a suspected vulnerability or secret in a
-GitHub issue. Follow the policy's private-reporting instructions when that
-channel is available; otherwise preserve the evidence without posting it
-publicly.
+run folder and are listed rather than copied. Follow the repository's
+[security policy](../SECURITY.md) for a suspected vulnerability or secret.
+Use GitHub's private-reporting form only if **Report a vulnerability** is
+visible; otherwise preserve the evidence without posting it in a public issue.
 
 After a fix, rerun the narrow reproducer first, then the applicable release and
 quality gates. Keep the failed run unchanged as historical evidence.

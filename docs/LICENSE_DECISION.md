@@ -52,9 +52,9 @@ without a broad source license. A restrictive license does not prevent technical
 copying or guarantee compliance. See
 [GitHub's licensing guidance](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository).
 
-The owner decides when to make the repository public after reviewing the source
-scope, third-party obligations, and validation evidence. Public visibility does
-not change these license terms or establish scientific fitness.
+Public visibility does not change these license terms or establish scientific
+fitness. Source scope, third-party obligations, and validation evidence must
+still be reviewed for each later distribution or release.
 
 ## Third-party scope and remaining review
 
