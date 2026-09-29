@@ -1,6 +1,12 @@
 # Scientific Workbench Roadmap
 
-This roadmap is the execution pathway for turning Scientific Workbench into a native macOS app for AI-assisted local scientific workflows. The core product question is:
+This is the historical base pathway. Its completion percentages describe that
+pathway, not the current product or release status. The [post-100 record](POST_100_BACKLOG.md)
+and [current product improvement roadmap](docs/PRODUCT_IMPROVEMENT_ROADMAP.md)
+track later work; [source validation and limits](docs/PUBLIC_READINESS.md) is a
+dated evidence snapshot.
+
+This roadmap was the execution pathway for turning Scientific Workbench into a native macOS app for AI-assisted local scientific workflows. The core product question was:
 
 > Can the user open the app, use local AI by default or connect an optional cloud provider, attach a complex folder, ask in natural language, understand the plan, execute safely, and get reproducible results without modifying originals?
 
@@ -403,8 +409,10 @@ Gate:
 ## Post-100 Work
 
 The former immediate-task list is complete and remains represented by the base
-pathway history below. New work is tracked in `POST_100_BACKLOG.md` so completed
-percentages are not rewritten to hide later risk and maintenance work.
+pathway history below. M101–M105 are recorded in `POST_100_BACKLOG.md`;
+post-publication work is tracked in `docs/PRODUCT_IMPROVEMENT_ROADMAP.md` so
+completed percentages are not rewritten to hide later risk and maintenance
+work.
 
 M101 completed its implementation and validation gates on 2026-07-15: contract
 integrity, hardened process/filesystem/cloud boundaries, and release evidence

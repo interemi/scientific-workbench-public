@@ -4,6 +4,10 @@ This page records evidence available on 2026-09-28. It is a dated snapshot,
 not a live certification. Check the current commit and its GitHub Actions runs
 before treating a later checkout as validated.
 
+The [current product improvement roadmap](PRODUCT_IMPROVEMENT_ROADMAP.md)
+tracks planned post-publication work. Its task list does not change the dated
+validation scope recorded here.
+
 Scientific Workbench is distributed as source under PolyForm Noncommercial
 1.0.0 for project-authored material, attributed to interemi. It is
 source-available, not OSI open source. Third-party components retain their own

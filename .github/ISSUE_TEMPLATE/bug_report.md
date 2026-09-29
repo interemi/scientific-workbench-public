@@ -27,5 +27,8 @@ Include a minimal synthetic example, the command, and the relevant error.
 Inspect logs and screenshots before attaching them. Do not share credentials,
 original scientific data, private documents, or unreviewed support bundles.
 Do not disclose suspected vulnerabilities in public issues.
+Use the private route described in
+[SECURITY.md](https://github.com/interemi/scientific-workbench-public/blob/main/SECURITY.md)
+instead.
 
 Were the original inputs and the failed run's output directory preserved?

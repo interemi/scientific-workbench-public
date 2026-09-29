@@ -16,9 +16,9 @@ repository does not publish a general security contact address.
 
 The owner should keep the reporting route enabled and follow
 [GitHub's repository instructions](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository):
-open **Settings > Security and quality > Advanced Security**, enable **Private
-vulnerability reporting**, then confirm that **Report a vulnerability** appears
-on **Security and quality > Advisories**. The owner should also enable GitHub
+enable **Private vulnerability reporting** in the repository security settings,
+then confirm that **Report a vulnerability** appears in the repository's
+**Security and quality > Advisories** page. The owner should also enable GitHub
 notifications for security alerts. Verify the button after any visibility or
 security-settings change.
 
@@ -26,6 +26,13 @@ A useful report includes the affected commit, macOS version and architecture,
 entry point, expected and observed behavior, impact, and a minimal synthetic
 reproduction. Inspect and redact logs before sharing them. Preserve the original
 inputs and the failed run's evidence.
+
+## Supported versions
+
+Security reports are assessed against the current `main` source branch. Older
+commits may receive a fix only if the owner explicitly decides to maintain
+them. There is no supported signed binary release or long-term-support branch.
+Include the affected commit in a report so the owner can reproduce it.
 
 ## System and scope
 

@@ -14,6 +14,10 @@ and a separate focused Full installation check on arm64 on 2026-09-28.
 Those results apply to that commit; check Actions for the commit you use.
 There is no signed or notarized downloadable release.
 
+The [current product improvement roadmap](docs/PRODUCT_IMPROVEMENT_ROADMAP.md)
+tracks post-publication work in this existing repository. Its phases are plans,
+not promises that the listed features have shipped.
+
 ## Get started
 
 1. Follow [INSTALL.md](INSTALL.md) to create a new Python environment, configure
@@ -27,6 +31,12 @@ There is no signed or notarized downloadable release.
 4. Start with synthetic data. A direct **Run Capability** action starts immediately,
    so review its inputs and output folder first. For a Chat-generated plan, use
    **Dry Run** to inspect its commands before **Run Enabled**.
+
+The 55 catalogued routes have different readiness levels: 17 `app_ready`, 19
+`app_ready_partial`, 7 `blocked_optional`, 10 `cli_only`, and 2
+`not_applicable_to_app`. Consult the [setup matrix](docs/CAPABILITY_SETUP_MATRIX.md)
+for the access method and prerequisites of a specific route. A partially ready,
+optional, or CLI route is not a complete graphical workflow.
 
 The app requires macOS 14 or later and Swift 6 to build. The reference scientific
 environment uses Python 3.11. The [public repository's portable validation](https://github.com/interemi/scientific-workbench-public/actions/workflows/portable-validation.yml)
