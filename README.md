@@ -160,8 +160,10 @@ capabilities and the specialized forms' format limits. The
 [M103 persistence contract](docs/M103_PERSISTENCE_EVOLUTION.en.md) describes
 migrations, conservative recovery, and exact backups. The
 [M104 architecture and UX review](docs/M104_ARCHITECTURE_AND_UX.md) documents
-ephemeral connection state, accessible controls, and pending external usability
-acceptance.
+ephemeral connection state and accessible controls. The
+[research-led acceptance decision](docs/RESEARCH_LED_ACCEPTANCE.md) explains how
+the current plan replaces prospective outside-participant gates while retaining
+the limitation that independent usability has not been measured.
 
 ## Development and license
 

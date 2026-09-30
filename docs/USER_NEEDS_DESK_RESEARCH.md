@@ -5,6 +5,10 @@
 **Status:** documentary research and product hypotheses; no Scientific
 Workbench users were interviewed or observed for this report.
 
+The [2026-09-30 research-led acceptance decision](RESEARCH_LED_ACCEPTANCE.md)
+supersedes this report's prospective requirement for outside participants.
+The cited observations and their limits remain historical research evidence.
+
 ## Question and method
 
 If 5–8 potential users could be interviewed, which tasks and product assumptions

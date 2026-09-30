@@ -167,6 +167,22 @@ The result uses ad hoc signing for local development; it is not a notarized
 public installer. Open this copy from `dist/` before replacing any installed
 app you wish to preserve.
 
+On the maintainer's macOS 27.0.1 with Command Line Tools Swift 6.4, plain
+`swift build` failed before source compilation. A scoped build using an older
+SDK already present on that Mac succeeded:
+
+```bash
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk \
+  swift build --build-system native
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk \
+  SCIENTIFIC_WORKBENCH_SWIFT_BUILD_SYSTEM=native \
+  ./script/build_and_run.sh --build
+```
+
+Check that this SDK path exists before using these commands. This is a
+workaround for the observed toolchain combination, not evidence of a fresh
+installation on macOS 27 or a general requirement to install an older SDK.
+
 ## 5. Configure the first launch
 
 In Settings, configure:
@@ -275,6 +291,9 @@ other original data to validate a new installation.
   install only the required component, and check readiness again.
 - **Swift Testing fails with Apple developer tools:** use
   `./script/run_swift_tests.sh`, which includes the project's test runner.
+- **Swift build fails before source compilation on macOS 27:** see the scoped
+  SDK workaround in [Build the app](#4-build-the-app). Record the exact macOS,
+  Swift, and SDK versions if it does not apply.
 
 See [what the skills and capabilities do](docs/SKILLS_AND_CAPABILITIES.md),
 then use the [55-capability setup matrix](docs/CAPABILITY_SETUP_MATRIX.md) to choose

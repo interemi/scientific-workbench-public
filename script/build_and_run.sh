@@ -30,6 +30,13 @@ APP_BUILD="${APP_BUILD:-1}"
 SWIFT_CONFIGURATION="${SWIFT_CONFIGURATION:-debug}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SWIFT_BUILD_OPTIONS=(--package-path "$ROOT_DIR")
+if [[ -n "${SCIENTIFIC_WORKBENCH_SWIFT_BUILD_SYSTEM:-}" ]]; then
+  SWIFT_BUILD_OPTIONS+=(--build-system "$SCIENTIFIC_WORKBENCH_SWIFT_BUILD_SYSTEM")
+fi
+if [[ -n "${SCIENTIFIC_WORKBENCH_SWIFT_SCRATCH_PATH:-}" ]]; then
+  SWIFT_BUILD_OPTIONS+=(--scratch-path "$SCIENTIFIC_WORKBENCH_SWIFT_SCRATCH_PATH")
+fi
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_DISPLAY_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
@@ -79,8 +86,8 @@ wait_for_process_exit "$APP_EXECUTABLE_NAME" || pkill -9 -x "$APP_EXECUTABLE_NAM
 wait_for_process_exit "$SWIFT_PRODUCT_NAME" || pkill -9 -x "$SWIFT_PRODUCT_NAME" >/dev/null 2>&1 || true
 
 cd "$ROOT_DIR"
-swift build -c "$SWIFT_CONFIGURATION"
-BUILD_BINARY="$(swift build -c "$SWIFT_CONFIGURATION" --show-bin-path)/$SWIFT_PRODUCT_NAME"
+swift build "${SWIFT_BUILD_OPTIONS[@]}" -c "$SWIFT_CONFIGURATION"
+BUILD_BINARY="$(swift build "${SWIFT_BUILD_OPTIONS[@]}" -c "$SWIFT_CONFIGURATION" --show-bin-path)/$SWIFT_PRODUCT_NAME"
 
 STAGING_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/scientific-workbench-app-build.XXXXXX")"
 STAGING_APP_BUNDLE="$STAGING_ROOT/$APP_DISPLAY_NAME.app"

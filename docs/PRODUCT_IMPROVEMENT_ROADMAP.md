@@ -23,8 +23,12 @@ The product direction is a small set of complete, inspectable local workflows:
 one for tables, one for astronomy/FITS, and one for a mixed folder that ends in
 a report. The [user-needs desk research](USER_NEEDS_DESK_RESEARCH.md) frames
 the specific tasks and audience as hypotheses; no interview-based validation
-has occurred. Use synthetic or explicitly licensed
-data, keep original inputs unchanged, and tie conclusions to recorded artifacts.
+has occurred. The [research-led acceptance decision](RESEARCH_LED_ACCEPTANCE.md)
+replaces prospective outside-participant gates with cited research, known-answer
+fixtures, scripted internal GUI checks, and exact-commit CI. It does not turn
+those checks into evidence of independent usability. Use synthetic or
+explicitly licensed data, keep original inputs unchanged, and tie conclusions
+to recorded artifacts.
 A technical PASS never means that a scientific interpretation is correct.
 
 We work through the phases below in order. A measured bottleneck may justify
@@ -55,7 +59,7 @@ local verification and the limits still awaiting exact-commit CI and review.
 | P0.12 | Keep the current plan, historical milestones, and dated readiness record consistent; link each completion claim to evidence. |
 | P0.07 | Before each public update, record the reviewed paths, included/excluded material, hashes, provenance, and privacy checks for the exact snapshot. |
 | P0.08 | Review origin, license, notices, and redistribution conditions for every new dependency, skill, fixture, and asset. |
-| P0.09 | Keep retained public material in English, validate links and portable commands, and verify an installation tutorial without coaching when a participant is available. |
+| P0.09 | Keep retained public material in English, validate links and portable commands, and rehearse the installation tutorial step by step in a reviewed source copy or hosted clean runner. Record any steps not performed locally; do not claim an uncoached newcomer test. |
 | P0.05 | Re-run relevant Core/Full installation and gates on the available Mac; record hardware, macOS, Python, lock, commit, and scope. |
 | P0.06 | Limit compatibility claims to observed systems and checks; mark other interactive Mac use as unverified. |
 
@@ -67,15 +71,16 @@ available, how to report a problem, and what has actually been tested.
 | ID | Work |
 | --- | --- |
 | P0.01 | Replace the proposed 5–8 interviews with [documentary research](USER_NEEDS_DESK_RESEARCH.md) into what such a round would investigate; publish sources, population limits, open questions, and a provisional audience decision. Do not invent participants. |
-| P2.01 | Provisionally prioritize two or three astronomy tasks. For each, record a target user, example dataset, baseline, method, outputs, dependencies, units, scientific limits, and technical owner. Evaluate the priorities with actual users when available; desk research alone does not satisfy that part of the criterion. |
-| P0.03 | Specify one table, one astronomy, and one mixed-document workflow. For each, record a small example, Core/Full profile, optional dependencies, expected output, scientific limits, and the complete GUI path. Keep acceptance open until a person outside the project can find, run, and inspect the example without Terminal, code edits, or coaching. |
+| P2.01 | Prioritize two or three astronomy tasks using cited research and comparable-tool workflows. For each, record a target user hypothesis, example dataset, independently checked baseline or calculation, method, outputs, dependencies, units, scientific limits, and technical owner. Record the order and its rationale without claiming a measured user preference; implementation regression cases belong to P2.05. |
+| P0.03 | Specify one table, one astronomy, and one mixed-document workflow. For each, record a small example, Core/Full profile, optional dependencies, expected output, scientific limits, and the complete GUI path. Close after scripted internal GUI runs start from the documented initial state and verify job-linked artifacts and unchanged inputs, with gaps retained. |
 
 The [provisional workflow specifications](FLAGSHIP_WORKFLOW_SPECIFICATIONS.md)
-make the current implementation and missing pieces explicit. They are design
-evidence, not completion of P2.01 or P0.03. Exit requires the specified examples
-and GUI paths to work, plus the independent-user evidence required by both
-items. Until a participant is available, continue reversible implementation
-and leave those acceptance criteria open.
+make the current implementation and missing pieces explicit. The cited priority
+decision and feasibility calculations provide P2.01 evidence; P0.03 remains
+open for the incomplete GUI paths. Phase exit requires the specified examples
+and complete GUI paths under the
+[revised internal protocol](RESEARCH_LED_ACCEPTANCE.md). Neither task is blocked
+on recruiting a participant; unmet implementation or evidence steps remain open.
 
 ## Phase 3 — Build repeatable examples and a local baseline
 
@@ -86,14 +91,16 @@ and leave those acceptance criteria open.
 | P2.06 | Separate process success, artifact-contract checks, automatic QA, and human scientific review. |
 | PERF.01 | Measure startup and main interactions with controlled local traces and record the tested machine. |
 | PERF.16 | Measure Core/Full installation and first-use costs on the available machine and network. |
-| P0.04 | Run the M104 usability protocol with synthetic fixtures on the available Mac; label independent acceptance pending if necessary. |
+| P0.04 | Run a scripted M104 navigation, error, recovery, cancellation, and artifact walkthrough with synthetic fixtures on the available Mac; record accessibility checks and the limits of an author-run session. |
 | P1.10 | Review keyboard, VoiceOver, contrast, dark mode, and window sizes on that Mac. |
 
 The [five synthetic first-run examples](SYNTHETIC_FIRST_RUN_EXAMPLES.md) have
 passed focused format tests, direct bundled-backend probes, and a maintainer
 GUI walkthrough on macOS 27.0.1. P1.02 remains an in-progress local candidate
 until the exact source snapshot is reviewed and its public CI checks pass.
-The GUI walkthrough is not the independent acceptance required by P0.03.
+The GUI walkthrough is internal technical evidence. P0.03 remains open for the
+missing complete paths and recorded acceptance checks, not for outside-user
+recruitment.
 
 Exit: reproducible examples, reviewed expected values, and a dated performance
 and usability baseline.
@@ -105,7 +112,7 @@ and usability baseline.
 | P1.01 | Make Dashboard a launcher for the chosen tasks and a way to resume a run. |
 | P1.03 | Explain Core versus Full and what external tools still require separate setup. |
 | P1.04 | Show prioritized environment diagnosis and safe repair into a new environment. |
-| P1.05 | Organize capabilities by user task, format, profile, readiness, and skill. |
+| P1.05 | Organize capabilities by task, format, profile, readiness, and skill; check common task names against documented navigation paths and accessibility identifiers. |
 | P1.06 | Show input, output, backend, network, consent, and dependency scope before execution. |
 | P1.07 | Connect progress, cancellation, job evidence, retry, and results. |
 | P1.08 | Let users inspect artifacts safely without running code or changing inputs. |
@@ -116,8 +123,9 @@ and usability baseline.
 | P1.12 | Publish short, version-matched guides for the selected workflows. |
 | P1.14 | Publish real screenshots and a tour tied to an identified build. |
 
-Exit: a new user can choose, prepare, run or cancel, and inspect a workflow
-without losing the connection between its plan, job, and artifacts.
+Exit: the three scripted first-use paths can choose, prepare, run or cancel,
+and inspect a workflow without losing the connection between its plan, job,
+and artifacts. This is an internal functional criterion, not a user-success rate.
 
 ## Phase 5 — Optimize measured bottlenecks
 
@@ -173,12 +181,12 @@ The public source repository does not itself imply a downloadable app release.
 | ID | Work |
 | --- | --- |
 | P3.06 | Keep contribution review within existing scientific, license, privacy, and CI gates. |
-| P3.02 | Define a stable CLI only if users need automation of the selected workflows. |
+| P3.02 | Define a stable CLI only for a cited automation use case or a concrete local/public issue about the selected workflows. |
 | P3.01 | Consider reviewed, versioned skill packs before any marketplace. |
 | P3.05 | Test safe project export/import in another directory on the same Mac if needed. |
 | P3.03 | Consider a narrow read-first MCP/API with explicit permissions and a public threat model. |
-| P3.04 | Add another compatible local-model endpoint only after demand and protocol tests. |
-| P3.09 | Consider model-based report review only after deterministic artifact validation. |
+| P3.04 | Add another compatible local-model endpoint only after a documented use case and protocol tests. |
+| P3.09 | Consider model-based report review only after deterministic artifact validation and an explicit, limited review contract. |
 | P3.07 | Defer remote/HPC execution until a real test cluster is available. |
 | P3.08 | Defer Windows/Linux claims until those platforms can be tested. |
 
@@ -191,6 +199,6 @@ Create issues for the **active phase**, each with its ID, completion evidence,
 and dependencies. Put those issues in a phase milestone. Link implementation
 pull requests to their issues; review the diff, licenses, inputs, and CI before
 merging. Treat Actions as technical evidence for the exact commit. A green run
-cannot close a task that requires a user study, domain review, or a private
-reporting check. Add later-phase issues when their prerequisites and scope are
-clear, rather than publishing 66 vague tickets at once.
+cannot close a task that still needs its internal GUI path, scientific baseline,
+or private reporting check. Add later-phase issues when their prerequisites and
+scope are clear, rather than publishing 66 vague tickets at once.
