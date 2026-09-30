@@ -4,6 +4,11 @@ Scientific Workbench is research software under development. Current priorities
 are verifiable scientific workflows, non-destructive data handling, and clear
 installation limits. It has not been interactively tested on another Mac.
 
+The [product improvement roadmap](docs/PRODUCT_IMPROVEMENT_ROADMAP.md) orders
+post-publication work. Use a GitHub Issue with its task ID and evidence criteria
+for the active phase, then link the implementation pull request. Later phases
+remain proposals until their prerequisites and scope are clear.
+
 ## Change workflow
 
 1. Check the branch, HEAD, and `git status --short` before editing.

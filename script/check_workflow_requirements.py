@@ -20,6 +20,8 @@ REQUIREMENTS_DOC = ROOT / "docs/WORKFLOW_REQUIREMENTS.md"
 CAPABILITY_MATRIX_DOC = ROOT / "docs/CAPABILITY_SETUP_MATRIX.md"
 CAPABILITY_EVIDENCE_DOC = ROOT / "docs/CAPABILITY_VALIDATION_EVIDENCE.md"
 APP_CAPABILITY_MODEL = ROOT / "Sources/ScientificWorkbench/Models/CapabilityEntry.swift"
+README_DOC = ROOT / "README.md"
+PRODUCT_ROADMAP_DOC = ROOT / "docs/PRODUCT_IMPROVEMENT_ROADMAP.md"
 
 EXPECTED_BLOCKS = {
     "core / routing": 5,
@@ -48,6 +50,7 @@ APP_READINESS_SETS = {
     "notApplicableCapabilityIDs": "not_applicable_to_app",
     "appReadyPartialCapabilityIDs": "app_ready_partial",
 }
+APP_READINESS_LABELS = {"app_ready", *APP_READINESS_SETS.values()}
 
 
 def fail(message: str) -> None:
@@ -68,6 +71,20 @@ def load_registry() -> list[dict]:
 def require_equal(label: str, actual: object, expected: object) -> None:
     if actual != expected:
         fail(f"{label} is {actual!r}; expected {expected!r}")
+
+
+def check_readiness_summary(path: Path, expected: dict[str, int]) -> None:
+    if not path.is_file():
+        fail(f"missing readiness summary document: {path.relative_to(ROOT)}")
+    document = path.read_text(encoding="utf-8")
+    matches = re.findall(
+        r"\b(\d+)(?:\s+are)?\s+`(app_ready|app_ready_partial|blocked_optional|cli_only|not_applicable_to_app)`",
+        document,
+    )
+    if len(matches) != len(APP_READINESS_LABELS):
+        fail(f"readiness counts are missing or duplicated in {path.relative_to(ROOT)}")
+    actual = {label: int(count) for count, label in matches}
+    require_equal(f"readiness counts in {path.relative_to(ROOT)}", actual, expected)
 
 
 def main() -> int:
@@ -164,6 +181,9 @@ def main() -> int:
             fail(f"missing app-readiness label in capability matrix: {capability_id}")
         matrix_readiness[capability_id] = access_cell.rsplit("; ", 1)[-1]
     require_equal("per-capability app-readiness labels", matrix_readiness, expected_readiness)
+    readiness_counts = dict(Counter(expected_readiness.values()))
+    for path in (CAPABILITY_MATRIX_DOC, README_DOC, PRODUCT_ROADMAP_DOC):
+        check_readiness_summary(path, readiness_counts)
     for entry in user_entries:
         capability_id = entry["id"]
         expected_stem = capability_id.split(".", 1)[0]

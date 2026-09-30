@@ -1,10 +1,16 @@
 # Scientific Workbench Post-100 Backlog
 
-This file is the actionable backlog after completion of the original base
+This file records the backlog after completion of the original base
 pathway. `ROADMAP.md` remains the historical pathway record; new work must not be
 hidden by rewriting completed percentages.
 
-## Active Milestone: M101 — Trust Boundaries And Release Evidence
+The source repository is now public. M101–M105 below record the earlier
+development and publication pathway, including dated evidence and unfinished
+independent usability acceptance. The current post-publication work is tracked
+in the [product improvement roadmap](docs/PRODUCT_IMPROVEMENT_ROADMAP.md) and
+GitHub Issues; this historical record is not a live release-status dashboard.
+
+## Historical Milestone: M101 — Trust Boundaries And Release Evidence
 
 ### Contract integrity
 
@@ -124,15 +130,20 @@ are recorded in
 
 ### M105 — Publication
 
-- Decide private versus public repository.
-- Add a professional README and review the license.
-- Translate every document retained in the public repository to English,
-  including source documents for generated guides, then run an automated
-  language/path/link audit. Translate historical evidence that remains public
-  or explicitly exclude it from the public publication set without deleting the
-  private record.
-- Re-run Git identity, ignore, secret, staged-file, and publication checks.
-- Do not create a remote or push without explicit approval.
+The source-publication checkpoint was completed in September 2026. The
+repository is public as source; this did not create a signed or notarized app
+release. Its completed source-publication scope was:
+
+- [x] Choose a new public repository while retaining the prior private record.
+- [x] Add a README and review the PolyForm Noncommercial license and notices.
+- [x] Retain English public documentation, including source for generated guides;
+  run the language, local-path, and link audit without deleting private history.
+- [x] Review Git identity, ignore rules, secrets, staging, and the exact source
+  snapshot before the authorized push.
+
+Later product, usability, and binary-release work is separate; see the
+[current plan](docs/PRODUCT_IMPROVEMENT_ROADMAP.md) and
+[dated readiness record](docs/PUBLIC_READINESS.md).
 
 ## Closure Evidence
 

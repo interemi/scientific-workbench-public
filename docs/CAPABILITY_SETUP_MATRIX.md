@@ -39,8 +39,8 @@ older results do not automatically validate a later checkout.
 Each row's second cell gives the app catalog access mode, the starting Python
 profile, and the current app-readiness label. `normal` and `expert` are catalog
 modes; `optional` needs a named backend, and `legacy` needs a specialist
-workflow. Of the 55 rows, 17 are `app_ready`, 19 `app_ready_partial`, seven
-`blocked_optional`, ten `cli_only`, and two `not_applicable_to_app`. These
+workflow. Of the 55 rows, 17 are `app_ready`, 19 `app_ready_partial`, 7
+`blocked_optional`, 10 `cli_only`, and 2 `not_applicable_to_app`. These
 labels come from the app source and do not assert that a backend is installed:
 `app_ready_partial` needs human review, `blocked_optional` needs its backend
 preflight, and `cli_only` or `not_applicable_to_app` must use the documented CLI
