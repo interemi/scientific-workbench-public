@@ -37,10 +37,12 @@ struct CapabilityCatalogView: View {
     }
     .onChange(of: store.capabilityCatalogMode) {
       guard !isMaintenance else { return }
-      store.searchText = ""
-      store.selectedCapabilityID = modeEntries.first?.id
-      rawArguments = ""
-      accessConfirmed = false
+      if !modeEntries.contains(where: { $0.id == store.selectedCapabilityID }) {
+        store.searchText = ""
+        store.selectedCapabilityID = modeEntries.first?.id
+        rawArguments = ""
+        accessConfirmed = false
+      }
     }
     .onAppear {
       if !modeEntries.contains(where: { $0.id == store.selectedCapabilityID }) {
@@ -202,6 +204,23 @@ struct CapabilityDetailPanel: View {
 
             metadataGrid(capability)
 
+            if let example = store.preparedFirstRunExample,
+               store.inputPaths == example.inputPaths,
+               capability.id == example.kind.capabilityID {
+              VStack(alignment: .leading, spacing: 6) {
+                Label("Synthetic example ready", systemImage: "checkmark.circle")
+                  .font(.headline)
+                Text("Expect: \(example.kind.expectedResult)")
+                Text("Run the capability below, then inspect its job and artifacts in Jobs and Results. Do not treat this example as a calibrated observation.")
+                  .foregroundStyle(.secondary)
+              }
+              .font(.callout)
+              .padding(12)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+              .accessibilityIdentifier("capability.synthetic-example-expectation")
+            }
+
             inputsPanel
 
             if let mode = capability.catalogMode, !isMaintenance {
@@ -267,7 +286,7 @@ struct CapabilityDetailPanel: View {
       }
 
       if store.inputPaths.isEmpty {
-        Text("No inputs yet. Add files or folders here, or drag them onto Inicio.")
+        Text("No inputs yet. Add files or folders here, or drag them onto Dashboard.")
           .font(.caption)
           .foregroundStyle(.secondary)
       } else {

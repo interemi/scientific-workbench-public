@@ -24,6 +24,8 @@ final class WorkbenchStore: ObservableObject {
       }
     }
   }
+  @Published var preparedFirstRunExample: PreparedFirstRunExample?
+  @Published var firstRunExampleError: String?
   @Published var searchText = ""
   @Published var skillRootPath: String
   @Published var outputRootPath: String {
@@ -159,6 +161,8 @@ final class WorkbenchStore: ObservableObject {
   private let radialVelocityInspectionService = RadialVelocityInspectionService()
   private let photometricCalibrationService = PhotometricCalibrationService()
   private let documentWorkflowService = DocumentWorkflowService()
+  private let firstRunExampleService = FirstRunExampleService()
+  private let firstRunExampleLibraryRoot: URL
   private let filesystemSafetyPolicy: FilesystemSafetyPolicy
   private let runDirectoryFactory = RunDirectoryFactory()
   private let legacyReportProjectStagingService = LegacyReportProjectStagingService()
@@ -180,13 +184,18 @@ final class WorkbenchStore: ObservableObject {
     loadPersistedState: Bool = true,
     cloudAIClient: CloudAIClient = CloudAIClient(),
     credentialStore: any CloudCredentialStoring = KeychainCredentialStore(),
-    filesystemSafetyPolicy: FilesystemSafetyPolicy = FilesystemSafetyPolicy()
+    filesystemSafetyPolicy: FilesystemSafetyPolicy = FilesystemSafetyPolicy(),
+    firstRunExampleLibraryRoot: URL? = nil
   ) {
     self.defaults = defaults
     self.cloudAIClient = cloudAIClient
     self.credentialStore = credentialStore
     self.aiConnectionService = AIConnectionService(client: cloudAIClient)
     self.filesystemSafetyPolicy = filesystemSafetyPolicy
+    self.firstRunExampleLibraryRoot = firstRunExampleLibraryRoot
+      ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("Scientific Workbench", isDirectory: true)
+        .appendingPathComponent("Examples", isDirectory: true)
     self.agentPlanner = AgentPlanner(
       cloudAIClient: CloudAIPlannerClient(client: cloudAIClient)
     )
@@ -1632,6 +1641,46 @@ final class WorkbenchStore: ObservableObject {
 
   func clearInputs() {
     inputPaths.removeAll()
+  }
+
+  func prepareFirstRunExample(_ kind: FirstRunExampleKind) {
+    firstRunExampleError = nil
+    guard capabilities.contains(where: { $0.id == kind.capabilityID }) else {
+      firstRunExampleError = "Set up the bundled skills before preparing this example."
+      return
+    }
+    guard ensureOutputRootWriteApproved(inputPaths: []) else {
+      firstRunExampleError = agentStatusMessage
+      return
+    }
+
+    let exampleParent = firstRunExampleLibraryRoot
+    let output = canonicalFilesystemURL(outputRootPath)
+    let examples = canonicalFilesystemURL(exampleParent.path)
+    guard !filesystemURL(output, contains: examples),
+          !filesystemURL(examples, contains: output) else {
+      firstRunExampleError = "Choose an output folder separate from the app's example library."
+      return
+    }
+
+    let destination = runDirectoryFactory.makePath(
+      root: exampleParent.path,
+      capabilityID: "example-\(kind.rawValue)"
+    )
+    do {
+      let prepared = try firstRunExampleService.create(
+        kind,
+        at: URL(fileURLWithPath: destination, isDirectory: true)
+      )
+      preparedFirstRunExample = prepared
+      inputPaths = prepared.inputPaths
+      capabilityCatalogMode = kind.catalogMode
+      selectedCapabilityID = kind.capabilityID
+      searchText = kind.capabilityID
+      selectedSection = .capabilities
+    } catch {
+      firstRunExampleError = redactSecrets(error.localizedDescription)
+    }
   }
 
   func chooseInputFiles() {

@@ -89,6 +89,12 @@ and leave those acceptance criteria open.
 | P0.04 | Run the M104 usability protocol with synthetic fixtures on the available Mac; label independent acceptance pending if necessary. |
 | P1.10 | Review keyboard, VoiceOver, contrast, dark mode, and window sizes on that Mac. |
 
+The [five synthetic first-run examples](SYNTHETIC_FIRST_RUN_EXAMPLES.md) have
+passed focused format tests, direct bundled-backend probes, and a maintainer
+GUI walkthrough on macOS 27.0.1. P1.02 remains an in-progress local candidate
+until the exact source snapshot is reviewed and its public CI checks pass.
+The GUI walkthrough is not the independent acceptance required by P0.03.
+
 Exit: reproducible examples, reviewed expected values, and a dated performance
 and usability baseline.
 
@@ -96,7 +102,7 @@ and usability baseline.
 
 | ID | Work |
 | --- | --- |
-| P1.01 | Make Home a launcher for the chosen tasks and a way to resume a run. |
+| P1.01 | Make Dashboard a launcher for the chosen tasks and a way to resume a run. |
 | P1.03 | Explain Core versus Full and what external tools still require separate setup. |
 | P1.04 | Show prioritized environment diagnosis and safe repair into a new environment. |
 | P1.05 | Organize capabilities by user task, format, profile, readiness, and skill. |

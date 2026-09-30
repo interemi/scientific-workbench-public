@@ -4,12 +4,15 @@ import UniformTypeIdentifiers
 struct HomeView: View {
   @ObservedObject var store: WorkbenchStore
   @State private var isDropTargeted = false
+  @State private var pendingExampleKind: FirstRunExampleKind?
+  @State private var isReplacingInputSelection = false
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         header
         SetupChecklistCard(store: store, compact: false)
+        firstRunExamples
         dropZone
         inputList
         readinessGrid
@@ -21,6 +24,22 @@ struct HomeView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .navigationTitle("Scientific Workbench")
+    .confirmationDialog(
+      "Replace the current input selection?",
+      isPresented: $isReplacingInputSelection
+    ) {
+      Button("Use Synthetic Example") {
+        if let pendingExampleKind {
+          store.prepareFirstRunExample(pendingExampleKind)
+        }
+        pendingExampleKind = nil
+      }
+      Button("Cancel", role: .cancel) {
+        pendingExampleKind = nil
+      }
+    } message: {
+      Text("The selected files will be removed from this session's input list. They will not be changed or deleted on disk.")
+    }
   }
 
   private var header: some View {
@@ -30,6 +49,72 @@ struct HomeView: View {
         .fontWeight(.semibold)
       Text("A local macOS control center for the installed scientific-data-analysis skill.")
         .foregroundStyle(.secondary)
+    }
+  }
+
+  private var firstRunExamples: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      Text("Try a synthetic example")
+        .font(.title3)
+        .fontWeight(.semibold)
+      Text("Create a fresh local copy, review the expected result, then run its suggested capability. These examples require no cloud account or optional backend.")
+        .font(.callout)
+        .foregroundStyle(.secondary)
+
+      ForEach(FirstRunExampleKind.allCases) { kind in
+        HStack(alignment: .top, spacing: 12) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text(kind.title)
+              .fontWeight(.medium)
+            Text(kind.detail)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Text("Expect: \(kind.expectedResult)")
+              .font(.caption)
+          }
+          Spacer(minLength: 12)
+          Button("Prepare") {
+            requestExample(kind)
+          }
+          .accessibilityLabel("Prepare \(kind.title) example")
+          .accessibilityIdentifier("home.prepare-example.\(kind.id)")
+          .disabled(store.hasActiveJob)
+        }
+      }
+
+      if let prepared = store.preparedFirstRunExample {
+        Divider()
+        Text("Prepared \(prepared.kind.title) in \(prepared.directory.path).")
+          .font(.caption)
+          .textSelection(.enabled)
+        Button("Reset Example (New Copy)") {
+          requestExample(prepared.kind)
+        }
+        .accessibilityIdentifier("home.reset-example")
+        .disabled(store.hasActiveJob)
+        Text("Reset creates a new copy and preserves all earlier example folders.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      if let error = store.firstRunExampleError {
+        Label(error, systemImage: "exclamationmark.triangle")
+          .font(.caption)
+          .foregroundStyle(.orange)
+      }
+    }
+    .padding(18)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func requestExample(_ kind: FirstRunExampleKind) {
+    if !store.inputPaths.isEmpty,
+       store.inputPaths != store.preparedFirstRunExample?.inputPaths {
+      pendingExampleKind = kind
+      isReplacingInputSelection = true
+    } else {
+      store.prepareFirstRunExample(kind)
     }
   }
 

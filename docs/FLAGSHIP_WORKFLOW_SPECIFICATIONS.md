@@ -2,7 +2,8 @@
 
 **Date:** 2026-09-30
 
-**Reference source:** public `main` at `c517c53`
+**Baseline source:** public `main` at `c517c53`; the Dashboard example launcher is
+implemented and locally checked on this later development branch
 
 **Status:** design specification for P2.01 and P0.03; neither task is accepted
 
@@ -28,21 +29,23 @@ The application already has **Capabilities**, **Jobs**, and **Results** views.
 output root. In Capabilities, a user chooses **Normal** or **Expert**, searches
 for a capability, adds inputs, and starts a guided run. Jobs retains status and
 logs; Results links artifacts to the job and can reveal the run folder. These
-controls exist, but there is no dedicated first-run launcher or bundled
-one-click example selector for the journeys below.
+controls exist. **Dashboard** now prepares new synthetic example copies for the
+first three journeys. On 2026-09-30, the maintainer completed these GUI paths
+on the development Mac; no independent user has accepted them.
 
 ## P0.03: three launch journeys
 
 The table distinguishes a path a developer can attempt today from the
-experience required to close P0.03. Paths under `skills/` are relative to the
-repository root; planned example names do **not** yet exist in the checkout.
+experience required to close P0.03. The generated examples are described in
+the [first-run example guide](SYNTHETIC_FIRST_RUN_EXAMPLES.md); paths under
+`skills/` are relative to the repository root.
 No user input or output should point to the same directory.
 
 | Journey | Small input and profile | Current GUI path and expected evidence | Limit and missing acceptance work |
 | --- | --- | --- | --- |
-| Table profile | Existing synthetic [`ops.csv`](../skills/scientific-data-notebooks/examples/tabular/ops.csv), three data rows and four columns. **Core**; no optional backend for this profile. | Settings: select the Core interpreter, bundled skills, and a separate output root. Capabilities → **Normal** → search `profile_table` → **Add Files** → select `ops.csv` → **Run Capability** → select the job in **Jobs** → inspect `summary.json` and `manifest.json` through **Results** or reveal the run folder. Target check: three rows, four named columns, per-column types and missing counts. | Profiling does not infer measurement units, clean data, or validate an analysis. The example is present, but there is no in-app example launcher or uncoached first-use result. |
-| FITS inspection | Planned small synthetic 2-D FITS with one image HDU and an explicit known WCS; **Core**. The currently bundled [`mini_template.fits`](../skills/scientific-data-astro/examples/science/legacy_spectroscopy_mini/mini_template.fits) is a separate, synthetic **1-D** spectrum with 32 samples and no WCS; it is only an interim inspection sample. | Settings as above. Capabilities → **Expert** → search `inspect_fits` → acknowledge the expert access notice → **Add Files** → select the FITS → **Run Capability** → Jobs → Results → inspect `summary.json` and `manifest.json`. The backend can summarize HDUs, headers, data, and present WCS keys. | The generic guided command does **not** request a PNG preview, so this is currently metadata inspection, not the proposed visual WCS journey. The 2-D known-answer fixture, display-only preview, clear WCS/scale checks, and uncoached GUI trial remain open (P1.02, P2.02, P0.03). No astrometric solution or calibrated measurement is implied. |
-| Mixed folder | Planned synthetic folder with a short CSV, a Markdown observation note, and a readable one-page PDF. **Core** for intake and table inventory; Full/DuckDB only for an explicitly requested SQL branch. No optional account, model, or external command should be needed for the basic journey. | Current interim path: Capabilities → **Normal** → `document_intake_workbench` → **Add Folder** → run → Jobs/Results for intake artifacts; then select `cross_domain_data_workbench`, use the same folder, run, and inspect its inventory/report in a second job. Both generic commands route outputs into separate fresh run folders. The [mixed-research benchmark](../script/run_mixed_research_benchmark.sh) validates a related **headless** three-job route on generated synthetic input. | The benchmark does not provide a discoverable GUI example, and the app does not yet combine both reports into one novice-facing journey. A static valid example, predictable handoff or linked result, unchanged-input check, and uncoached trial remain open. Document extraction can report unreadable formats; SQL availability is a separate Full-profile decision. |
+| Table profile | The Dashboard-generated `ops.csv` has three data rows and four columns. **Core**; no optional backend for this profile. The older bundled [`ops.csv`](../skills/scientific-data-notebooks/examples/tabular/ops.csv) remains an independent manual alternative. | Settings: select the Core interpreter, bundled skills, and a separate output root. Dashboard → **Prepare Small table** → Capabilities → **Normal** with `profile_table` and input selected → review expectation → **Run Capability** → select the job in **Jobs** → inspect `summary.json` and `manifest.json` through **Results**. Target check: three rows, four named columns, per-column types and missing counts. | Profiling does not infer measurement units, clean data, or validate an analysis. Direct bundled-backend and maintainer GUI checks passed; an uncoached GUI result remains open. |
+| FITS inspection | Dashboard generates a synthetic 8 × 8 primary image with one NaN and a known TAN WCS; **Core**. The older [`mini_template.fits`](../skills/scientific-data-astro/examples/science/legacy_spectroscopy_mini/mini_template.fits) is a separate 1-D sample with no WCS. | Settings as above. Dashboard → **Prepare FITS image** → Capabilities → **Expert** with `inspect_fits` and input selected → confirm expert access → **Run Capability** → Jobs → Results → inspect `summary.json` and `manifest.json`. A direct local backend probe reported 63 finite pixels and the expected WCS keys. | The generic guided command does **not** request a PNG preview, so this is metadata inspection, not the proposed visual WCS journey. Display-only preview, complete WCS/scale presentation, and uncoached GUI trial remain open (P2.02, P0.03). No astrometric solution or calibrated measurement is implied. |
+| Mixed folder | Dashboard generates a CSV, Markdown observation note, and readable one-page PDF in one folder. **Core** for intake and table inventory; Full/DuckDB only for an explicitly requested SQL branch. | Settings as above. Dashboard → **Prepare Mixed research folder** → Capabilities → **Normal** with `document_intake_workbench` and folder selected → run → Jobs/Results for intake artifacts; then select `cross_domain_data_workbench`, keep the same input folder, run, and inspect its separate inventory/report. Direct local probes of both backends passed without changing inputs. | The app does not combine both reports into one novice-facing journey. A predictable GUI handoff or linked result and an uncoached trial remain open. Document extraction can report unreadable formats; SQL availability is a separate Full-profile decision. |
 
 On 2026-09-30, a direct script probe on the existing macOS Python 3.11.15
 scientific environment ran the bundled `ops.csv` and `mini_template.fits`
@@ -74,17 +77,16 @@ review, not third-party ownership of astronomy methods or external software.
 
 | Candidate | Persona, example, and independent baseline | Method, output, units, and dependencies | Scientific limit and current readiness |
 | --- | --- | --- | --- |
-| FITS image and WCS inspection | Observational-astronomy student checking whether an image can be used downstream. P1.02 should add a synthetic 8 × 8 image with a known reference pixel, reference sky coordinate, angular pixel scale, one nonfinite pixel, and declared pixel unit. The baseline should inspect the FITS header and compute the reference-pixel sky coordinate independently, with a stated angular tolerance. | `inspect_fits` enumerates HDUs and summarizes the image/header/WCS into `summary.json` plus `manifest.json`. Proposed preview is a **display-only** derived PNG in the run folder. Record `NAXIS`/pixel dimensions, pixel-unit header, celestial frame and coordinate units (degrees), pixel scale (arcsec/pixel), reference values, and any crop/NaN treatment. Core includes the reviewed FITS inspection path; no Astrometry.net solver is required. | Current app readiness is `app_ready` for the inspection command, but its guided default does not create the preview. The existing 1-D mini FITS cannot test the desired 2-D WCS path. WCS metadata does not establish calibration accuracy, a source position, or a science-quality image. P1.02/P2.02 and a reviewed known-answer test remain necessary. |
-| Sky crossmatch of two text catalogs | Researcher comparing two small observing catalogs. Proposed fixture: two left rows and two right rows with explicit `ra_deg`/`dec_deg`; one pair separated by roughly 0.36 arcsec and one left source with no match inside a 1 arcsec radius. The baseline should calculate spherical angular separations independently and expect one matched and one unmatched left row, with a declared tolerance. | Capabilities → **Expert** → `catalog_workbench.crossmatch-sky` → **Add Files** for both CSVs → select left/right files, map four coordinate columns, confirm **decimal degrees**, enter a positive radius in **arcseconds**, then **Run Reviewed Crossmatch**. Jobs/Results should show the match CSV, `summary.json`, and `manifest.json` in a fresh run. Core must be the **dedicated scientific Python environment** documented for this route; the backend uses Astropy sky coordinates. No STILTS/TOPCAT is needed for this native path. | Registry readiness is `app_ready_partial`. The guided form covers CSV, TSV, ECSV, and delimited text, not FITS-table/Parquet/spreadsheet review. A nearest-neighbor match inside a radius does not resolve proper motion, epoch, duplicate counterparts, catalog selection effects, or physical association. P1.02/P2.05 must provide the known-answer fixture and rejection cases; participant evaluation is still missing. |
+| FITS image and WCS inspection | Observational-astronomy student checking whether an image can be used downstream. Dashboard now generates a synthetic 8 × 8 image with a known reference pixel, reference sky coordinate, angular pixel scale, one nonfinite pixel, and declared pixel unit. On 2026-09-30, Astropy independently recovered `(150°, −30°)` at the reference pixel within `1e-9` degree. | `inspect_fits` enumerates HDUs and summarizes the image/header/WCS into `summary.json` plus `manifest.json`. Proposed preview is a **display-only** derived PNG in the run folder. Record `NAXIS`/pixel dimensions, pixel-unit header, celestial frame and coordinate units (degrees), pixel scale (arcsec/pixel), reference values, and any crop/NaN treatment. Core includes the reviewed FITS inspection path; no Astrometry.net solver is required. | Current app readiness is `app_ready` for the inspection command, but its guided default does not create the preview. WCS metadata does not establish calibration accuracy, a source position, or a science-quality image. P2.02 and independent user evaluation remain necessary. |
+| Sky crossmatch of two text catalogs | Researcher comparing two small observing catalogs. Proposed fixture: two left rows and two right rows with explicit `ra_deg`/`dec_deg`; one pair separated by roughly 0.36 arcsec and one left source with no match inside a 1 arcsec radius. The baseline should calculate spherical angular separations independently and expect one matched and one unmatched left row, with a declared tolerance. | Capabilities → **Expert** → `catalog_workbench.crossmatch-sky` → **Add Files** for both CSVs → select left/right files, map four coordinate columns, confirm **decimal degrees**, enter a positive radius in **arcseconds**, then **Run Reviewed Crossmatch**. Jobs/Results should show the match CSV, `summary.json`, and `manifest.json` in a fresh run. Core must be the **dedicated scientific Python environment** documented for this route; the backend uses Astropy sky coordinates. No STILTS/TOPCAT is needed for this native path. | Registry readiness is `app_ready_partial`. The guided form covers CSV, TSV, ECSV, and delimited text, not FITS-table/Parquet/spreadsheet review. A nearest-neighbor match inside a radius does not resolve proper motion, epoch, duplicate counterparts, catalog selection effects, or physical association. P2.05 must provide the known-answer fixture and rejection cases; participant evaluation is still missing. |
 
-The proposed FITS fixture should use a TAN celestial WCS with `CRPIX1 =
+The generated FITS fixture uses a TAN celestial WCS with `CRPIX1 =
 CRPIX2 = 4.5`, `CRVAL1 = 150 deg`, `CRVAL2 = -30 deg`, `CDELT1 = -1/3600
 deg/pixel`, `CDELT2 = +1/3600 deg/pixel`, and `BUNIT = adu`. At the reference
-pixel, the expected world position is `(150 deg, -30 deg)`; the fixture and
-baseline must declare the tolerance and verify it with an independent WCS
-calculation. The data array should be deterministic and include exactly one
-NaN. These are **planned test values**, not claims about an existing bundled
-file or a measured instrument.
+pixel, the expected world position is `(150 deg, -30 deg)`; an independent
+Astropy check on 2026-09-30 recovered it within `1e-9` degree and measured
+one arcsecond per pixel. The deterministic data array includes exactly one
+NaN. This is generated synthetic data, not a measured instrument image.
 
 The proposed crossmatch fixture can use these exact decimal-degree rows:
 
@@ -103,14 +105,15 @@ metadata, so it cannot support claims about real-source association.
 
 ### Decision and evidence still required
 
-1. Add the small, redistributable synthetic fixtures and record their generator,
-   hashes, units, expected values, and tolerances. Do not copy DOCUS or a
-   researcher's real data. The existing FITS and CSV examples remain untouched.
+1. Extend the generated synthetic fixtures where needed, especially for the
+   proposed crossmatch. Record generator, hashes, units, expected values,
+   tolerances, and rejection cases. Do not copy DOCUS or a researcher's real
+   data. The existing FITS and CSV examples remain untouched.
 2. Run each proposed case on the exact checkout; compare actual summaries and
    artifacts with the independent baselines. An exit code alone is insufficient.
-3. Complete the missing GUI steps and inspect the paths on the available Mac.
-   A local walkthrough is useful engineering evidence, but it is not an
-   independent usability result.
+3. Complete the missing visual WCS and crossmatch GUI steps, then inspect
+   their paths on the available Mac. The existing local walkthrough is useful
+   engineering evidence, but it is not an independent usability result.
 4. If a participant later becomes available, observe the journeys and ask which
    astronomy task matters in their actual work. Until then, keep the two
    priorities provisional and P2.01/P0.03 open.
