@@ -67,12 +67,15 @@ available, how to report a problem, and what has actually been tested.
 | ID | Work |
 | --- | --- |
 | P0.01 | Replace the proposed 5–8 interviews with [documentary research](USER_NEEDS_DESK_RESEARCH.md) into what such a round would investigate; publish sources, population limits, open questions, and a provisional audience decision. Do not invent participants. |
-| P2.01 | Choose two or three astronomy tasks with a named user, example data, method, outputs, dependencies, and scientific limits. |
-| P0.03 | Specify the table, astronomy, and mixed-document workflows with a complete GUI path, expected result, and known limits. |
+| P2.01 | Provisionally prioritize two or three astronomy tasks. For each, record a target user, example dataset, baseline, method, outputs, dependencies, units, scientific limits, and technical owner. Evaluate the priorities with actual users when available; desk research alone does not satisfy that part of the criterion. |
+| P0.03 | Specify one table, one astronomy, and one mixed-document workflow. For each, record a small example, Core/Full profile, optional dependencies, expected output, scientific limits, and the complete GUI path. Keep acceptance open until a person outside the project can find, run, and inspect the example without Terminal, code edits, or coaching. |
 
-Exit: a source-backed provisional user brief and three concrete workflow
-specifications. Independent-user evidence remains pending wherever a later
-acceptance criterion requires it.
+The [provisional workflow specifications](FLAGSHIP_WORKFLOW_SPECIFICATIONS.md)
+make the current implementation and missing pieces explicit. They are design
+evidence, not completion of P2.01 or P0.03. Exit requires the specified examples
+and GUI paths to work, plus the independent-user evidence required by both
+items. Until a participant is available, continue reversible implementation
+and leave those acceptance criteria open.
 
 ## Phase 3 — Build repeatable examples and a local baseline
 
