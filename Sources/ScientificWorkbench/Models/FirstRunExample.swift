@@ -34,7 +34,7 @@ enum FirstRunExampleKind: String, CaseIterable, Identifiable {
     case .table:
       return "Table profile: 3 rows, 4 columns; no units or scientific inference."
     case .fits:
-      return "FITS summary: one 8 × 8 image, 63 finite pixels, reference sky position 150°, −30°. Preview is not yet part of the guided run."
+      return "FITS summary: one 8 × 8 image, 63 finite pixels, reference sky position 150°, −30°, and a display-only WCS preview."
     case .spectrum:
       return "Table profile: 5 rows with wavelength in nm and relative flux; no line fit or radial velocity."
     case .document:

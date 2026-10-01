@@ -94,6 +94,54 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func onlyTheKnownSyntheticFITSRequestsAVisualWCSPreview() throws {
+    let root = try makeScenarioFixture(
+      name: "synthetic-fits-preview",
+      files: ["scripts/datanalysis_env.py": "# test wrapper\n"]
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+    let prepared = try FirstRunExampleService().create(
+      .fits, at: root.appendingPathComponent("example", isDirectory: true)
+    )
+    let input = try #require(prepared.inputPaths.first)
+    let run = root.appendingPathComponent("run", isDirectory: true)
+    let capability = expertFITSCapability()
+    let builder = CapabilityCommandBuilder(pythonExecutable: "/usr/bin/python3")
+    let command = try builder.build(
+      capability: capability,
+      request: RunRequest(
+        capabilityID: capability.id,
+        inputPaths: [input],
+        outputDirectory: run.path,
+        rawArguments: ""
+      ),
+      skillRoot: root.path
+    )
+    #expect(command.arguments.contains("--preview"))
+    #expect(command.arguments.contains(run.appendingPathComponent("previews/synthetic_wcs.png").path))
+    #expect(command.arguments.contains("CUNIT1"))
+    #expect(command.arguments.contains("CDELT2"))
+
+    var changed = try Data(contentsOf: URL(fileURLWithPath: input))
+    changed[2880] = 0x01
+    let changedURL = root.appendingPathComponent("changed.fits")
+    try changed.write(to: changedURL)
+    let ordinaryCommand = try builder.build(
+      capability: capability,
+      request: RunRequest(
+        capabilityID: capability.id,
+        inputPaths: [changedURL.path],
+        outputDirectory: run.path,
+        rawArguments: ""
+      ),
+      skillRoot: root.path
+    )
+    #expect(!ordinaryCommand.arguments.contains("--preview"))
+    #expect(!ordinaryCommand.arguments.contains("--header-key"))
+    #expect(try Data(contentsOf: URL(fileURLWithPath: input)) != changed)
+  }
+
+  @Test
   func recreatingAnExampleNeverOverwritesAnEarlierCopy() throws {
     let root = try makeExampleTestRoot()
     defer { removeEphemeralExampleTestRoot(root) }
@@ -148,6 +196,70 @@ extension ScientificWorkbenchTests {
     #expect(second.directory != first.directory)
     #expect(store.inputPaths == second.inputPaths)
     #expect(try Data(contentsOf: URL(fileURLWithPath: try #require(first.inputPaths.first))) == original)
+  }
+
+  @Test
+  @MainActor
+  func mixedFolderFollowUpReusesTheInputAndLinksTheTwoPreservedJobs() throws {
+    let root = try makeExampleTestRoot()
+    defer { removeEphemeralExampleTestRoot(root) }
+    let prepared = try FirstRunExampleService().create(
+      .mixed, at: root.appendingPathComponent("mixed", isDirectory: true)
+    )
+    let defaults = try #require(UserDefaults(suiteName: "Scientific-Workbench-Mixed-\(UUID().uuidString)"))
+    defaults.set(root.appendingPathComponent("Outputs", isDirectory: true).path, forKey: "outputRootPath")
+    let store = WorkbenchStore(
+      loadSecrets: false,
+      defaults: defaults,
+      loadPersistedState: false,
+      filesystemSafetyPolicy: FilesystemSafetyPolicy(homeDirectory: root)
+    )
+    let documentCapability = CapabilityEntry(
+      id: "document_intake_workbench",
+      label: "Document intake",
+      script: "scripts/document_intake_workbench.py",
+      visibleBlock: "documents + reporting",
+      kind: "golden_path",
+      supportLevel: "stable",
+      platform: "portable",
+      requiresDatanalysis: false,
+      preflightMode: "none",
+      smokeTier: "core",
+      shortDescription: "Inspect documents."
+    )
+    let tableCapability = CapabilityEntry(
+      id: "cross_domain_data_workbench",
+      label: "Mixed data inventory",
+      script: "scripts/cross_domain_data_workbench.py",
+      visibleBlock: "notebooks + cross-domain",
+      kind: "golden_path",
+      supportLevel: "stable",
+      platform: "portable",
+      requiresDatanalysis: false,
+      preflightMode: "none",
+      smokeTier: "core",
+      shortDescription: "Inspect mixed data."
+    )
+    store.capabilities = [documentCapability, tableCapability]
+    var intakeJob = JobRecord(capability: documentCapability, runDirectory: root.appendingPathComponent("intake-run").path)
+    intakeJob.status = .succeeded
+    intakeJob.requestInputPaths = prepared.inputPaths
+    var tableJob = JobRecord(capability: tableCapability, runDirectory: root.appendingPathComponent("table-run").path)
+    tableJob.status = .succeeded
+    tableJob.requestInputPaths = prepared.inputPaths
+    store.jobs = [tableJob, intakeJob]
+
+    #expect(store.canPrepareMixedDataFollowUp(for: intakeJob))
+    store.prepareMixedDataFollowUp(for: intakeJob)
+    #expect(store.inputPaths == prepared.inputPaths)
+    #expect(store.selectedCapabilityID == tableCapability.id)
+    #expect(store.searchText == tableCapability.id)
+    #expect(store.selectedSection == .capabilities)
+    #expect(store.relatedFirstRunJobs(to: intakeJob).map(\.id) == [tableJob.id])
+    #expect(store.relatedFirstRunJobs(to: tableJob).map(\.id) == [intakeJob.id])
+
+    intakeJob.status = .failed
+    #expect(!store.canPrepareMixedDataFollowUp(for: intakeJob))
   }
 
   private func makeExampleTestRoot() throws -> URL {

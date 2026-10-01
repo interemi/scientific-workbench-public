@@ -77,7 +77,9 @@ available, how to report a problem, and what has actually been tested.
 The [provisional workflow specifications](FLAGSHIP_WORKFLOW_SPECIFICATIONS.md)
 make the current implementation and missing pieces explicit. The cited priority
 decision and feasibility calculations provide P2.01 evidence; P0.03 remains
-open for the incomplete GUI paths. Phase exit requires the specified examples
+open until the updated GUI paths are run and reviewed on the exact source. A
+development branch now requests a WCS-projected preview for the known synthetic
+FITS and offers a linked second run for the mixed folder. Phase exit requires the specified examples
 and complete GUI paths under the
 [revised internal protocol](RESEARCH_LED_ACCEPTANCE.md). Neither task is blocked
 on recruiting a participant; unmet implementation or evidence steps remain open.
@@ -94,10 +96,12 @@ on recruiting a participant; unmet implementation or evidence steps remain open.
 | P0.04 | Run a scripted M104 navigation, error, recovery, cancellation, and artifact walkthrough with synthetic fixtures on the available Mac; record accessibility checks and the limits of an author-run session. |
 | P1.10 | Review keyboard, VoiceOver, contrast, dark mode, and window sizes on that Mac. |
 
-The [five synthetic first-run examples](SYNTHETIC_FIRST_RUN_EXAMPLES.md) have
-passed focused format tests, direct bundled-backend probes, and a maintainer
-GUI walkthrough on macOS 27.0.1. P1.02 remains an in-progress local candidate
-until the exact source snapshot is reviewed and its public CI checks pass.
+The [five synthetic first-run examples](SYNTHETIC_FIRST_RUN_EXAMPLES.md) passed
+focused format tests, direct bundled-backend probes, and a maintainer GUI
+walkthrough on macOS 27.0.1. P1.02 was integrated into public `main` at
+`e62c246` after exact-head and main Core CI passed on macOS 15 arm64 and Intel.
+The Full job was not run in those CI checks. The later WCS preview and mixed-run
+handoff are still local P0.03 work, not part of that public checkpoint.
 The GUI walkthrough is internal technical evidence. P0.03 remains open for the
 missing complete paths and recorded acceptance checks, not for outside-user
 recruitment.
