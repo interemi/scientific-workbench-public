@@ -9,8 +9,9 @@ cd "$ROOT_DIR"
 mkdir -p "$REPORT_DIR"
 rm -f "$REPORT_PATH"
 
-swift build >/dev/null
-"$ROOT_DIR/.build/debug/ScientificWorkbench" \
+"$ROOT_DIR/script/swift_build.sh" >/dev/null
+APP_BINARY="$("$ROOT_DIR/script/swift_build.sh" --show-bin-path)/ScientificWorkbench"
+"$APP_BINARY" \
   --process-group-smoke \
   "$ROOT_DIR/Tests/Fixtures/process_tree_fixture.py" \
   "$REPORT_PATH"

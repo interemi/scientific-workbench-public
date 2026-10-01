@@ -83,8 +83,8 @@ if [[ -n "${DOCUS_BENCHMARK_APP_BINARY:-}" ]]; then
     exit 2
   }
 else
-  swift build >/dev/null
-  APP_BINARY="$(swift build --show-bin-path)/ScientificWorkbench"
+  "$ROOT_DIR/script/swift_build.sh" >/dev/null
+  APP_BINARY="$("$ROOT_DIR/script/swift_build.sh" --show-bin-path)/ScientificWorkbench"
 fi
 
 mkdir -p "$OUTPUT_ROOT" "$WORK_ROOT" "$RUN_OUTPUT"

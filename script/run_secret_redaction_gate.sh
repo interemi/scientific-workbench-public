@@ -15,8 +15,8 @@ cleanup() {
 trap cleanup EXIT
 
 cd "$ROOT_DIR"
-swift build >/dev/null
-APP_BINARY="$(swift build --show-bin-path)/ScientificWorkbench"
+"$ROOT_DIR/script/swift_build.sh" >/dev/null
+APP_BINARY="$("$ROOT_DIR/script/swift_build.sh" --show-bin-path)/ScientificWorkbench"
 
 OUTPUT_ROOT="$TMP_ROOT/output"
 TRANSCRIPT="$OUTPUT_ROOT/transcript.json"

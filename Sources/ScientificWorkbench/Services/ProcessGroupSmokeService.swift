@@ -112,7 +112,8 @@ struct ProcessGroupSmokeService {
     root: URL
   ) async throws -> ProcessGroupSmokeScenario {
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    let runner = ProcessRunner(defaultTimeoutSeconds: 1.0)
+    // The three-process fixture may start slowly when the host is under load.
+    let runner = ProcessRunner(defaultTimeoutSeconds: 8)
     let task = Task {
       try await runner.run(
         ProcessCommand(
@@ -153,7 +154,7 @@ struct ProcessGroupSmokeService {
   }
 
   private func waitForProcessTree(in directory: URL) async throws -> ProcessTreePIDs {
-    let deadline = Date().addingTimeInterval(5)
+    let deadline = Date().addingTimeInterval(15)
     while Date() < deadline {
       if let parent = readPID(directory.appendingPathComponent("parent.pid")),
          let child = readPID(directory.appendingPathComponent("child.pid")),

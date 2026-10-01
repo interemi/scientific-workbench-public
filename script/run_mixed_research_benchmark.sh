@@ -13,8 +13,8 @@ REPORT="$OUTPUT_ROOT/benchmark_report.md"
 PROMPT="${MIXED_BENCHMARK_PROMPT:-Analyze this mixed local research bundle safely and produce a first-pass inventory without editing originals.}"
 
 cd "$ROOT_DIR"
-swift build >/dev/null
-APP_BINARY="$(swift build --show-bin-path)/ScientificWorkbench"
+"$ROOT_DIR/script/swift_build.sh" >/dev/null
+APP_BINARY="$("$ROOT_DIR/script/swift_build.sh" --show-bin-path)/ScientificWorkbench"
 
 mkdir -p "$FIXTURE_ROOT/tables" "$FIXTURE_ROOT/fits" "$FIXTURE_ROOT/docs" "$RUN_OUTPUT"
 
