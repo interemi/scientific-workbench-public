@@ -1,11 +1,11 @@
 # Clean-install acceptance
 
-Status: independent installation and usability acceptance are pending. As of
-2026-09-23, the owner has no second Mac available and does not plan a separate
-local-user/environment trial. GitHub-hosted macOS jobs are the chosen technical
-cross-machine check; they must not be reported as an independent person's
-interactive clean-Mac acceptance. This blank form is not evidence that
-installation passed.
+Status: this is a technical installation evidence form, not a requirement to
+recruit a tester. The owner has no second Mac and does not plan a separate
+local-user/environment trial. Follow the
+[research-led acceptance decision](RESEARCH_LED_ACCEPTANCE.md) on the available
+Mac and exact-commit GitHub-hosted runners; mark every unperformed step
+`INCOMPLETE`. This blank form is not evidence that installation passed.
 
 The hosted workflow runs on newly provisioned macOS runner images and checks
 the source checkout, new core environment, Swift/distribution tests, and
@@ -19,8 +19,8 @@ synthetic data and retain every failure. Do not edit earlier reports.
 
 ## Identification
 
-- Date and tester:
-- Evidence mode: hosted clean runner / independent interactive Mac:
+- Date and operator:
+- Evidence mode: hosted clean runner / available Mac with an existing environment / available Mac with a new isolated environment:
 - Run URL and runner image, or local evidence directory:
 - Commit (`git rev-parse HEAD`):
 - macOS and architecture (`sw_vers`, `uname -m`):
@@ -50,13 +50,14 @@ synthetic data and retain every failure. Do not edit earlier reports.
 
 ## Outcome
 
-- Steps completed without help from the author:
+- Steps completed by following the written guide exactly:
 - Steps requiring explanation missing from the guide:
 - Failures, exact commands, and inspected logs without keys or personal data:
 - Result: PASS / FAIL / INCOMPLETE.
 - What this test establishes and what remains untested:
-- Whether another person and another Mac were involved:
+- Whether interactive use on another Mac was tested (normally no):
 
-Passing automated checks does not complete the UI rows or establish scientific
-correctness across all workflows. Original scientific data is unnecessary for
-this acceptance test and must not be attached to issues.
+Passing automated checks does not complete any unperformed UI rows or establish
+scientific correctness across all workflows. An operator-run GUI walkthrough
+does not measure unfamiliar-user comprehension. Original scientific data is
+unnecessary for this acceptance test and must not be attached to issues.

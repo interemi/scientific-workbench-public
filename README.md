@@ -28,9 +28,11 @@ not promises that the listed features have shipped.
    then check [optional backends](docs/OPTIONAL_BACKENDS.md),
    [workflow requirements](docs/WORKFLOW_REQUIREMENTS.md), and
    [troubleshooting](docs/TROUBLESHOOTING.md).
-4. Start with synthetic data. A direct **Run Capability** action starts immediately,
-   so review its inputs and output folder first. For a Chat-generated plan, use
-   **Dry Run** to inspect its commands before **Run Enabled**.
+4. Start with the [synthetic first-run examples](docs/SYNTHETIC_FIRST_RUN_EXAMPLES.md).
+   **Dashboard** prepares a fresh local copy and selects its suggested capability.
+   A direct **Run Capability** action starts immediately, so review its inputs
+   and output folder first. For a Chat-generated plan, use **Dry Run** to
+   inspect its commands before **Run Enabled**.
 
 The 55 catalogued routes have different readiness levels: 17 `app_ready`, 19
 `app_ready_partial`, 7 `blocked_optional`, 10 `cli_only`, and 2
@@ -58,6 +60,7 @@ remain unverified.
 | `docs/CAPABILITY_SETUP_MATRIX.md` | One-row setup and evidence limits for each of the 55 user-facing capabilities |
 | `docs/SKILLS_AND_CAPABILITIES.md` | Plain-language purpose of the five skills and all 55 user-facing capabilities |
 | `docs/CAPABILITY_VALIDATION_EVIDENCE.md` | Dated smoke or diagnostic scope for each user-facing capability |
+| `docs/SYNTHETIC_FIRST_RUN_EXAMPLES.md` | Five generated first-run examples, expected values, and limitations |
 | `docs/TROUBLESHOOTING.md` | Reproducible diagnosis and safe recovery |
 | `docs/PUBLIC_READINESS.md` | Dated source validation and use limits |
 | `docs/PUBLIC_SOURCE_HANDOFF.md` | Reviewed source export and publication handoff |
@@ -157,8 +160,10 @@ capabilities and the specialized forms' format limits. The
 [M103 persistence contract](docs/M103_PERSISTENCE_EVOLUTION.en.md) describes
 migrations, conservative recovery, and exact backups. The
 [M104 architecture and UX review](docs/M104_ARCHITECTURE_AND_UX.md) documents
-ephemeral connection state, accessible controls, and pending external usability
-acceptance.
+ephemeral connection state and accessible controls. The
+[research-led acceptance decision](docs/RESEARCH_LED_ACCEPTANCE.md) explains how
+the current plan replaces prospective outside-participant gates while retaining
+the limitation that independent usability has not been measured.
 
 ## Development and license
 

@@ -439,7 +439,9 @@ extension ScientificWorkbenchTests {
     let pidDirectory = try makeProcessTreeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: pidDirectory) }
 
-    let runner = ProcessRunner(defaultTimeoutSeconds: 1.0)
+    // Give all three Python processes time to start on a loaded CI runner.
+    let timeoutSeconds: TimeInterval = 8
+    let runner = ProcessRunner(defaultTimeoutSeconds: timeoutSeconds)
     let task = Task {
       try await runner.run(
         ProcessCommand(
@@ -457,7 +459,7 @@ extension ScientificWorkbenchTests {
       _ = try await task.value
       Issue.record("Expected the process tree to time out.")
     } catch ProcessRunnerError.timedOut(let seconds) {
-      #expect(seconds == 1.0)
+      #expect(seconds == timeoutSeconds)
     } catch {
       Issue.record("Unexpected process-tree timeout error: \(error)")
     }
@@ -480,7 +482,7 @@ extension ScientificWorkbenchTests {
   }
 
   private func waitForProcessTree(in directory: URL) async throws -> ProcessTreePIDs {
-    let deadline = Date().addingTimeInterval(5)
+    let deadline = Date().addingTimeInterval(15)
     while Date() < deadline {
       if let parent = readProcessTreePID(directory.appendingPathComponent("parent.pid")),
          let child = readProcessTreePID(directory.appendingPathComponent("child.pid")),

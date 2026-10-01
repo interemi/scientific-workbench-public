@@ -4,6 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TESTS_DIR="$ROOT_DIR/Tests/ScientificWorkbenchTests"
 RUNNER_DIR="$ROOT_DIR/.build/scientific-workbench-swift-testing-runner"
+SWIFT_OPTIONS=(--package-path "$ROOT_DIR")
+if [[ -n "${SCIENTIFIC_WORKBENCH_SWIFT_BUILD_SYSTEM:-}" ]]; then
+  SWIFT_OPTIONS+=(--build-system "$SCIENTIFIC_WORKBENCH_SWIFT_BUILD_SYSTEM")
+fi
+if [[ -n "${SCIENTIFIC_WORKBENCH_SWIFT_SCRATCH_PATH:-}" ]]; then
+  SWIFT_OPTIONS+=(--scratch-path "$SCIENTIFIC_WORKBENCH_SWIFT_SCRATCH_PATH")
+fi
 
 cd "$ROOT_DIR"
 
@@ -113,7 +120,7 @@ echo "Expected Swift Testing tests in target: $EXPECTED_COUNT"
 # A failing build/test must never be hidden by a successful fallback run.
 NATIVE_LOG_PATH="$RUNNER_DIR/native-output.log"
 set +e
-swift test --enable-swift-testing --disable-xctest "$@" 2>&1 | tee "$NATIVE_LOG_PATH"
+swift test "${SWIFT_OPTIONS[@]}" --enable-swift-testing --disable-xctest "$@" 2>&1 | tee "$NATIVE_LOG_PATH"
 native_status="${PIPESTATUS[0]}"
 set -e
 [[ "$native_status" -eq 0 ]] || exit "$native_status"
@@ -130,7 +137,7 @@ echo "SwiftPM reported no Swift Testing tests; trying the Command Line Tools fal
 TESTING_FRAMEWORK_DIR="$(testing_framework_dir)" || fail "could not locate Testing.framework"
 TESTING_INTEROP_DIR="$(testing_interop_dir)" || fail "could not locate lib_TestingInterop.dylib"
 TESTING_PLUGIN_DIR="$(testing_plugin_dir)" || fail "could not locate Swift Testing macro plugin"
-SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)" || fail "could not locate macOS SDK"
+SDK_PATH="${SDKROOT:-$(xcrun --sdk macosx --show-sdk-path)}" || fail "could not locate macOS SDK"
 ARCH="$(uname -m)"
 
 cat > "$RUNNER_DIR/runner.swift" <<'SWIFT'
@@ -144,7 +151,7 @@ struct ScientificWorkbenchSwiftTestingRunner {
 }
 SWIFT
 
-BUILD_DIR="$(swift build --show-bin-path)"
+BUILD_DIR="$(swift build "${SWIFT_OPTIONS[@]}" --show-bin-path)"
 LINK_FILE_LIST="$BUILD_DIR/ScientificWorkbenchPackageTests.product/Objects.LinkFileList"
 [[ -f "$LINK_FILE_LIST" ]] || fail "missing SwiftPM link file list at $LINK_FILE_LIST"
 

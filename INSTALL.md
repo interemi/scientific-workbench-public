@@ -167,6 +167,22 @@ The result uses ad hoc signing for local development; it is not a notarized
 public installer. Open this copy from `dist/` before replacing any installed
 app you wish to preserve.
 
+On the maintainer's macOS 27.0.1 with Command Line Tools Swift 6.4, plain
+`swift build` failed before source compilation. A scoped build using an older
+SDK already present on that Mac succeeded:
+
+```bash
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk \
+  swift build --build-system native
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk \
+  SCIENTIFIC_WORKBENCH_SWIFT_BUILD_SYSTEM=native \
+  ./script/build_and_run.sh --build
+```
+
+Check that this SDK path exists before using these commands. This is a
+workaround for the observed toolchain combination, not evidence of a fresh
+installation on macOS 27 or a general requirement to install an older SDK.
+
 ## 5. Configure the first launch
 
 In Settings, configure:
@@ -226,12 +242,13 @@ For a first app run that does not need Ollama or a cloud account:
 
 1. Check the Setup Checklist: scientific environment, capabilities, and output
    folder. Keep the output folder separate from the checkout and original data.
-2. Open **Capabilities**, search for `profile_table`, and select it. This route
-   has a guided form and needs no advanced argument override.
-3. Select **Add Files** and choose
-   `skills/scientific-data-notebooks/examples/tabular/ops.csv` from this checkout.
-   It is a three-row, four-column synthetic CSV; leave the source in place.
-4. Check the selected file and output folder, then choose **Run Capability**.
+2. On **Dashboard**, find **Try a synthetic example** and choose **Prepare** beside
+   **Small table**. The app creates a new local synthetic copy, selects it as
+   input, and opens the `profile_table` capability under **Normal**. It does
+   not edit the bundled example or another input you previously selected.
+3. Read the **Synthetic example ready** panel, then check the selected input
+   and output folder. Leave the advanced argument override empty.
+4. Choose **Run Capability**.
    Direct capability runs execute when clicked. For a Chat-generated multi-step
    plan, use **Dry Run** to inspect its commands before **Run Enabled**.
 5. Open **Jobs** and **Results**. Inspect the status, executed command,
@@ -239,13 +256,22 @@ For a first app run that does not need Ollama or a cloud account:
    expected summary is `app_status: PASS`, `rows: 3`, `columns: 4`, and
    `original_modified: false`. A different result needs diagnosis, not a
    rewritten fixture.
+6. To repeat safely, return to **Dashboard** and choose **Reset Example (New Copy)**.
+   This preserves the first copy and its result. The other four examples,
+   expected values, and scientific limits are in the
+   [first-run example guide](docs/SYNTHETIC_FIRST_RUN_EXAMPLES.md).
 
 On 27 September 2026, an isolated GUI session on the development Mac followed
-this path with the skill root from the source checkout. Jobs showed a successful
-run; Results displayed the summary and manifest with the expected values and
-the input SHA-256 unchanged. That Mac already had a scientific Python
-environment. This GUI exercise has not been repeated on every later source
-commit, and manual use on another Mac remains untested. The
+the **earlier manual path**, selecting the bundled `ops.csv` through **Add
+Files**. Jobs showed a successful run; Results displayed the summary and
+manifest with expected values and the input SHA-256 unchanged. That Mac
+already had a scientific Python environment. The new **Dashboard** example launcher
+was subsequently exercised on 30 September 2026 on the same Mac: five
+examples were prepared, six GUI jobs passed, and the generated input hashes
+remained unchanged. That newer GUI session used the locally installed skill
+family; separate backend probes used the bundled skills from this checkout.
+Neither session was a fresh installation or an independent trial on another
+Mac. The
 [capability matrix](docs/CAPABILITY_SETUP_MATRIX.md) includes a
 standalone CLI version of this example if you want to test the backend
 independently.
@@ -265,6 +291,9 @@ other original data to validate a new installation.
   install only the required component, and check readiness again.
 - **Swift Testing fails with Apple developer tools:** use
   `./script/run_swift_tests.sh`, which includes the project's test runner.
+- **Swift build fails before source compilation on macOS 27:** see the scoped
+  SDK workaround in [Build the app](#4-build-the-app). Record the exact macOS,
+  Swift, and SDK versions if it does not apply.
 
 See [what the skills and capabilities do](docs/SKILLS_AND_CAPABILITIES.md),
 then use the [55-capability setup matrix](docs/CAPABILITY_SETUP_MATRIX.md) to choose

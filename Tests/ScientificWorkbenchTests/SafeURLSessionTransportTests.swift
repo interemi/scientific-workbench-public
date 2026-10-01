@@ -9,8 +9,12 @@ extension ScientificWorkbenchTests {
       .appendingPathComponent("Scientific-Workbench-Redirect-\(UUID().uuidString)", isDirectory: true)
     let portFile = root.appendingPathComponent("port.txt")
     let targetMarker = root.appendingPathComponent("redirect-target-reached.txt")
+    let serverErrorLog = root.appendingPathComponent("server-stderr.txt")
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
+    try Data().write(to: serverErrorLog)
+    let errorHandle = try FileHandle(forWritingTo: serverErrorLog)
+    defer { try? errorHandle.close() }
 
     let server = Process()
     server.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
@@ -41,7 +45,7 @@ extension ScientificWorkbenchTests {
       targetMarker.path,
     ]
     server.standardOutput = FileHandle.nullDevice
-    server.standardError = FileHandle.nullDevice
+    server.standardError = errorHandle
     try server.run()
     defer {
       if server.isRunning {
@@ -50,7 +54,11 @@ extension ScientificWorkbenchTests {
       }
     }
 
-    let port = try await waitForRedirectTestPort(at: portFile)
+    let port = try await waitForRedirectTestPort(
+      at: portFile,
+      server: server,
+      errorLog: serverErrorLog
+    )
     var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/redirect")!)
     request.timeoutInterval = 3
     let (_, response) = try await SafeURLSessionTransport.data(for: request)
@@ -59,20 +67,37 @@ extension ScientificWorkbenchTests {
     #expect(!FileManager.default.fileExists(atPath: targetMarker.path))
   }
 
-  private func waitForRedirectTestPort(at url: URL) async throws -> Int {
-    let deadline = Date().addingTimeInterval(5)
+  private func waitForRedirectTestPort(
+    at url: URL,
+    server: Process,
+    errorLog: URL
+  ) async throws -> Int {
+    let deadline = Date().addingTimeInterval(15)
     while Date() < deadline {
       if let text = try? String(contentsOf: url, encoding: .utf8),
          let port = Int(text.trimmingCharacters(in: .whitespacesAndNewlines)),
          port > 0 {
         return port
       }
+      if !server.isRunning {
+        throw RedirectTransportTestError.serverDidNotStart(
+          "Python exited with status \(server.terminationStatus): \(serverError(at: errorLog))"
+        )
+      }
       try await Task.sleep(nanoseconds: 50_000_000)
     }
-    throw RedirectTransportTestError.serverDidNotStart
+    throw RedirectTransportTestError.serverDidNotStart(
+      "Python did not report a port within 15 seconds: \(serverError(at: errorLog))"
+    )
+  }
+
+  private func serverError(at url: URL) -> String {
+    let message = (try? String(contentsOf: url, encoding: .utf8))?
+      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return message.isEmpty ? "no stderr output" : String(message.prefix(500))
   }
 }
 
 private enum RedirectTransportTestError: Error {
-  case serverDidNotStart
+  case serverDidNotStart(String)
 }

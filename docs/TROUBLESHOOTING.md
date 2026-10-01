@@ -157,6 +157,15 @@ Use the repository wrapper:
 It verifies test discovery and uses the project fallback runner when SwiftPM
 does not discover Swift Testing through the installed Command Line Tools.
 
+### Swift build fails before compiling app sources on macOS 27
+
+The maintainer observed this with macOS 27.0.1 and Command Line Tools Swift
+6.4. See the [scoped SDK workaround](../INSTALL.md#4-build-the-app), which
+worked with an older SDK already present on that Mac. Check the SDK path
+before retrying. Preserve the failing build log and toolchain versions if the
+workaround does not apply; it does not establish support for every macOS 27
+installation.
+
 ## Support bundle and issue report
 
 A useful report contains:

@@ -3,6 +3,11 @@
 Date: 2026-09-21
 Branch: `codex/public-readiness-foundation`
 
+This is a dated engineering record. Its prospective outside-user acceptance
+criterion was revised on 2026-09-30 by the
+[research-led acceptance decision](RESEARCH_LED_ACCEPTANCE.md). The historical
+test counts and the fact that no outside session occurred remain unchanged.
+
 M104 improves the app structure and the most important navigation and recovery
 paths without changing persisted schemas, scientific workflow contracts, or the
 read-only treatment of original inputs. This document records what is proved in
