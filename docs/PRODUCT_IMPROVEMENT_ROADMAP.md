@@ -51,6 +51,11 @@ called closed solely because the repository is public. Each needs an issue
 with evidence against its own completion criterion.
 The [2026-09-29 Phase 1 checkpoint](PHASE1_CHECKPOINT_2026-09-29.md) records
 local verification and the limits still awaiting exact-commit CI and review.
+The [2026-10-02 source-installation rehearsal](INSTALLATION_REHEARSAL_2026-10-02.md)
+adds exact-public-main evidence for P0.09 and P0.05, including a new local Core
+environment, an author-run GUI table path, scoped Full checks, and recorded
+unperformed steps. Review of this documentation batch and its own checks is
+required before closing those GitHub issues.
 
 | ID | Work and completion evidence |
 | --- | --- |
@@ -78,9 +83,12 @@ The [provisional workflow specifications](FLAGSHIP_WORKFLOW_SPECIFICATIONS.md)
 make the current implementation and missing pieces explicit. The cited priority
 decision and feasibility calculations provide P2.01 evidence. The updated
 GUI paths passed an [exact-source internal walkthrough](P0_03_GUI_ACCEPTANCE_2026-10-01.md)
-at `5c89a15` and hosted Core CI at `3d17d4a`. The reviewed change requests
-a WCS-projected preview for the known synthetic FITS and offers a linked second
-run for the mixed folder. The P0.03 internal technical criterion is met under the
+at `5c89a15`. [PR #14](https://github.com/interemi/scientific-workbench-public/pull/14)
+merged the bounded WCS preview for the known synthetic FITS and the linked
+second run for the mixed folder into public `main` at `9c85141`. Core CI passed
+on the [PR head](https://github.com/interemi/scientific-workbench-public/actions/runs/36997437686)
+and [merge commit](https://github.com/interemi/scientific-workbench-public/actions/runs/36998229330).
+The P0.03 internal technical criterion is met under the
 [revised internal protocol](RESEARCH_LED_ACCEPTANCE.md). Together with the
 previously recorded P0.01 and P2.01 decisions, this meets Phase 2's internal
 exit criterion. It does not establish independent usability or complete the

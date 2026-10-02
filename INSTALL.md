@@ -16,6 +16,10 @@ a lock for native Python 3.11 on Apple Silicon;
 full has a lock with pinned build tools for macOS 15 or later. Intel does not
 yet have a validated lock.
 
+The [2026-10-02 installation rehearsal](docs/INSTALLATION_REHEARSAL_2026-10-02.md)
+records a new local Core environment, a public-main source build and GUI run,
+and the distinct local/hosted Full checks at their exact commits.
+
 Before installing, read [LICENSE](LICENSE) and the
 [use limitations](README.md#use-limitations-and-no-warranty). Start with synthetic
 data and keep independent backups of important files. This development software
@@ -45,6 +49,14 @@ installer. If you already use Homebrew, `brew install python@3.11` installs the
 required Python branch; see the [official formula](https://formulae.brew.sh/formula/python@3.11).
 Homebrew is optional. You may supply a different Python 3.11 interpreter,
 including an existing Conda interpreter.
+If `python3.11` is not found, first locate an interpreter you already have or
+install one using the provider you chose. Replace the placeholder in
+`"/path/to/your/python3.11" --version` with that interpreter's real absolute
+path, then substitute that path for `python3.11` after `--python` in the setup
+commands below. Do not silently
+fall back to a different Python version. The 2026-10-02 rehearsal used an
+existing Conda Python 3.11.15 as the bootstrap interpreter and installed into
+a separate new virtual environment; it did not update the Conda environment.
 
 ## 2. Obtain the complete source
 
@@ -284,6 +296,9 @@ standalone CLI version of this example if you want to test the backend
 independently.
 
 Record the journey with the [acceptance form](docs/CLEAN_INSTALL_ACCEPTANCE.md).
+The [completed maintainer rehearsal](docs/INSTALLATION_REHEARSAL_2026-10-02.md)
+shows the exact results and unperformed steps on the available Mac. It is not
+an uncoached installation trial or a manual test on another Mac.
 Preserve warnings and missing-backend findings as such. Do not use DOCUS or
 other original data to validate a new installation.
 
@@ -293,6 +308,10 @@ other original data to validate a new installation.
   snapshot verification.
 - **Missing libraries:** check the Python selected in Settings. System Python
   may differ from the prepared environment.
+- **A diagnostic mentions another named `datanalysis` environment:** an
+  existing Conda environment may be found even when Settings points to a new
+  venv. Keep the warning, confirm the selected Python path, run `pip check` in
+  that venv, and use the synthetic Core smoke before treating it as ready.
 - **Ollama unavailable:** open Ollama and check the model and local endpoint.
 - **Missing LaTeX, Office, or another backend:** inspect workflow diagnostics,
   install only the required component, and check readiness again.
