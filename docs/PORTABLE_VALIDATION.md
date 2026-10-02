@@ -172,6 +172,17 @@ cases, and 39 document tests. This is evidence for that commit only. Review the
 on the exact commit being used. No manual app session on another Mac has been
 completed.
 
+The [2026-10-02 installation rehearsal](INSTALLATION_REHEARSAL_2026-10-02.md)
+records a later, exact public-main clone at `9c85141`: 312/312 local Swift
+tests, release readiness, the quality gate without DOCUS, strict public
+documentation audit, a new local locked Core environment, 23/23 Core cases,
+and an isolated GUI table run. Its [main Core run](https://github.com/interemi/scientific-workbench-public/actions/runs/36998229330)
+passed on macOS 15 arm64 locked and Intel unlocked-compatibility. A separate
+[Full run on the identical PR tree](https://github.com/interemi/scientific-workbench-public/actions/runs/36997759557)
+passed fresh Full installation, 23 Core cases, and 39 document tests on hosted
+macOS 15 arm64. Local Full 38/38 used an existing environment; no fresh local
+Full installation or interactive second-Mac test is inferred.
+
 The workflow also defines a manual `workflow_dispatch` choice. `core` runs the
 two established Core jobs; `full` selects a separate macOS 15 arm64 job that
 installs the current 200-package Full lock into a new environment, runs the

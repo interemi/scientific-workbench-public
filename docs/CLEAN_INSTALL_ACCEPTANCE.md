@@ -6,6 +6,9 @@ local-user/environment trial. Follow the
 [research-led acceptance decision](RESEARCH_LED_ACCEPTANCE.md) on the available
 Mac and exact-commit GitHub-hosted runners; mark every unperformed step
 `INCOMPLETE`. This blank form is not evidence that installation passed.
+For a completed maintainer-run technical example, see the
+[2026-10-02 source-installation rehearsal](INSTALLATION_REHEARSAL_2026-10-02.md).
+That record preserves the steps not performed and the limits of its host.
 
 The hosted workflow runs on newly provisioned macOS runner images and checks
 the source checkout, new core environment, Swift/distribution tests, and
@@ -40,7 +43,7 @@ synthetic data and retain every failure. Do not edit earlier reports.
 | Run `run_portable_core.py` | verification.json, logs, and manifest | Pending |
 | Build and open the app | Build log and screenshot without personal data | Pending |
 | Configure root, Python, and output | Available catalog and Setup Checklist | Pending |
-| Prepare a synthetic table or FITS | Readable plan and successful Dry Run | Pending |
+| Prepare a synthetic table or FITS | Selected example, expected values, and direct-run command; use Dry Run only for a Chat-generated plan | Pending |
 | Run from the interface | Final job, command, manifest, and accessible artifacts | Pending |
 | Inspect results | Expected values/units checked against the fixture | Pending |
 | Cancel a synthetic workflow | Cancelled job with no remaining owned child process | Pending |
