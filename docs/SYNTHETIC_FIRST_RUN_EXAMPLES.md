@@ -81,5 +81,9 @@ A direct run of the bundled FITS backend on the generated input returned
 TAN WCS at `(150°, −30°)`, `CUNIT1/2 = deg`, `BUNIT = adu`, and a PNG whose
 WCS coordinate ticks were visually inspected. The input SHA-256 remained
 `c40732799d2792ed9131899c2ad5a3b13317004a96e4d40a0d6aa959afc740de`.
-The new GUI handoff and preview still require an end-to-end walkthrough on
-this exact source and hosted CI before P0.03 can close.
+The [exact-source internal GUI walkthrough](P0_03_GUI_ACCEPTANCE_2026-10-01.md)
+then completed the table, FITS, and two-job mixed-folder journeys using the
+bundled skills. Four accepted jobs reported `app_status: PASS` and
+`original_modified: false`; all five generated input hashes matched
+`expected.json` after the runs. Hosted CI for the proposed change remains
+pending before P0.03 closes.

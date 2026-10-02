@@ -198,6 +198,13 @@ The other four skills are discovered as siblings of the mother root. Keep the
 checkout at that location, or update Mother skill root in Settings after moving
 it. You do not need to overwrite skills installed by another tool.
 
+After entering the three paths, choose **Save Settings**, then **Reload Registry**
+and **Refresh Environment** in Settings. Check that the setup checklist reports
+the scientific environment, capabilities, and output folder
+ready before running an example. Saving a new mother skill root does not
+reload capabilities already held by the current app session; without the
+reload, a run may still use scripts from the previously selected skill family.
+
 For Ollama, follow the [official macOS instructions](https://docs.ollama.com/macos).
 Open Ollama and use the app's settings to select and download a model suitable
 for your available memory and storage. Weights stay outside Git. OpenAI, Grok,

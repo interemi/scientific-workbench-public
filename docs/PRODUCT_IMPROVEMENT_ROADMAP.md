@@ -76,11 +76,12 @@ available, how to report a problem, and what has actually been tested.
 
 The [provisional workflow specifications](FLAGSHIP_WORKFLOW_SPECIFICATIONS.md)
 make the current implementation and missing pieces explicit. The cited priority
-decision and feasibility calculations provide P2.01 evidence; P0.03 remains
-open until the updated GUI paths are run and reviewed on the exact source. A
-development branch now requests a WCS-projected preview for the known synthetic
-FITS and offers a linked second run for the mixed folder. Phase exit requires the specified examples
-and complete GUI paths under the
+decision and feasibility calculations provide P2.01 evidence. The updated
+GUI paths passed an [exact-source internal walkthrough](P0_03_GUI_ACCEPTANCE_2026-10-01.md)
+at `5c89a15`; P0.03 remains open until hosted CI validates this change. The
+development branch requests a WCS-projected preview for the known synthetic
+FITS and offers a linked second run for the mixed folder. Phase exit requires
+the specified examples and complete GUI paths under the
 [revised internal protocol](RESEARCH_LED_ACCEPTANCE.md). Neither task is blocked
 on recruiting a participant; unmet implementation or evidence steps remain open.
 
@@ -101,10 +102,10 @@ focused format tests, direct bundled-backend probes, and a maintainer GUI
 walkthrough on macOS 27.0.1. P1.02 was integrated into public `main` at
 `e62c246` after exact-head and main Core CI passed on macOS 15 arm64 and Intel.
 The Full job was not run in those CI checks. The later WCS preview and mixed-run
-handoff are still local P0.03 work, not part of that public checkpoint.
-The GUI walkthrough is internal technical evidence. P0.03 remains open for the
-missing complete paths and recorded acceptance checks, not for outside-user
-recruitment.
+handoff are still local P0.03 work, not part of that public checkpoint. Their
+[internal GUI walkthrough](P0_03_GUI_ACCEPTANCE_2026-10-01.md) passed on the
+development Mac. P0.03 remains open for exact-change hosted CI, not for
+outside-user recruitment.
 
 Exit: reproducible examples, reviewed expected values, and a dated performance
 and usability baseline.
