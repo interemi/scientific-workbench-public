@@ -85,5 +85,8 @@ The [exact-source internal GUI walkthrough](P0_03_GUI_ACCEPTANCE_2026-10-01.md)
 then completed the table, FITS, and two-job mixed-folder journeys using the
 bundled skills. Four accepted jobs reported `app_status: PASS` and
 `original_modified: false`; all five generated input hashes matched
-`expected.json` after the runs. Hosted CI for the proposed change remains
-pending before P0.03 closes.
+`expected.json` after the runs. The
+[exact-candidate Core CI run](https://github.com/interemi/scientific-workbench-public/actions/runs/36996165055)
+passed on macOS 15 arm64 and Intel. This meets P0.03's internal technical
+criterion; unfamiliar-user success and interactive use on another Mac remain
+unverified.

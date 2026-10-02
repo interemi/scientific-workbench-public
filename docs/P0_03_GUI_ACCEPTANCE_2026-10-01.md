@@ -64,6 +64,13 @@ summary/manifest pairs. All five hashes matched:
 
 The local source also passed 312/312 Swift tests, release-readiness checks,
 and the full quality gate without the optional DOCUS benchmark. The original
-DOCUS directory was not used. Hosted CI on the exact proposed change still
-needs review before the P0.03 checkpoint is closed and synchronized to public
-`main`.
+DOCUS directory was not used.
+
+The [portable validation run for PR #14](https://github.com/interemi/scientific-workbench-public/actions/runs/36996165055)
+passed on the exact candidate head `3d17d4aee9dbdbae0cb54263b606ce72407a1bf7`:
+Core on hosted macOS 15 arm64 with the reviewed lock, and Core on hosted
+macOS 15 Intel in unlocked compatibility mode. Both jobs built the app,
+ran Swift tests, installed Core in a new isolated environment, and checked
+synthetic workflows and snapshot integrity. The optional Full job was skipped.
+Together with the local GUI walkthrough, this meets the internal P0.03
+technical criterion. It does not establish interactive use on another Mac.

@@ -78,12 +78,13 @@ The [provisional workflow specifications](FLAGSHIP_WORKFLOW_SPECIFICATIONS.md)
 make the current implementation and missing pieces explicit. The cited priority
 decision and feasibility calculations provide P2.01 evidence. The updated
 GUI paths passed an [exact-source internal walkthrough](P0_03_GUI_ACCEPTANCE_2026-10-01.md)
-at `5c89a15`; P0.03 remains open until hosted CI validates this change. The
-development branch requests a WCS-projected preview for the known synthetic
-FITS and offers a linked second run for the mixed folder. Phase exit requires
-the specified examples and complete GUI paths under the
-[revised internal protocol](RESEARCH_LED_ACCEPTANCE.md). Neither task is blocked
-on recruiting a participant; unmet implementation or evidence steps remain open.
+at `5c89a15` and hosted Core CI at `3d17d4a`. The reviewed change requests
+a WCS-projected preview for the known synthetic FITS and offers a linked second
+run for the mixed folder. The P0.03 internal technical criterion is met under the
+[revised internal protocol](RESEARCH_LED_ACCEPTANCE.md). Together with the
+previously recorded P0.01 and P2.01 decisions, this meets Phase 2's internal
+exit criterion. It does not establish independent usability or complete the
+later P2.02 and P2.05 implementation work.
 
 ## Phase 3 — Build repeatable examples and a local baseline
 
@@ -102,10 +103,11 @@ focused format tests, direct bundled-backend probes, and a maintainer GUI
 walkthrough on macOS 27.0.1. P1.02 was integrated into public `main` at
 `e62c246` after exact-head and main Core CI passed on macOS 15 arm64 and Intel.
 The Full job was not run in those CI checks. The later WCS preview and mixed-run
-handoff are still local P0.03 work, not part of that public checkpoint. Their
-[internal GUI walkthrough](P0_03_GUI_ACCEPTANCE_2026-10-01.md) passed on the
-development Mac. P0.03 remains open for exact-change hosted CI, not for
-outside-user recruitment.
+handoff are separate P0.03 work, not part of that earlier public checkpoint.
+Their [internal GUI walkthrough](P0_03_GUI_ACCEPTANCE_2026-10-01.md) passed on
+the development Mac, and the exact-candidate hosted Core run passed on macOS 15
+arm64 and Intel. This closes the internal technical criterion, without claiming
+outside-user recruitment or manual use on another Mac.
 
 Exit: reproducible examples, reviewed expected values, and a dated performance
 and usability baseline.
