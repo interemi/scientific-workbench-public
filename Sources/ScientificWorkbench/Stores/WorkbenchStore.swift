@@ -1683,6 +1683,39 @@ final class WorkbenchStore: ObservableObject {
     }
   }
 
+  func canPrepareMixedDataFollowUp(for job: JobRecord) -> Bool {
+    guard job.capabilityID == "document_intake_workbench",
+          job.status == .succeeded,
+          job.requestInputPaths.count == 1,
+          capabilities.contains(where: { $0.id == "cross_domain_data_workbench" }) else {
+      return false
+    }
+    var isDirectory = ObjCBool(false)
+    return FileManager.default.fileExists(
+      atPath: job.requestInputPaths[0], isDirectory: &isDirectory
+    ) && isDirectory.boolValue
+  }
+
+  func prepareMixedDataFollowUp(for job: JobRecord) {
+    guard canPrepareMixedDataFollowUp(for: job), !hasActiveJob else { return }
+    inputPaths = job.requestInputPaths
+    searchText = "cross_domain_data_workbench"
+    openOptionalCapability("cross_domain_data_workbench")
+  }
+
+  func relatedFirstRunJobs(to job: JobRecord) -> [JobRecord] {
+    let relatedCapabilities: Set<String> = [
+      "document_intake_workbench", "cross_domain_data_workbench"
+    ]
+    guard relatedCapabilities.contains(job.capabilityID),
+          !job.requestInputPaths.isEmpty else { return [] }
+    return jobs.filter {
+      $0.id != job.id
+        && relatedCapabilities.contains($0.capabilityID)
+        && $0.requestInputPaths == job.requestInputPaths
+    }
+  }
+
   func chooseInputFiles() {
     chooseInputs(canChooseFiles: true, canChooseDirectories: false)
   }

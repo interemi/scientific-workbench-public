@@ -15,6 +15,16 @@ enum FirstRunExampleError: LocalizedError {
 struct FirstRunExampleService {
   var fileManager = FileManager.default
 
+  static func isGeneratedFITS(at path: String) -> Bool {
+    guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+          attributes[.type] as? FileAttributeType == .typeRegular,
+          (attributes[.size] as? NSNumber)?.intValue == 5760 else { return false }
+    guard let handle = try? FileHandle(forReadingFrom: URL(fileURLWithPath: path)) else { return false }
+    defer { try? handle.close() }
+    guard let data = try? handle.read(upToCount: 5761) else { return false }
+    return data == makeFITS()
+  }
+
   func create(_ kind: FirstRunExampleKind, at directory: URL) throws -> PreparedFirstRunExample {
     guard !fileManager.fileExists(atPath: directory.path) else {
       throw FirstRunExampleError.destinationExists

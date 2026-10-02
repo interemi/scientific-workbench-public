@@ -124,11 +124,23 @@ struct CapabilityCommandBuilder {
     case "profile_table":
       return [try preferredTableInput(request), "--summary-json", summary, "--manifest-json", manifest]
     case "inspect_fits":
-      return [
-        try preferredFITSInput(request),
+      let input = try preferredFITSInput(request)
+      var arguments = [
+        input,
         "--summary-json", summary,
         "--manifest-json", manifest
       ]
+      if FirstRunExampleService.isGeneratedFITS(at: input) {
+        arguments += [
+          "--preview", runURL.appendingPathComponent("previews/synthetic_wcs.png").path,
+          "--header-key", "CUNIT1",
+          "--header-key", "CUNIT2",
+          "--header-key", "RADESYS",
+          "--header-key", "CDELT1",
+          "--header-key", "CDELT2",
+        ]
+      }
+      return arguments
     case "document_intake_workbench":
       return [
         "--output-dir", artifacts,

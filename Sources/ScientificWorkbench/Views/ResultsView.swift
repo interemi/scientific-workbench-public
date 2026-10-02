@@ -3,6 +3,8 @@ import SwiftUI
 struct ResultsView: View {
   @ObservedObject var store: WorkbenchStore
   @State private var selectedArtifactID: UUID?
+  @State private var pendingMixedFollowUpJob: JobRecord?
+  @State private var isReplacingInputSelection = false
 
   var body: some View {
     HSplitView {
@@ -20,6 +22,41 @@ struct ResultsView: View {
             .lineLimit(1)
             .truncationMode(.middle)
             .padding(.horizontal)
+
+          if store.canPrepareMixedDataFollowUp(for: job) {
+            VStack(alignment: .leading, spacing: 6) {
+              Button("Inspect folder data") {
+                if !store.inputPaths.isEmpty && store.inputPaths != job.requestInputPaths {
+                  pendingMixedFollowUpJob = job
+                  isReplacingInputSelection = true
+                } else {
+                  store.prepareMixedDataFollowUp(for: job)
+                }
+              }
+              .accessibilityIdentifier("results.mixed-data-follow-up")
+              .disabled(store.hasActiveJob)
+              Text("Prepares a separate table and data inventory with the same folder. Review it before running; no combined scientific conclusion is produced.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal)
+          }
+
+          let relatedJobs = store.relatedFirstRunJobs(to: job)
+          if !relatedJobs.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+              Text("Related runs for this input")
+                .font(.caption)
+                .fontWeight(.semibold)
+              ForEach(relatedJobs.prefix(3)) { related in
+                Button("\(related.capabilityLabel) · \(related.status.title)") {
+                  store.selectedJobID = related.id
+                }
+                .accessibilityIdentifier("results.related-job.\(related.id.uuidString)")
+              }
+            }
+            .padding(.horizontal)
+          }
 
           List(selection: $selectedArtifactID) {
             ForEach(job.artifacts) { artifact in
@@ -78,6 +115,22 @@ struct ResultsView: View {
     .onChange(of: store.selectedJobID) {
       selectedArtifactID = nil
       selectPreferredArtifact()
+    }
+    .confirmationDialog(
+      "Replace the current input selection?",
+      isPresented: $isReplacingInputSelection
+    ) {
+      Button("Use This Job's Folder") {
+        if let pendingMixedFollowUpJob {
+          store.prepareMixedDataFollowUp(for: pendingMixedFollowUpJob)
+        }
+        pendingMixedFollowUpJob = nil
+      }
+      Button("Cancel", role: .cancel) {
+        pendingMixedFollowUpJob = nil
+      }
+    } message: {
+      Text("The current session selection will change to this job's folder. No input file will be changed or deleted.")
     }
   }
 
@@ -255,6 +308,18 @@ struct ArtifactPreview: View {
 
         if let note = payload.note {
           Text(note)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+
+        if artifact.artifactType == "preview_png",
+           store.selectedJob?.capabilityID == "inspect_fits" {
+          if let input = store.selectedJob?.requestInputPaths.first,
+             FirstRunExampleService.isGeneratedFITS(at: input) {
+            Text("Synthetic TAN WCS: horizontal right ascension and vertical declination in ICRS, one arcsecond per pixel; pixel unit: adu.")
+              .font(.caption)
+          }
+          Text("Display-scaled quicklook only. Check summary.json for WCS and units when present; this image does not establish astrometric calibration.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
