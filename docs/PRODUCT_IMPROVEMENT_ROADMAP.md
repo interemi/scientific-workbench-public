@@ -55,7 +55,7 @@ The [2026-10-02 source-installation rehearsal](INSTALLATION_REHEARSAL_2026-10-02
 adds exact-public-main evidence for P0.09 and P0.05, including a new local Core
 environment, an author-run GUI table path, scoped Full checks, and recorded
 unperformed steps. Review of this documentation batch and its own checks is
-still needed before those GitHub issues are closed.
+required before closing those GitHub issues.
 
 | ID | Work and completion evidence |
 | --- | --- |

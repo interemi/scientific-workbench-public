@@ -100,7 +100,7 @@ or active-guidance findings. The publication scan found zero possible secrets
 and zero oversized objects. Its 105 privacy-pattern hits were unchanged from
 the public-main baseline; they are scanner findings, not a privacy clearance.
 Release readiness passed on the edited documentation. The follow-up's hosted
-CI still needs to be inspected at its own commit.
+CI must be inspected at its own commit before treating that update as complete.
 
 The local gate logs and smoke directories are retained in maintainer-only
 scratch space outside Git. The logs' SHA-256 values are
