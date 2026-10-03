@@ -81,6 +81,31 @@ extension ScientificWorkbenchTests {
 
   @Test
   @MainActor
+  func guidedRunPreparesArtifactParentAfterOutputSafetyCheck() async throws {
+    let root = FileManager.default.temporaryDirectory
+      .appendingPathComponent("Scientific-Workbench-Guided-Artifacts-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false)
+    store.outputRootPath = root.appendingPathComponent("runs", isDirectory: true).path
+    store.skillRootPath = root.appendingPathComponent("missing-skill", isDirectory: true).path
+
+    let job = await store.runGuided(capability: sampleCapability(), inputPathsOverride: []) { runURL in
+      [runURL.appendingPathComponent("artifacts/result.csv").path]
+    }
+
+    let runDirectory = try #require(job?.runDirectory)
+    var isDirectory: ObjCBool = false
+    #expect(FileManager.default.fileExists(
+      atPath: URL(fileURLWithPath: runDirectory).appendingPathComponent("artifacts").path,
+      isDirectory: &isDirectory
+    ))
+    #expect(isDirectory.boolValue)
+    #expect(job?.status == .blocked)
+  }
+
+  @Test
+  @MainActor
   func unsafeOutputRootBlocksConfigurationExport() {
     let unsafeRoot = FileManager.default.homeDirectoryForCurrentUser
       .appendingPathComponent(".ssh/Scientific-Workbench-Config-\(UUID().uuidString)", isDirectory: true)

@@ -55,6 +55,8 @@ def main(argv=None):
          "--output-dir", str(output / "artifacts"),
          "--summary-json", str(output / "smoke-summary.json"),
          "--manifest-json", str(output / "smoke-manifest.json")],
+        [sys.executable, str(ROOT / "script/check_scientific_known_answers.py"),
+         "--output-dir", str(output / "known-answer")],
     ]
     evidence = {"status": "FAIL", "profile": args.profile, "python": sys.version, "platform": platform.platform(),
                 "architecture": platform.machine(), "snapshot_entries_before": entries,
@@ -68,6 +70,12 @@ def main(argv=None):
                 validate_profile_readiness(json.loads((output / "env-doctor.json").read_text()), args.profile)
         summary = json.loads((output / "smoke-summary.json").read_text())
         evidence["passed_features"] = validate_summary(summary, args.profile)
+        known_answer = json.loads((output / "known-answer/verification.json").read_text())
+        if known_answer.get("status") != "PASS":
+            raise ValueError("scientific known-answer checks did not pass")
+        evidence["known_answer_status"] = known_answer["status"]
+        evidence["known_answer_fits_sha256"] = known_answer["fits"]["input_sha256"]
+        evidence["known_answer_crossmatch_sep_arcsec"] = known_answer["crossmatch"]["actual_sep_arcsec"]
         evidence["status"] = "PASS"
     finally:
         # A changed backend is a failure even when all child commands succeeded.

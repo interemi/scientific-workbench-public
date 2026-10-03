@@ -2112,7 +2112,8 @@ final class WorkbenchStore: ObservableObject {
     selectJobs: Bool = true,
     runDirectoryOverride: String? = nil,
     retryOfJobID: UUID? = nil,
-    allowDuringAgentWorkflow: Bool = false
+    allowDuringAgentWorkflow: Bool = false,
+    prepareGuidedArtifactsDirectory: Bool = false
   ) async -> JobRecord? {
     guard allowDuringAgentWorkflow || (!isRunningAgentWorkflow && !hasActiveJob) else {
       agentStatusMessage = "Wait for the active Scientific Workbench run to finish or cancel it first."
@@ -2159,6 +2160,13 @@ final class WorkbenchStore: ObservableObject {
         atPath: runDirectory,
         withIntermediateDirectories: true
       )
+      if prepareGuidedArtifactsDirectory {
+        try FileManager.default.createDirectory(
+          at: URL(fileURLWithPath: runDirectory, isDirectory: true)
+            .appendingPathComponent("artifacts", isDirectory: true),
+          withIntermediateDirectories: true
+        )
+      }
       let effectiveRawArguments = try legacyReportProjectStagingService.stagePopulateProjectIfNeeded(
         capabilityID: capability.id,
         rawArguments: rawArguments,
@@ -2276,7 +2284,8 @@ final class WorkbenchStore: ObservableObject {
       rawArguments: rawArguments,
       inputPathsOverride: inputPathsOverride,
       selectJobs: selectJobs,
-      runDirectoryOverride: runDirectory
+      runDirectoryOverride: runDirectory,
+      prepareGuidedArtifactsDirectory: true
     )
   }
 

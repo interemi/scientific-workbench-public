@@ -80,7 +80,7 @@ review, not third-party ownership of astronomy methods or external software.
 | Candidate | Persona, example, and independent baseline | Method, output, units, and dependencies | Scientific limit and current readiness |
 | --- | --- | --- | --- |
 | FITS image and WCS inspection | Observational-astronomy student checking whether an image can be used downstream. Dashboard now generates a synthetic 8 × 8 image with a known reference pixel, reference sky coordinate, angular pixel scale, one nonfinite pixel, and declared pixel unit. On 2026-09-30, Astropy independently recovered `(150°, −30°)` at the reference pixel within `1e-9` degree. | `inspect_fits` enumerates HDUs and summarizes the image/header/WCS into `summary.json` plus `manifest.json`. The known generated fixture also produces a **display-only** PNG in the run folder with celestial axes. Record `NAXIS`/pixel dimensions, pixel-unit header, celestial frame and coordinate units (degrees), pixel scale (arcsec/pixel), reference values, and any crop/NaN treatment. Core includes the reviewed FITS inspection path; no Astrometry.net solver is required. | Current app readiness is `app_ready` for the inspection command. The automatic preview is limited to the exact generated fixture; general bounded-memory FITS previews remain P2.02 work. WCS metadata does not establish calibration accuracy, a source position, or a science-quality image. The internal GUI and hosted Core checks passed for this candidate. |
-| Sky crossmatch of two text catalogs | Researcher comparing two small observing catalogs. Proposed fixture: two left rows and two right rows with explicit `ra_deg`/`dec_deg`; one pair separated by roughly 0.36 arcsec and one left source with no match inside a 1 arcsec radius. The baseline should calculate spherical angular separations independently and expect one matched and one unmatched left row, with a declared tolerance. | Capabilities → **Expert** → `catalog_workbench.crossmatch-sky` → **Add Files** for both CSVs → select left/right files, map four coordinate columns, confirm **decimal degrees**, enter a positive radius in **arcseconds**, then **Run Reviewed Crossmatch**. Jobs/Results should show the match CSV, `summary.json`, and `manifest.json` in a fresh run. Core must be the **dedicated scientific Python environment** documented for this route; the backend uses Astropy sky coordinates. No STILTS/TOPCAT is needed for this native path. | Registry readiness is `app_ready_partial`. The guided form covers CSV, TSV, ECSV, and delimited text, not FITS-table/Parquet/spreadsheet review. A nearest-neighbor match inside a radius does not resolve proper motion, epoch, duplicate counterparts, catalog selection effects, or physical association. P2.05 must provide the known-answer fixture and rejection cases; internal GUI and artifact checks are still missing. |
+| Sky crossmatch of two text catalogs | Researcher comparing two small observing catalogs. The [synthetic known-answer fixture](SCIENTIFIC_KNOWN_ANSWER_FIXTURES.md) has two left rows and two right rows with explicit `ra_deg`/`dec_deg`; one pair is separated by about 0.36 arcsec and one left source has no match inside a 1 arcsec radius. A separate haversine calculation establishes the baseline with a `1e-6` arcsec comparison tolerance. | Capabilities → **Expert** → `catalog_workbench.crossmatch-sky` → **Add Files** for both CSVs → select left/right files, map four coordinate columns, confirm **decimal degrees**, enter a positive radius in **arcseconds**, then **Run Reviewed Crossmatch**. Jobs/Results should show the match ECSV, `summary.json`, and `manifest.json` in a fresh run. Core must be the **dedicated scientific Python environment** documented for this route; the backend uses Astropy sky coordinates. No STILTS/TOPCAT is needed for this native path. | Registry readiness is `app_ready_partial`. The guided form covers CSV, TSV, ECSV, and delimited text, not FITS-table/Parquet/spreadsheet review. Backend known-answer, rejection, and guided GUI checks passed locally on a dirty Phase 3 tree; hosted exact-commit CI remains pending. Results lists the ECSV but has no inline preview for it. A nearest-neighbor match inside a radius does not resolve proper motion, epoch, duplicate counterparts, catalog selection effects, or physical association. |
 
 The generated FITS fixture uses a TAN celestial WCS with `CRPIX1 =
 CRPIX2 = 4.5`, `CRVAL1 = 150 deg`, `CRVAL2 = -30 deg`, `CDELT1 = -1/3600
@@ -90,7 +90,7 @@ Astropy check on 2026-09-30 recovered it within `1e-9` degree and measured
 one arcsecond per pixel. The deterministic data array includes exactly one
 NaN. This is generated synthetic data, not a measured instrument image.
 
-The proposed crossmatch fixture can use these exact decimal-degree rows:
+The crossmatch regression fixture generates these exact decimal-degree rows:
 
 | File | `source_id` | `ra_deg` | `dec_deg` |
 | --- | --- | ---: | ---: |
@@ -101,12 +101,15 @@ The proposed crossmatch fixture can use these exact decimal-degree rows:
 
 At a 1 arcsec radius, `L1` should match `R1` at approximately 0.36 arcsec;
 `L2` should remain unmatched. A separate Python standard-library calculation
-using the haversine spherical-angle formula returned
-`0.359999999999` arcsec for `L1`–`R1` on 2026-09-30. P2.05 must run the
-backend against this known-answer case and set a numerical tolerance and
-rejection cases before it becomes a regression fixture. The example contains
-no epoch or proper-motion metadata, so it cannot support claims about
-real-source association.
+using the haversine spherical-angle formula returned approximately 0.36
+arcsec for `L1`–`R1`. On 2026-10-02, the backend returned
+`0.3599999999694744` arcsec against a separate baseline of
+`0.3599999999807416` arcsec, within the declared `1e-6` arcsec tolerance.
+The [fixture record](SCIENTIFIC_KNOWN_ANSWER_FIXTURES.md) gives input hashes,
+rejection cases, and local backend and GUI verification scope. This result
+still needs a committed-tree CI run before P2.05 can close. The example
+contains no epoch or proper-motion metadata, so it cannot support claims
+about real-source association.
 
 The [research-led priority decision](RESEARCH_LED_ACCEPTANCE.md#astronomy-priority-decision)
 puts FITS/WCS inspection first because its documented task and known-answer

@@ -191,6 +191,7 @@ jobs:
             ${{ runner.temp }}/portable-core/env-doctor.json
             ${{ runner.temp }}/portable-core/smoke-summary.json
             ${{ runner.temp }}/portable-core/smoke-manifest.json
+            ${{ runner.temp }}/portable-core/known-answer/verification.json
             ${{ runner.temp }}/portable-core/step-*.log
             ${{ runner.temp }}/scientific-workbench/datanalysis/scientific-workbench-setup/installed-packages.txt
 
