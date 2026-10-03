@@ -35,7 +35,7 @@ struct ArtifactPreviewService {
       return imagePreview(artifact)
     case "pdf":
       return pdfPreview(artifact)
-    case "csv", "tsv":
+    case "csv", "tsv", "ecsv":
       return textPreview(artifact, kind: .table, title: "Table preview", redact: redact)
     case "md":
       return textPreview(artifact, kind: .markdown, title: "Markdown preview", redact: redact)

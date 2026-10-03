@@ -285,6 +285,7 @@ extension ScientificWorkbenchTests {
     context.closePDF()
 
     try "a,b\n1,2\n".write(to: root.appendingPathComponent("table.csv"), atomically: true, encoding: .utf8)
+    try "# %ECSV 1.0\na b\n1 2\n".write(to: root.appendingPathComponent("table.ecsv"), atomically: true, encoding: .utf8)
     try "# Report\n\nSafe text.".write(to: root.appendingPathComponent("report.md"), atomically: true, encoding: .utf8)
     try "token=secret-value-123".write(to: root.appendingPathComponent("stdout.log"), atomically: true, encoding: .utf8)
     try """
@@ -302,6 +303,9 @@ extension ScientificWorkbenchTests {
     #expect(service.load(artifact: try artifact("preview.png"), redact: redact).kind == .image)
     #expect(service.load(artifact: try artifact("preview.pdf"), redact: redact).kind == .pdf)
     #expect(service.load(artifact: try artifact("table.csv"), redact: redact).kind == .table)
+    let ecsv = service.load(artifact: try artifact("table.ecsv"), redact: redact)
+    #expect(ecsv.kind == .table)
+    #expect(ecsv.text?.contains("# %ECSV 1.0") == true)
     #expect(service.load(artifact: try artifact("report.md"), redact: redact).kind == .markdown)
     #expect(service.load(artifact: try artifact("analysis.ipynb"), redact: redact).kind == .notebook)
     let log = service.load(artifact: try artifact("stdout.log"), redact: redact)

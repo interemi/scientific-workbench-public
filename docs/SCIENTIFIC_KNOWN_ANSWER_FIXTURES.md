@@ -90,9 +90,11 @@ hashes remained the two values above, and the output ECSV SHA-256 was
 The manifest's recorded input and output hashes matched the retained files.
 This check caught a missing `artifacts/` parent directory on the first GUI
 attempt; the store now creates it after output-root safety checks, with a
-Swift regression test. Results currently labels the ECSV artifact as
-`unknown` and offers no inline preview, so table content was checked from
-the retained file.
+Swift regression test. That initial GUI build labeled the ECSV artifact
+`unknown` and offered no inline preview, so its table content was checked
+from the retained file. A later local build recognizes the ECSV as a table
+and exposes a bounded text preview; its [separate evidence stages and
+maintainer interpretation](EVIDENCE_STAGES.md) are documented independently.
 
 A fresh integrated Core rerun on 2026-10-03 passed 23/23 feature cases,
 including the known-answer check, and preserved 1,926/1,926 distribution

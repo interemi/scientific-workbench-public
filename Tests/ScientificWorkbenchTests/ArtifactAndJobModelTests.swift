@@ -317,6 +317,22 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func artifactDiscoveryUsesECSVTypeWhenBackendDeclaresUnknown() throws {
+    let root = try makeScenarioFixture(name: "ecsv-unknown", files: [
+      "summary.json": """
+      {"typed_artifacts":[{"path":"artifacts/matches.ecsv","artifact_type":"unknown","label":"Matches"}]}
+      """,
+      "artifacts/matches.ecsv": "# %ECSV 1.0\na b\n1 2\n"
+    ])
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let artifacts = ArtifactDiscovery().discover(in: root.path)
+    let matches = try #require(artifacts.first { $0.relativePath == "artifacts/matches.ecsv" })
+    #expect(matches.artifactType == "table_ecsv")
+    #expect(matches.label == "Matches")
+  }
+
+  @Test
   func artifactDiscoveryKeepsRelativePathsUnderTmpSymlink() throws {
     let root = URL(fileURLWithPath: "/tmp")
       .appendingPathComponent("Scientific-Workbench-Artifacts-Tmp-\(UUID().uuidString)", isDirectory: true)
