@@ -101,7 +101,7 @@ later P2.02 and P2.05 implementation work.
 | P1.02 | Provide small one-click synthetic examples with known expected outputs and no optional account or backend. |
 | P2.05 | Add reviewed scientific fixtures with units, tolerances, rejection cases, and unchanged-input checks. |
 | P2.06 | Separate process success, artifact-contract checks, automatic QA, and human scientific review. |
-| PERF.01 | Measure startup and main interactions with controlled local traces and record the tested machine. |
+| PERF.01 | Measure startup and main interactions with controlled local traces and record the tested machine. The [dated local baseline](LOCAL_PERFORMANCE_BASELINE_2026-10-03.md) records the available-Mac method, measurements, and limits. |
 | PERF.16 | Measure Core/Full installation and first-use costs on the available machine and network. |
 | P0.04 | Run a scripted M104 navigation, error, recovery, cancellation, and artifact walkthrough with synthetic fixtures on the available Mac; record accessibility checks and the limits of an author-run session. |
 | P1.10 | Review keyboard, VoiceOver, contrast, dark mode, and window sizes on that Mac. |
