@@ -6,6 +6,9 @@ struct LaunchAutomationOptions: Equatable, Sendable {
   var mode: AgentRunMode?
   var autoRun = false
   var outputRootPath: String?
+  var skillRootPath: String?
+  var pythonExecutable: String?
+  var persistentIsolatedSessionName: String?
   var codexSandboxMode: String?
   var aiProvider: AIProvider?
   var aiModel: String?
@@ -49,6 +52,16 @@ struct LaunchAutomationOptions: Equatable, Sendable {
         if let path = value(after: argument) {
           options.outputRootPath = (path as NSString).expandingTildeInPath
         }
+      case "--agent-skill-root":
+        if let path = value(after: argument) {
+          options.skillRootPath = (path as NSString).expandingTildeInPath
+        }
+      case "--agent-python-executable":
+        if let path = value(after: argument) {
+          options.pythonExecutable = (path as NSString).expandingTildeInPath
+        }
+      case "--agent-persistent-isolated-session":
+        options.persistentIsolatedSessionName = value(after: argument) ?? ""
       case "--agent-codex-sandbox":
         options.codexSandboxMode = value(after: argument)
       case "--agent-ai-provider":

@@ -5,8 +5,9 @@
 **Source evidence:** the P0.03 preview and mixed-folder handoff were checked
 locally at `5c89a15` and in hosted Core CI at `3d17d4a`
 
-**Status:** P2.01 priority decision is integrated; the P0.03 internal technical
-criterion passed locally and in exact-candidate hosted Core CI
+**Status:** P2.01 priority decision and P2.05 known-answer checks are
+integrated; the P0.03 internal technical criterion passed locally and in
+exact-candidate hosted Core CI
 
 These choices follow the [user-needs desk research](USER_NEEDS_DESK_RESEARCH.md)
 and the current [capability matrix](CAPABILITY_SETUP_MATRIX.md). The
@@ -80,7 +81,7 @@ review, not third-party ownership of astronomy methods or external software.
 | Candidate | Persona, example, and independent baseline | Method, output, units, and dependencies | Scientific limit and current readiness |
 | --- | --- | --- | --- |
 | FITS image and WCS inspection | Observational-astronomy student checking whether an image can be used downstream. Dashboard now generates a synthetic 8 × 8 image with a known reference pixel, reference sky coordinate, angular pixel scale, one nonfinite pixel, and declared pixel unit. On 2026-09-30, Astropy independently recovered `(150°, −30°)` at the reference pixel within `1e-9` degree. | `inspect_fits` enumerates HDUs and summarizes the image/header/WCS into `summary.json` plus `manifest.json`. The known generated fixture also produces a **display-only** PNG in the run folder with celestial axes. Record `NAXIS`/pixel dimensions, pixel-unit header, celestial frame and coordinate units (degrees), pixel scale (arcsec/pixel), reference values, and any crop/NaN treatment. Core includes the reviewed FITS inspection path; no Astrometry.net solver is required. | Current app readiness is `app_ready` for the inspection command. The automatic preview is limited to the exact generated fixture; general bounded-memory FITS previews remain P2.02 work. WCS metadata does not establish calibration accuracy, a source position, or a science-quality image. The internal GUI and hosted Core checks passed for this candidate. |
-| Sky crossmatch of two text catalogs | Researcher comparing two small observing catalogs. The [synthetic known-answer fixture](SCIENTIFIC_KNOWN_ANSWER_FIXTURES.md) has two left rows and two right rows with explicit `ra_deg`/`dec_deg`; one pair is separated by about 0.36 arcsec and one left source has no match inside a 1 arcsec radius. A separate haversine calculation establishes the baseline with a `1e-6` arcsec comparison tolerance. | Capabilities → **Expert** → `catalog_workbench.crossmatch-sky` → **Add Files** for both CSVs → select left/right files, map four coordinate columns, confirm **decimal degrees**, enter a positive radius in **arcseconds**, then **Run Reviewed Crossmatch**. Jobs/Results should show the match ECSV, `summary.json`, and `manifest.json` in a fresh run. Core must be the **dedicated scientific Python environment** documented for this route; the backend uses Astropy sky coordinates. No STILTS/TOPCAT is needed for this native path. | Registry readiness is `app_ready_partial`. The guided form covers CSV, TSV, ECSV, and delimited text, not FITS-table/Parquet/spreadsheet review. Backend known-answer, rejection, and guided GUI checks passed locally. A later local build displays [separate evidence stages](EVIDENCE_STAGES.md) and offers a bounded ECSV text preview; exact-commit hosted CI remains pending. A nearest-neighbor match inside a radius does not resolve proper motion, epoch, duplicate counterparts, catalog selection effects, or physical association. |
+| Sky crossmatch of two text catalogs | Researcher comparing two small observing catalogs. The [synthetic known-answer fixture](SCIENTIFIC_KNOWN_ANSWER_FIXTURES.md) has two left rows and two right rows with explicit `ra_deg`/`dec_deg`; one pair is separated by about 0.36 arcsec and one left source has no match inside a 1 arcsec radius. A separate haversine calculation establishes the baseline with a `1e-6` arcsec comparison tolerance. | Capabilities → **Expert** → `catalog_workbench.crossmatch-sky` → **Add Files** for both CSVs → select left/right files, map four coordinate columns, confirm **decimal degrees**, enter a positive radius in **arcseconds**, then **Run Reviewed Crossmatch**. Jobs/Results should show the match ECSV, `summary.json`, and `manifest.json` in a fresh run. Core must be the **dedicated scientific Python environment** documented for this route; the backend uses Astropy sky coordinates. No STILTS/TOPCAT is needed for this native path. | Registry readiness is `app_ready_partial`. The guided form covers CSV, TSV, ECSV, and delimited text, not FITS-table/Parquet/spreadsheet review. Backend known-answer, rejection, and guided GUI checks passed locally. The GUI displays [separate evidence stages](EVIDENCE_STAGES.md) and offers a bounded ECSV text preview. [Exact-head Core CI](https://github.com/interemi/scientific-workbench-public/actions/runs/37114235603) passed on macOS 15 arm64 and Intel; [Full locked CI](https://github.com/interemi/scientific-workbench-public/actions/runs/37114262270) passed separately. A nearest-neighbor match inside a radius does not resolve proper motion, epoch, duplicate counterparts, catalog selection effects, or physical association. |
 
 The generated FITS fixture uses a TAN celestial WCS with `CRPIX1 =
 CRPIX2 = 4.5`, `CRVAL1 = 150 deg`, `CRVAL2 = -30 deg`, `CDELT1 = -1/3600
@@ -106,10 +107,11 @@ arcsec for `L1`–`R1`. On 2026-10-02, the backend returned
 `0.3599999999694744` arcsec against a separate baseline of
 `0.3599999999807416` arcsec, within the declared `1e-6` arcsec tolerance.
 The [fixture record](SCIENTIFIC_KNOWN_ANSWER_FIXTURES.md) gives input hashes,
-rejection cases, and local backend and GUI verification scope. This result
-still needs a committed-tree CI run before P2.05 can close. The example
-contains no epoch or proper-motion metadata, so it cannot support claims
-about real-source association.
+rejection cases, and local backend and GUI verification scope. The
+[exact-head Core CI](https://github.com/interemi/scientific-workbench-public/actions/runs/37114235603)
+passed at `02393f4`, and P2.05 closed with [PR #23](https://github.com/interemi/scientific-workbench-public/pull/23).
+The example contains no epoch or proper-motion metadata, so it cannot
+support claims about real-source association.
 
 The [research-led priority decision](RESEARCH_LED_ACCEPTANCE.md#astronomy-priority-decision)
 puts FITS/WCS inspection first because its documented task and known-answer
@@ -118,22 +120,21 @@ method is documented by TOPCAT and the proposed angular baseline is simple,
 but its GUI route is partial. This is a feasibility order, not an observed
 preference ranking of Scientific Workbench users.
 
-### Implementation evidence still required
+### Implementation evidence and remaining limits
 
-1. Extend the generated synthetic fixtures where needed, especially for the
-   proposed crossmatch. Record generator, hashes, units, expected values,
-   tolerances, and rejection cases. Do not copy DOCUS or a researcher's real
-   data. The existing FITS and CSV examples remain untouched.
-2. Run each proposed case on the exact checkout; compare actual summaries and
-   artifacts with the independent baselines. An exit code alone is insufficient.
-3. Retain the completed synthetic visual WCS GUI evidence and complete the
-   crossmatch GUI steps under P2.05 from a recorded initial state. The existing
-   walkthrough is useful engineering evidence, but it does not measure
+1. The [known-answer fixture record](SCIENTIFIC_KNOWN_ANSWER_FIXTURES.md)
+   retains the generator, hashes, units, expected values, tolerances,
+   rejection cases, and comparison with output artifacts. It uses synthetic
+   data; the existing FITS and CSV examples remain untouched.
+2. The [P0.03 GUI record](P0_03_GUI_ACCEPTANCE_2026-10-01.md) and
+   [P2.05 crossmatch record](SCIENTIFIC_KNOWN_ANSWER_FIXTURES.md#evidence-and-limits)
+   retain author-run GUI actions and results. These do not measure
    unfamiliar-user comprehension.
-4. Retain the P0.03 acceptance record and its exact-candidate Core CI link.
-   P2.01 is a research-backed prioritization decision; its subsequent
-   implementation and regression cases belong to P2.02 and P2.05. Retain user
-   preference as an unmeasured product hypothesis.
+3. General bounded-memory FITS preview remains P2.02 work. The wider
+   navigation, error, cancellation, and restart/resume walkthrough remains
+   [P0.04](PRODUCT_IMPROVEMENT_ROADMAP.md).
+   User preference and scientific validity on real observations remain
+   unmeasured.
 
 This specification makes no claim that the journeys have been used by an
 unfamiliar person, that any result is scientifically validated for real data,

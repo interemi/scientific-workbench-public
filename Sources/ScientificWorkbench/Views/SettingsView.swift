@@ -9,6 +9,14 @@ struct SettingsView: View {
         SetupChecklistCard(store: store, compact: true, showActions: false)
       }
 
+      Section("Installation Profiles") {
+        Text("Core supports the synthetic first-run examples and common table, FITS, and document workflows. It does not need an Ollama model or a cloud account.")
+        Text("Full adds Python packages for advanced workflows, including notebook and presentation routes. Its reviewed locked setup currently targets Apple Silicon, Python 3.11, and macOS 15 or later; it does not install external applications.")
+        Text("Ollama models, TeX, LibreOffice, IRAF, and other optional backends need separate setup only for routes that use them. Check each capability's requirements and preflight before running it.")
+        Text("The source repository's INSTALL.md lists exact commands, supported lock combinations, and current validation limits.")
+          .foregroundStyle(.secondary)
+      }
+
       Section("Paths") {
         HStack {
           TextField("Mother skill root", text: $store.skillRootPath)

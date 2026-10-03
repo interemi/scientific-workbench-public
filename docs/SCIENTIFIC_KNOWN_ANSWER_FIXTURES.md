@@ -68,7 +68,7 @@ This exercise does not account for observation epoch, proper motion,
 uncertainty, duplicate counterparts, selection effects, or physical
 association. A match inside a radius is only a geometric candidate.
 
-## Current evidence and remaining check
+## Evidence and limits
 
 On 2026-10-02, the direct known-answer check passed on the maintainer's
 macOS 27.0.1 arm64 Mac in a Python 3.11.15 Core environment. The actual
@@ -101,8 +101,11 @@ including the known-answer check, and preserved 1,926/1,926 distribution
 snapshot entries. Its verification JSON again records the uncommitted source
 state; the output is local evidence rather than hosted exact-commit evidence.
 
-Check the exact source commit's
-[Portable validation runs](https://github.com/interemi/scientific-workbench-public/actions/workflows/portable-validation.yml)
-for hosted coverage. The evidence above is an author-run technical check on
-one Mac, not a manual test on another Mac, an evaluation with an unfamiliar
-user, or scientific validation of real data.
+The [Core run at PR head `02393f4`](https://github.com/interemi/scientific-workbench-public/actions/runs/37114235603)
+passed on macOS 15 arm64 and Intel; the separate
+[Full locked run](https://github.com/interemi/scientific-workbench-public/actions/runs/37114262270)
+also passed at that head. After [PR #23](https://github.com/interemi/scientific-workbench-public/pull/23)
+merged, the [Core run on `main`](https://github.com/interemi/scientific-workbench-public/actions/runs/37114939541)
+passed on both architectures. The GUI evidence above remains an author-run
+technical check on one Mac, not a manual test on another Mac, an evaluation
+with an unfamiliar user, or scientific validation of real data.

@@ -41,6 +41,69 @@ extension ScientificWorkbenchTests {
 
   @Test
   @MainActor
+  func persistentAcceptanceSessionKeepsPreferencesSeparateAcrossLaunches() throws {
+    let sessionName = "P004_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+    let suiteName = "com.interemi.scientific-workbench.acceptance.\(sessionName)"
+    defer { UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName) }
+
+    let outputRoot = FileManager.default.temporaryDirectory
+      .appendingPathComponent("Scientific-Workbench-Acceptance-\(UUID().uuidString)", isDirectory: true)
+    let exampleRoot = outputRoot.deletingLastPathComponent()
+      .appendingPathComponent("\(outputRoot.lastPathComponent)-examples", isDirectory: true)
+    defer {
+      try? FileManager.default.removeItem(at: outputRoot)
+      try? FileManager.default.removeItem(at: exampleRoot)
+    }
+    let previousStandardRoot = UserDefaults.standard.string(forKey: "outputRootPath")
+    let options = LaunchAutomationOptions.parse([
+      "Scientific Workbench",
+      "--agent-persistent-isolated-session", sessionName,
+      "--agent-output-root", outputRoot.path,
+      "--agent-skill-root", "/tmp/bundled-skills/scientific-data-analysis",
+      "--agent-python-executable", "/tmp/datanalysis/bin/python"
+    ])
+
+    #expect(options.persistentIsolatedSessionName == sessionName)
+    #expect(options.skillRootPath == "/tmp/bundled-skills/scientific-data-analysis")
+    #expect(options.pythonExecutable == "/tmp/datanalysis/bin/python")
+    #expect(LaunchAutomationOptions.parse([
+      "Scientific Workbench", "--agent-persistent-isolated-session"
+    ]).persistentIsolatedSessionName == "")
+
+    let firstStore = LaunchSessionStoreFactory.makeStore(options: options)
+    #expect(firstStore.outputRootPath == outputRoot.path)
+    #expect(firstStore.skillRootPath == options.skillRootPath)
+    #expect(firstStore.pythonExecutable == options.pythonExecutable)
+    #expect(firstStore.aiProvider == .ollama)
+    #expect(firstStore.persistSettings())
+    firstStore.capabilities = [CapabilityEntry(
+      id: "profile_table",
+      label: "Table profile",
+      script: "scripts/profile_table.py",
+      visibleBlock: "tables",
+      kind: "golden_path",
+      supportLevel: "stable",
+      platform: "portable",
+      requiresDatanalysis: false,
+      preflightMode: "none",
+      smokeTier: "core",
+      shortDescription: "Inspect tables."
+    )]
+    firstStore.prepareFirstRunExample(.table)
+    let prepared = try #require(firstStore.preparedFirstRunExample)
+    #expect(firstStore.firstRunExampleError == nil)
+    #expect(prepared.directory.deletingLastPathComponent() == exampleRoot)
+    #expect(prepared.inputPaths.allSatisfy { $0.hasPrefix(exampleRoot.path + "/") })
+
+    let secondStore = LaunchSessionStoreFactory.makeStore(options: options)
+    #expect(secondStore.outputRootPath == outputRoot.path)
+    #expect(secondStore.skillRootPath == options.skillRootPath)
+    #expect(secondStore.pythonExecutable == options.pythonExecutable)
+    #expect(UserDefaults.standard.string(forKey: "outputRootPath") == previousStandardRoot)
+  }
+
+  @Test
+  @MainActor
   func launchAutomationWritesStructuredPlanTranscriptWithFormalSkillRouter() async throws {
     let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
     let root = try makeScenarioFixture(

@@ -213,11 +213,13 @@ final class WorkbenchStore: ObservableObject {
     let keychainAPIKey = loadSecrets && storedAIProvider == .openAI ? credentialStore.readKey(for: .openAI) : ""
     let keychainGrokKey = loadSecrets && storedAIProvider == .grok ? credentialStore.readKey(for: .grok) : ""
     let keychainGeminiKey = loadSecrets && storedAIProvider == .gemini ? credentialStore.readKey(for: .gemini) : ""
-    let environmentAPIKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? ""
-    let environmentGrokKey = ProcessInfo.processInfo.environment["XAI_API_KEY"] ?? ""
-    let environmentGeminiKey = ProcessInfo.processInfo.environment["GEMINI_API_KEY"]
-      ?? ProcessInfo.processInfo.environment["GOOGLE_API_KEY"]
-      ?? ""
+    let environmentAPIKey = loadSecrets ? (ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? "") : ""
+    let environmentGrokKey = loadSecrets ? (ProcessInfo.processInfo.environment["XAI_API_KEY"] ?? "") : ""
+    let environmentGeminiKey = loadSecrets
+      ? (ProcessInfo.processInfo.environment["GEMINI_API_KEY"]
+        ?? ProcessInfo.processInfo.environment["GOOGLE_API_KEY"]
+        ?? "")
+      : ""
     skillRootPath = skillRoot
     outputRootPath = outputRoot
     pythonExecutable = python
