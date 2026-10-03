@@ -61,6 +61,27 @@ authentication; OAuth is not implemented. Connection status is evidence for
 the current session and resets on restart. Leave Ollama selected to avoid paid
 provider APIs.
 
+### Choose Core or Full
+
+Start with **Core** for the five synthetic examples and common table, FITS,
+and document workflows. Core uses a dedicated Python environment. The
+reviewed locked Core setup currently targets native Apple Silicon, Python
+3.11, and macOS 14 or later. Ollama and cloud accounts are optional for these
+deterministic workflows.
+
+**Full** adds Python packages for advanced routes such as notebooks and
+presentations. Its reviewed locked setup currently targets Apple Silicon,
+Python 3.11, and macOS 15 or later. A working Core environment does not prove
+that Full is installed or ready. Intel uses an unpinned compatibility route;
+check the exact-commit validation before relying on it.
+
+Neither profile installs external applications or Ollama models. TeX,
+LibreOffice, IRAF, astronomy backends, and other optional tools need separate
+setup only for the workflows that use them. Check the selected capability's
+requirements and preflight rather than assuming a profile supplies every
+backend. The source repository's `INSTALL.md`, `docs/WORKFLOW_REQUIREMENTS.md`,
+and `docs/OPTIONAL_BACKENDS.md` give the exact commands and limits.
+
 ## 4. Normal workflow
 
 1. Open Chat.
