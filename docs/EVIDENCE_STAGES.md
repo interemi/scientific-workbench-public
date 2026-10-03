@@ -59,5 +59,5 @@ does not establish physical association, astrometric calibration, epoch or
 proper-motion handling, uncertainty propagation, duplicate-match policy, or
 correctness on research data. The interpretation is recorded here for this
 case only; the app does not record a per-job human approval. The session was
-author-run on one Mac, and exact-commit hosted validation of this change is
-still pending.
+author-run on one Mac. Check the exact source commit's hosted validation
+separately; this local interpretation does not establish portability.

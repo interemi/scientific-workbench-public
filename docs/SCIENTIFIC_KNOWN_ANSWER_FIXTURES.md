@@ -101,6 +101,8 @@ including the known-answer check, and preserved 1,926/1,926 distribution
 snapshot entries. Its verification JSON again records the uncommitted source
 state; the output is local evidence rather than hosted exact-commit evidence.
 
-Hosted CI on the eventual Phase 3 commit is still pending. This is an
-author-run technical check on one Mac, not a manual test on another Mac,
-an evaluation with an unfamiliar user, or scientific validation of real data.
+Check the exact source commit's
+[Portable validation runs](https://github.com/interemi/scientific-workbench-public/actions/workflows/portable-validation.yml)
+for hosted coverage. The evidence above is an author-run technical check on
+one Mac, not a manual test on another Mac, an evaluation with an unfamiliar
+user, or scientific validation of real data.
