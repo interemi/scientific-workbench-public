@@ -1,12 +1,15 @@
 # Install and use Scientific Workbench
 
-This guide describes a source installation. Core and an earlier Full profile
-were installed in new, isolated Python environments on the development Mac,
-preserving existing environments. Their synthetic smoke tests passed 23/23 and
-38/38 cases respectively. The current Full lock has since replaced PyMuPDF
-with pypdfium2: static lock checks and a 38/38 local smoke using an existing
-environment passed. On 2026-09-28, commit `b57c168` also passed a fresh hosted
-installation of the revised Full lock with focused Core and document tests.
+This guide describes a source installation. On 2026-10-03, the current locked
+Core and Full profiles were each installed in a new, isolated Python
+environment on the development Mac from source commit `a47da3f`, preserving
+existing environments. Their synthetic checks passed 23/23 and 38/38 cases
+respectively, with the known-answer checks passing too. The Core diagnostic
+still warned about a separate pre-existing Conda environment; see the
+[timed installation baseline](docs/LOCAL_INSTALLATION_COST_BASELINE_2026-10-03.md)
+for the exact measurements and discovery limit. On 2026-09-28, commit
+`b57c168` also passed a fresh hosted installation of the revised Full lock
+with focused Core and document tests.
 The app has **not been manually tested on another Mac**. That commit passed
 hosted macOS 15 Core CI on arm64 and Intel, but automated checks do not test
 its user interface. Check the
