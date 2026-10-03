@@ -92,7 +92,8 @@ The P0.03 internal technical criterion is met under the
 [revised internal protocol](RESEARCH_LED_ACCEPTANCE.md). Together with the
 previously recorded P0.01 and P2.01 decisions, this meets Phase 2's internal
 exit criterion. It does not establish independent usability or complete the
-later P2.02 and P2.05 implementation work.
+remaining P2.02 general-preview work. P2.05 was integrated separately in
+[PR #23](https://github.com/interemi/scientific-workbench-public/pull/23).
 
 ## Phase 3 — Build repeatable examples and a local baseline
 
@@ -116,6 +117,18 @@ Their [internal GUI walkthrough](P0_03_GUI_ACCEPTANCE_2026-10-01.md) passed on
 the development Mac, and the exact-candidate hosted Core run passed on macOS 15
 arm64 and Intel. This closes the internal technical criterion, without claiming
 outside-user recruitment or manual use on another Mac.
+
+[PR #23](https://github.com/interemi/scientific-workbench-public/pull/23)
+integrated P2.05, P2.06, PERF.01, and PERF.16 into public `main` at `bbb4c96`.
+The [known-answer record](SCIENTIFIC_KNOWN_ANSWER_FIXTURES.md) and
+[evidence-stage guide](EVIDENCE_STAGES.md) cover the scientific checks and
+their limits; the [local response](LOCAL_PERFORMANCE_BASELINE_2026-10-03.md)
+and [installation-cost](LOCAL_INSTALLATION_COST_BASELINE_2026-10-03.md)
+baselines retain method and variability. [Core CI on the merge](https://github.com/interemi/scientific-workbench-public/actions/runs/37114939541)
+passed on macOS 15 arm64 and Intel, and the separate
+[Full locked run](https://github.com/interemi/scientific-workbench-public/actions/runs/37114262270)
+passed at the exact PR head. P0.04 and P1.10 remain open; this phase does not
+yet have a completed internal usability or accessibility baseline.
 
 Exit: reproducible examples, reviewed expected values, and a dated performance
 and usability baseline.
