@@ -1034,7 +1034,7 @@ extension ScientificWorkbenchTests {
 
   @Test
   @MainActor
-  func setupChecklistFlagsMissingLocalAI() throws {
+  func setupChecklistKeepsCoreReadyWithoutLocalAI() throws {
     let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
     let outputRoot = FileManager.default.temporaryDirectory
       .appendingPathComponent("Scientific-Workbench-Setup-\(UUID().uuidString)", isDirectory: true)
@@ -1056,9 +1056,12 @@ extension ScientificWorkbenchTests {
     store.ollamaSetupStatus = .unknown(model: store.model(for: .ollama))
 
     let localAI = try #require(store.setupChecklistItems.first { $0.id == "local_ai" })
-    #expect(!store.setupChecklistIsReady)
-    #expect(localAI.state == .action)
+    #expect(store.setupChecklistIsReady)
+    #expect(localAI.state == .optional)
+    #expect(!localAI.isRequired)
+    #expect(localAI.detail.contains("Core workflows work without Ollama"))
     #expect(localAI.detail.contains(store.model(for: .ollama)))
+    #expect(store.setupRecoveryState == nil)
   }
 
   @Test
@@ -1080,12 +1083,12 @@ extension ScientificWorkbenchTests {
     #expect(recovery.blockingItemIDs.contains("environment"))
     #expect(recovery.blockingItemIDs.contains("capabilities"))
     #expect(recovery.blockingItemIDs.contains("output_root"))
-    #expect(recovery.blockingItemIDs.contains("local_ai"))
+    #expect(!recovery.blockingItemIDs.contains("local_ai"))
     #expect(recovery.detail.contains("Scientific environment"))
     #expect(recovery.recommendedActions.contains { $0.contains("Refresh Environment") })
     #expect(recovery.recommendedActions.contains { $0.contains("Reload Registry") })
     #expect(recovery.recommendedActions.contains { $0.contains("output folder") })
-    #expect(recovery.recommendedActions.contains { $0.contains("Test Local AI") })
+    #expect(!recovery.recommendedActions.contains { $0.contains("Test Local AI") })
   }
 
   @Test

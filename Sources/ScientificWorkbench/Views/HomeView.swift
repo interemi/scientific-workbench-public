@@ -57,7 +57,7 @@ struct HomeView: View {
       Text("Try a synthetic example")
         .font(.title3)
         .fontWeight(.semibold)
-      Text("Create a fresh local copy, review the expected result, then run its suggested capability. These examples require no cloud account or optional backend.")
+      Text("Create a fresh local copy, review the expected result, then run its suggested capability. These examples require no Ollama model, cloud account, or optional backend.")
         .font(.callout)
         .foregroundStyle(.secondary)
 

@@ -15,7 +15,9 @@ struct SetupChecklistCard: View {
         StatusBadge(status: store.setupChecklistIsReady ? "ok" : "action")
       }
 
-      Text(store.setupChecklistIsReady ? "Ready for local workflows." : "Finish the required items before expecting reliable agent runs.")
+      Text(store.setupChecklistIsReady
+        ? "Core workflows and local planning are ready. AI chat needs an available provider."
+        : "Finish the required Core items before running workflows.")
         .font(.caption)
         .foregroundStyle(.secondary)
 
