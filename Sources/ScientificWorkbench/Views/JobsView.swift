@@ -211,6 +211,8 @@ struct JobDetailView: View {
           }
         }
 
+        JobEvidenceStagesView(job: job)
+
         if let shortSummary = job.shortSummary {
           Text(shortSummary)
             .font(.headline)

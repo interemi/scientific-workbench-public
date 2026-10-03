@@ -114,6 +114,10 @@ sandbox. Credentials are configured locally and kept out of Git. DOCUS,
 Python environments, models, transient caches, builds, and credentials are
 outside this distribution.
 
+Jobs and Results display [separate evidence stages](docs/EVIDENCE_STAGES.md)
+for process exit, tool outcome, artifact integrity, automatic QA, and human
+scientific review. A technical PASS does not approve a scientific conclusion.
+
 Some skill-internal `.cache` directories contain required deferred code and
 documentation. They are part of the backend manifest and must be retained.
 Transient runtime outputs are excluded separately.

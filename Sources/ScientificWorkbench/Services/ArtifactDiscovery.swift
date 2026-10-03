@@ -19,11 +19,14 @@ struct ArtifactDiscovery {
       let resolvedFileURL = fileURL.resolvingSymlinksInPath()
       let relativePath = relativePath(for: resolvedFileURL, under: rootURL)
       let metadata = typedMetadata[relativePath]
+      let declaredType = metadata?.artifactType?.trimmingCharacters(in: .whitespacesAndNewlines)
       artifacts.append(Artifact(
         path: resolvedFileURL.path,
         relativePath: relativePath,
         byteCount: Int64(values?.fileSize ?? 0),
-        artifactType: metadata?.artifactType ?? inferredArtifactType(for: relativePath),
+        artifactType: declaredType == nil || declaredType == "" || declaredType == "unknown"
+          ? inferredArtifactType(for: relativePath)
+          : declaredType,
         label: metadata?.label,
         primary: metadata?.primary
       ))
@@ -117,6 +120,8 @@ struct ArtifactDiscovery {
       return "preview_pdf"
     case "csv", "tsv":
       return "table_csv"
+    case "ecsv":
+      return "table_ecsv"
     case "ipynb":
       return "notebook_ipynb"
     case "fit", "fits", "fts":

@@ -23,6 +23,9 @@ struct ResultsView: View {
             .truncationMode(.middle)
             .padding(.horizontal)
 
+          JobEvidenceStagesView(job: job, compact: true)
+            .padding(.horizontal)
+
           if store.canPrepareMixedDataFollowUp(for: job) {
             VStack(alignment: .leading, spacing: 6) {
               Button("Inspect folder data") {
@@ -149,7 +152,7 @@ struct ResultsView: View {
     case "preview_png", "app_preview": return "photo"
     case "edited_document": return "doc.badge.checkmark"
     case "manifest_json", "summary_json", "metadata_json": return "curlybraces"
-    case "table_csv": return "tablecells"
+    case "table_csv", "table_ecsv": return "tablecells"
     case "report_md", "log_txt": return "doc.text"
     case "handoff_bundle": return "shippingbox"
     case "fits_product", "fits_visual": return "waveform.path.ecg.rectangle"
@@ -159,7 +162,7 @@ struct ResultsView: View {
     case "png", "jpg", "jpeg", "tif", "tiff": return "photo"
     case "pdf": return "doc.richtext"
     case "json": return "curlybraces"
-    case "csv", "tsv": return "tablecells"
+    case "csv", "tsv", "ecsv": return "tablecells"
     case "md", "txt", "log": return "doc.text"
     default: return "doc"
     }
@@ -175,7 +178,7 @@ struct ResultsView: View {
 
   private func selectPreferredArtifact() {
     guard selectedArtifactID == nil, let job = store.selectedJob else { return }
-    let preferredTypes = job.previewArtifactTypes + ["preview_png", "preview_pdf", "app_preview", "report_md", "table_csv"]
+    let preferredTypes = job.previewArtifactTypes + ["preview_png", "preview_pdf", "app_preview", "report_md", "table_csv", "table_ecsv"]
     selectedArtifactID = preferredTypes.lazy.compactMap { type in
       job.artifacts.first { $0.artifactType == type }?.id
     }.first ?? job.artifacts.first(where: { $0.primary == true })?.id ?? job.artifacts.first?.id
