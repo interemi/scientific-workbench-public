@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TESTS_DIR="$ROOT_DIR/Tests/ScientificWorkbenchTests"
-RUNNER_DIR="$ROOT_DIR/.build/scientific-workbench-swift-testing-runner"
+RUNNER_DIR="${SCIENTIFIC_WORKBENCH_SWIFT_TEST_RUNNER_DIR:-$ROOT_DIR/.build/scientific-workbench-swift-testing-runner}"
 SWIFT_OPTIONS=(--package-path "$ROOT_DIR")
 if [[ -n "${SCIENTIFIC_WORKBENCH_SWIFT_BUILD_SYSTEM:-}" ]]; then
   SWIFT_OPTIONS+=(--build-system "$SCIENTIFIC_WORKBENCH_SWIFT_BUILD_SYSTEM")

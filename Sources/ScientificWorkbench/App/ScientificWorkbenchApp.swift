@@ -14,14 +14,7 @@ struct ScientificWorkbenchApp: App {
 
   init() {
     let launchOptions = LaunchAutomationOptions.parse(CommandLine.arguments)
-    let defaults = launchOptions.isolatedSession
-      ? UserDefaults(suiteName: "Scientific-Workbench-GUI-Isolated-\(UUID().uuidString)") ?? .standard
-      : .standard
-    let store = WorkbenchStore(
-      loadSecrets: launchOptions.aiProvider?.requiresAPIKey ?? true,
-      defaults: defaults,
-      loadPersistedState: !launchOptions.isolatedSession
-    )
+    let store = LaunchSessionStoreFactory.makeStore(options: launchOptions)
     _store = StateObject(wrappedValue: store)
     Task { @MainActor in
       await store.startupRefresh()

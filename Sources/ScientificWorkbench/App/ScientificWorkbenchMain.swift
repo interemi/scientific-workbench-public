@@ -16,14 +16,7 @@ enum ScientificWorkbenchMain {
     if launchOptions.exitAfterRun, launchOptions.shouldRun {
       DispatchQueue.main.async {
         Task { @MainActor in
-          let defaults = launchOptions.isolatedSession
-            ? UserDefaults(suiteName: "Scientific-Workbench-Headless-\(UUID().uuidString)") ?? .standard
-            : .standard
-          let store = WorkbenchStore(
-            loadSecrets: launchOptions.aiProvider?.requiresAPIKey ?? true,
-            defaults: defaults,
-            loadPersistedState: !launchOptions.isolatedSession
-          )
+          let store = LaunchSessionStoreFactory.makeStore(options: launchOptions)
           await store.startupRefresh()
           await store.runLaunchAutomation(launchOptions)
         }
