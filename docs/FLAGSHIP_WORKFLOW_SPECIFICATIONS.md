@@ -131,8 +131,8 @@ preference ranking of Scientific Workbench users.
    retain author-run GUI actions and results. These do not measure
    unfamiliar-user comprehension.
 3. General bounded-memory FITS preview remains P2.02 work. The wider
-   navigation, error, cancellation, and restart/resume walkthrough remains
-   [P0.04](PRODUCT_IMPROVEMENT_ROADMAP.md).
+   navigation, error, cancellation, and restart/resume walkthrough is
+   recorded in the [P0.04 local acceptance report](P0_04_P1_10_LOCAL_ACCEPTANCE_2026-10-04.md).
    User preference and scientific validity on real observations remain
    unmeasured.
 
