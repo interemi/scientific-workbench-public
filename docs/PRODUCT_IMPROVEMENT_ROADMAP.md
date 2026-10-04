@@ -156,6 +156,10 @@ and usability baseline.
 | P1.12 | Publish short, version-matched guides for the selected workflows. |
 | P1.14 | Publish real screenshots and a tour tied to an identified build. |
 
+P1.01 has a [dated local technical review](PHASE4_DASHBOARD_LOCAL_REVIEW_2026-10-04.md)
+at `63dee8a`. Public integration and exact-candidate hosted checks are still
+pending; this is not a measured novice-user success claim.
+
 Exit: the three scripted first-use paths can choose, prepare, run or cancel,
 and inspect a workflow without losing the connection between its plan, job,
 and artifacts. This is an internal functional criterion, not a user-success rate.
