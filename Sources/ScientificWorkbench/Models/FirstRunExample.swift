@@ -19,6 +19,26 @@ enum FirstRunExampleKind: String, CaseIterable, Identifiable {
     }
   }
 
+  var launcherTitle: String {
+    switch self {
+    case .table: return "Profile a table"
+    case .fits: return "Inspect a FITS image"
+    case .spectrum: return "Explore a spectrum"
+    case .document: return "Inspect a PDF"
+    case .mixed: return "Explore a mixed folder"
+    }
+  }
+
+  var launcherDetail: String {
+    switch self {
+    case .table: return "Review columns, missing values, and basic table structure."
+    case .fits: return "Review image structure, headers, and available previews."
+    case .spectrum: return "Review wavelength and flux columns before interpreting them."
+    case .document: return "Inventory pages and extracted text before using the content."
+    case .mixed: return "Inventory documents and tables in separate, reviewable steps."
+    }
+  }
+
   var detail: String {
     switch self {
     case .table: return "Three operational rows; inspect columns and missing values."

@@ -1195,6 +1195,24 @@ final class WorkbenchStore: ObservableObject {
     selectedSection = .capabilities
   }
 
+  func openFirstRunTask(_ kind: FirstRunExampleKind) {
+    firstRunExampleError = nil
+    guard let capability = userCapabilities.first(where: { $0.id == kind.capabilityID }) else {
+      firstRunExampleError = "Set up the bundled skills before opening this task."
+      return
+    }
+    capabilityCatalogMode = capability.catalogMode ?? kind.catalogMode
+    selectedCapabilityID = capability.id
+    searchText = ""
+    selectedSection = .capabilities
+  }
+
+  func openJob(_ job: JobRecord) {
+    guard jobs.contains(where: { $0.id == job.id }) else { return }
+    selectedJobID = job.id
+    selectedSection = .jobs
+  }
+
   func useNativeCatalogAlternative() {
     openOptionalCapability(
       optionalAstronomyBackendStatus.nativeAlternativeCapabilityID
