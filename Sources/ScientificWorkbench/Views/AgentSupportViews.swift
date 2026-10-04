@@ -105,18 +105,20 @@ struct AttachmentChip: View {
       Image(systemName: "paperclip")
       Text(URL(fileURLWithPath: path).lastPathComponent)
         .lineLimit(1)
+        .help(path)
       Button {
         remove()
       } label: {
         Image(systemName: "xmark.circle.fill")
       }
       .buttonStyle(.plain)
+      .accessibilityLabel("Remove attachment \(URL(fileURLWithPath: path).lastPathComponent)")
+      .accessibilityHint("Removes this attachment from the current message without deleting it from disk.")
     }
     .font(.caption)
     .padding(.horizontal, 8)
     .padding(.vertical, 5)
     .background(.thinMaterial, in: Capsule())
-    .help(path)
   }
 }
 

@@ -127,8 +127,13 @@ and [installation-cost](LOCAL_INSTALLATION_COST_BASELINE_2026-10-03.md)
 baselines retain method and variability. [Core CI on the merge](https://github.com/interemi/scientific-workbench-public/actions/runs/37114939541)
 passed on macOS 15 arm64 and Intel, and the separate
 [Full locked run](https://github.com/interemi/scientific-workbench-public/actions/runs/37114262270)
-passed at the exact PR head. P0.04 and P1.10 remain open; this phase does not
-yet have a completed internal usability or accessibility baseline.
+passed at the exact PR head. The [author-run M104 walkthrough and accessibility
+record](P0_04_P1_10_LOCAL_ACCEPTANCE_2026-10-04.md) closes P0.04's local
+scripted criterion with synthetic inputs, error and recovery, cancellation,
+restart, and unchanged-input checks. P1.10 remains open because spoken
+VoiceOver announcements and numerical contrast have not been assessed. This
+phase has a dated internal usability baseline, but its accessibility review
+is not complete.
 
 Exit: reproducible examples, reviewed expected values, and a dated performance
 and usability baseline.
