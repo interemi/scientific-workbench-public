@@ -283,6 +283,8 @@ struct CapabilityDetailPanel: View {
           store.clearInputs()
         }
         .disabled(store.inputPaths.isEmpty)
+        .accessibilityLabel("Clear selected inputs")
+        .accessibilityHint("Removes inputs from this selection without deleting them from disk.")
       }
 
       if store.inputPaths.isEmpty {
@@ -307,6 +309,8 @@ struct CapabilityDetailPanel: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
+            .accessibilityLabel("Remove input \(URL(fileURLWithPath: path).lastPathComponent)")
+            .accessibilityHint("Removes this item from the current input selection without deleting it from disk.")
           }
           .padding(8)
           .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))

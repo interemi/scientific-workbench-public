@@ -267,11 +267,15 @@ struct ArtifactPreview: View {
         } label: {
           Label("Open", systemImage: "arrow.up.right.square")
         }
+        .accessibilityLabel("Open artifact \(store.redactedPreviewText(artifact.relativePath))")
+        .accessibilityHint("Opens the selected artifact in its default macOS app.")
         Button {
           store.revealArtifact(artifact)
         } label: {
           Label("Reveal", systemImage: "folder")
         }
+        .accessibilityLabel("Reveal artifact \(store.redactedPreviewText(artifact.relativePath))")
+        .accessibilityHint("Shows the selected artifact in Finder.")
       }
 
       preview

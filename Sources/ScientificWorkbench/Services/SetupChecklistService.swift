@@ -62,10 +62,10 @@ struct SetupChecklistService {
         title: "Local AI",
         detail: localAIReady
           ? "\(context.ollamaModel) is available for no-key local planning/chat."
-          : "Open Ollama, download \(context.ollamaModel), then run Test Local AI.",
-        state: localAIReady ? .ready : .action,
+          : "Optional for AI chat/planning. Core workflows work without Ollama; to enable it, open Ollama, download \(context.ollamaModel), then run Test Local AI.",
+        state: localAIReady ? .ready : .optional,
         systemImage: "desktopcomputer",
-        isRequired: true
+        isRequired: false
       ),
       SetupChecklistItem(
         id: "optional_cloud",
@@ -137,12 +137,6 @@ struct SetupChecklistService {
         "Choose or create an output folder in Settings.",
         "Normal runs can use a readable folder name; legacy IRAF/fxcor runs are isolated into a no-space workspace when needed.",
         "Confirm the output folder is writable before running workflows."
-      ]
-    case "local_ai":
-      return [
-        "Open Ollama and run Check in Local AI Setup.",
-        "Download the selected model if the setup badge says pull.",
-        "Run Test Local AI after the model is installed."
       ]
     default:
       return [item.detail]

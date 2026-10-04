@@ -95,7 +95,7 @@ checklist = payload.get("setup_checklist")
 if not isinstance(checklist, list) or not checklist:
     fail("missing setup_checklist")
 by_id = {item.get("id"): item for item in checklist if isinstance(item, dict)}
-required_ids = ["environment", "capabilities", "output_root", "local_ai"]
+required_ids = ["environment", "capabilities", "output_root"]
 missing = [item_id for item_id in required_ids if item_id not in by_id]
 if missing:
     fail(f"missing required setup items: {missing}")
@@ -108,6 +108,16 @@ for item_id in required_ids:
         fail(f"{item_id} has unexpected state {item.get('state')!r}")
     if not item.get("detail"):
         fail(f"{item_id} has empty detail")
+
+local_ai = by_id.get("local_ai")
+if not isinstance(local_ai, dict):
+    fail("missing optional local_ai setup item")
+if local_ai.get("is_required") is not False:
+    fail("local_ai should be marked optional for deterministic Core workflows")
+if local_ai.get("state") not in {"ready", "optional"}:
+    fail(f"local_ai has unexpected state {local_ai.get('state')!r}")
+if not local_ai.get("detail"):
+    fail("local_ai has empty detail")
 
 if by_id["output_root"].get("state") != "ready":
     fail("output_root should be ready after launch automation creates the isolated output folder")
