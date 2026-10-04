@@ -159,6 +159,10 @@ and usability baseline.
 P1.01 has a [dated local technical review](PHASE4_DASHBOARD_LOCAL_REVIEW_2026-10-04.md)
 at `63dee8a`. Public integration and exact-candidate hosted checks are still
 pending; this is not a measured novice-user success claim.
+P1.03 has a [dated local technical review](PHASE4_PROFILE_GUIDANCE_LOCAL_REVIEW_2026-10-04.md)
+at `6255679`. Its profile choice, lock counts, and diagnostic routing are
+locally checked; public integration and independent comprehension are not
+established.
 
 Exit: the three scripted first-use paths can choose, prepare, run or cancel,
 and inspect a workflow without losing the connection between its plan, job,

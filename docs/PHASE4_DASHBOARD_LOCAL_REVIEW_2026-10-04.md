@@ -30,6 +30,9 @@ unavailable external-user success rate.
 
 The GUI review read previously persisted local job history, created no job,
 and did not run a workflow. The test bundle and build logs stay outside Git.
+The hash above identifies the binary at this review; the temporary test bundle
+was subsequently rebuilt for another Phase 4 UI check and is not an immutable
+copy of that binary.
 No real scientific input or original DOCUS file was used or modified.
 
 ## Limits and next check
