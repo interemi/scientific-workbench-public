@@ -53,6 +53,8 @@ final class WorkbenchStore: ObservableObject {
   @Published var persistenceRecoveryNotice: String?
   @Published var lastPersistenceRecoveryArchivePath: String?
   @Published var environmentStatus: EnvironmentStatus
+  @Published var environmentDiagnosis: EnvironmentDiagnosis = .unknown
+  @Published var isCheckingEnvironment = false
   @Published var agentPrompt = ""
   @Published var agentPlan: AgentPlan?
   @Published var agentPlanStepExecutions: [AgentPlanStep.ID: AgentPlanStepExecution] = [:]
@@ -140,6 +142,7 @@ final class WorkbenchStore: ObservableObject {
   private let runBundleService = JobRunBundleService()
   private let envelopeParser = ToolEnvelopeParser()
   private let environmentService = SkillEnvironmentService()
+  private var environmentRefreshID: UUID?
   private let agentPlanner: AgentPlanner
   private let agentRoutingService = AgentRoutingService()
   private let cloudAIClient: CloudAIClient
@@ -409,6 +412,7 @@ final class WorkbenchStore: ObservableObject {
   private var setupChecklistContext: SetupChecklistContext {
     SetupChecklistContext(
       environmentStatus: environmentStatus,
+      environmentDiagnosis: environmentDiagnosis,
       outputRootPath: outputRootPath,
       userCapabilityCount: userCapabilities.count,
       ollamaModel: model(for: .ollama),
@@ -1136,10 +1140,38 @@ final class WorkbenchStore: ObservableObject {
 
   func refreshEnvironment() async {
     persistSettings()
-    environmentStatus = await environmentService.refresh(
-      skillRoot: skillRootPath,
-      pythonExecutable: pythonExecutable
+    let refreshID = UUID()
+    environmentRefreshID = refreshID
+    isCheckingEnvironment = true
+    environmentDiagnosis = .unknown
+    defer {
+      if environmentRefreshID == refreshID {
+        isCheckingEnvironment = false
+      }
+    }
+
+    let skillRoot = skillRootPath
+    let python = pythonExecutable
+    let status = await environmentService.refresh(
+      skillRoot: skillRoot,
+      pythonExecutable: python
     )
+    guard environmentRefreshID == refreshID else { return }
+    if status.status == "ok" {
+      let diagnosis = await environmentService.diagnose(
+        skillRoot: skillRoot,
+        pythonExecutable: python,
+        selectedPython: status.datanalysisPython
+      )
+      guard environmentRefreshID == refreshID else { return }
+      environmentDiagnosis = diagnosis
+    } else {
+      environmentDiagnosis = .blocked(
+        "No usable dedicated datanalysis environment was found. Check the Python and skill paths; create a separate new environment if needed.",
+        selectedPython: status.datanalysisPython
+      )
+    }
+    environmentStatus = status
   }
 
   func refreshOptionalAstronomyBackends() async {

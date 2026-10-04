@@ -50,7 +50,7 @@ policy; restricted steps require fresh review and explicit enablement.
 
 Open Settings and inspect the Setup Checklist:
 
-- **Scientific environment:** Python and `datanalysis_env.py` respond.
+- **Scientific environment:** the selected Python passes the Core package check.
 - **Capabilities loaded:** the app can see the available tools.
 - **Output folder:** an output directory exists.
 - **Local AI:** if you want chat or AI planning, Ollama is running and the
@@ -101,6 +101,20 @@ job's recommendations, then use `INSTALL.md` to create a new environment if
 packages are missing. Select its Python path in Settings and refresh the
 environment. A green environment discovery badge alone does not prove that
 Full or any separate application is ready.
+
+**Settings → Environment Diagnosis** runs a read-only Core/Full package check
+when the app refreshes the environment. It shows the selected interpreter,
+Python version, Core blockers, and missing optional Full groups. A successful
+environment search alone does not mark Core ready. Select **Prepare a new
+environment** to see a fresh destination and two commands: a preview that
+installs nothing, then an explicit `--install` command to run yourself from the
+source repository root. The app never silently changes a Conda environment.
+The installer rejects an existing destination and keeps
+`scientific-workbench-setup/installation.log` inside the new environment,
+including a useful failure line if setup stops. The displayed disk/time figures
+are single measurements on the development Mac, not a promise for your Mac or
+network. After a successful install, select its Python path in Settings and
+choose **Recheck Environment**. External apps remain separate prerequisites.
 
 ## 4. Normal workflow
 

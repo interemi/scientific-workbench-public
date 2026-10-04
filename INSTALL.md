@@ -128,6 +128,22 @@ private package index or special pip settings, review that requirement before
 adapting setup. The installer also runs `pip check` and preserves the plan and
 selected lock's hash.
 
+For an environment repair, use **Settings → Environment Diagnosis → Prepare a
+new environment**. It suggests a unique destination outside the checkout and
+shows separate preview and install commands. Run them from the source repository
+root. The app does not run installation commands for you. The preview creates
+no directory; the install command requires `--install` and rejects any existing
+destination. It writes the command transcript and process output to
+`<destination>/scientific-workbench-setup/installation.log`. Review that local
+log if setup fails, and keep the incomplete new destination for diagnosis.
+Do not paste an unredacted log into a public issue: it can contain local paths.
+
+The development Mac's one fresh locked setup measured 18.262 seconds and about
+455 MiB for Core, and 55.489 seconds and about 1.43 GiB for Full. These are
+single observations with that Mac's network/cache, not download sizes, minimum
+free-space requirements, or time estimates for another Mac. See the
+[measurement method](docs/LOCAL_INSTALLATION_COST_BASELINE_2026-10-03.md).
+
 For Python extensions on Apple Silicon with macOS 15 or later, use another new
 destination:
 

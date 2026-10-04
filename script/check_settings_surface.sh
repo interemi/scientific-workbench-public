@@ -15,6 +15,7 @@ settings_surface_paths = [
     root / "Sources/ScientificWorkbench/Views/CapabilityTimeoutControl.swift",
     root / "Sources/ScientificWorkbench/Views/OllamaSetupView.swift",
     root / "Sources/ScientificWorkbench/Views/ProviderConnectionRow.swift",
+    root / "Sources/ScientificWorkbench/Views/EnvironmentDiagnosisView.swift",
 ]
 settings = "\n".join(
     path.read_text(encoding="utf-8")
@@ -43,6 +44,7 @@ required_settings_text = [
     'Section("AI Connections")',
     'Section("Codex Bridge")',
     'Section("Environment Details")',
+    'Section("Environment Diagnosis")',
     'TextField("Mother skill root"',
     'TextField("Output root"',
     'TextField("Python executable"',
@@ -55,6 +57,9 @@ required_settings_text = [
     'Button("Save Settings")',
     'Button("Reload Registry")',
     'Button("Refresh Environment")',
+    'Button("Prepare a new environment")',
+    'Button("Copy preview command")',
+    'Button("Copy install command")',
     'Button("Export Configuration")',
     'Button("Import Configuration")',
     'Button("Open User Guide")',
@@ -123,6 +128,8 @@ if f"{full_count} runtime requirements and {build_count}" not in guide:
     fail("bundled guide Full count drifted from its locks")
 if 'store.openOptionalCapability("env_doctor")' not in settings:
     fail("profile readiness action no longer opens env_doctor")
+if 'installation.log' not in settings or 'installation.log' not in guide:
+    fail("new-environment repair must retain and document a local installation log")
 
 if 'Text("Danger full access")' in settings:
     fail("Scientific Workbench must not expose unrestricted Codex filesystem access")

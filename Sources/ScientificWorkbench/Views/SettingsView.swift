@@ -51,6 +51,10 @@ struct SettingsView: View {
           .foregroundStyle(.secondary)
       }
 
+      Section("Environment Diagnosis") {
+        EnvironmentDiagnosisView(store: store)
+      }
+
       Section("Paths") {
         HStack {
           TextField("Mother skill root", text: $store.skillRootPath)
@@ -204,11 +208,12 @@ struct SettingsView: View {
       }
 
       Section("Environment Details") {
-        StatusBadge(status: store.environmentStatus.status)
-        Text(store.environmentStatus.details)
-          .font(.system(.caption, design: .monospaced))
-          .textSelection(.enabled)
-          .frame(maxHeight: 160)
+        DisclosureGroup("Raw environment report") {
+          Text(store.environmentStatus.details)
+            .font(.system(.caption, design: .monospaced))
+            .textSelection(.enabled)
+            .frame(maxHeight: 160)
+        }
       }
     }
     .formStyle(.grouped)

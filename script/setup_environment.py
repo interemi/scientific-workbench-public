@@ -133,20 +133,36 @@ def main(argv=None):
         if args.locked and args.profile == "full" else None,
         "commands": commands,
     }, indent=2) + "\n")
-    for command in commands:
-        subprocess.run(command, check=True, env=environment)
-    subprocess.run([str(environment_python), "-I", "-m", "pip", "check"],
-                   env=environment, check=True)
-    freeze = subprocess.check_output([str(environment_python), "-I", "-m", "pip", "freeze", "--all"],
-                                     text=True, env=environment)
-    (evidence / "installed-packages.txt").write_text(freeze)
-    environment["DATAANALYSIS_PYTHON"] = str(environment_python)
-    subprocess.run([str(environment_python), str(skill / "scripts/env_doctor.py"),
-                    "--strict-core", "--summary-json", str(evidence / "env-doctor.json")],
-                   env=environment, check=True)
-    validate_profile_readiness(json.loads((evidence / "env-doctor.json").read_text()), args.profile)
-    subprocess.run([str(environment_python), str(skill / "scripts/datanalysis_env.py"), "status"],
-                   env=environment, check=True)
+    log_path = evidence / "installation.log"
+    print(f"Installation log: {log_path}", flush=True)
+    with log_path.open("w", encoding="utf-8") as log:
+        def run_logged(command):
+            log.write(f"\n$ {shlex.join(command)}\n")
+            log.flush()
+            subprocess.run(command, check=True, env=environment,
+                           stdout=log, stderr=subprocess.STDOUT)
+
+        try:
+            for step, command in enumerate(commands, start=1):
+                print(f"Installing step {step}/{len(commands)}; details in {log_path}", flush=True)
+                run_logged(command)
+            run_logged([str(environment_python), "-I", "-m", "pip", "check"])
+            freeze = subprocess.check_output(
+                [str(environment_python), "-I", "-m", "pip", "freeze", "--all"],
+                text=True, env=environment)
+            (evidence / "installed-packages.txt").write_text(freeze)
+            log.write("Package inventory saved to installed-packages.txt.\n")
+            environment["DATAANALYSIS_PYTHON"] = str(environment_python)
+            run_logged([str(environment_python), str(skill / "scripts/env_doctor.py"),
+                        "--strict-core", "--summary-json", str(evidence / "env-doctor.json")])
+            validate_profile_readiness(json.loads((evidence / "env-doctor.json").read_text()), args.profile)
+            run_logged([str(environment_python), str(skill / "scripts/datanalysis_env.py"), "status"])
+            log.write("Setup completed successfully.\n")
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            log.write(f"Setup stopped: {error}\n")
+            log.flush()
+            print(f"Inspect the retained installation log: {log_path}", file=sys.stderr)
+            raise
     print(f"Settings > Skill root: {skill}")
     print(f"Settings > Python: {environment_python}")
     print(f"Installation evidence: {evidence}")

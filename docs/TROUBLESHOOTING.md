@@ -62,13 +62,28 @@ provider or a manually edited command.
 
 ### The wrong Python interpreter is used
 
-- Read the exact Python path in **Settings** and the Environment inspector.
+- Read the exact discovered Python path and Core/Full findings in **Settings →
+  Environment Diagnosis**. The editable Python preference can differ from the
+  interpreter that `datanalysis_env.py` discovers.
 - Run `<selected-python> scripts/datanalysis_env.py status` from the owning skill
   root when diagnosing the backend directly.
 - System Python may lack packages even when the dedicated `datanalysis`
   environment is healthy.
 - Create a new environment instead of updating an evidence-bearing one in
   place.
+
+### Core packages are missing or Full is incomplete
+
+- Treat missing Core packages as a block. Missing Full groups are optional for
+  Core routes, but block any selected route that requires them.
+- In **Environment Diagnosis**, prepare a new Core or Full destination. Run its
+  preview command from the source checkout before considering `--install`.
+- If installation stops, keep the new directory and inspect
+  `scientific-workbench-setup/installation.log` and `installation-plan.json`
+  there. Choose another new destination for a retry; do not run the installer
+  against the failed directory or an existing Conda environment.
+- After success, select the new `datanalysis/bin/python` in Settings, refresh,
+  and confirm that the displayed interpreter and requested profile match.
 
 ### The output folder is rejected
 

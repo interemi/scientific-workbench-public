@@ -112,6 +112,10 @@ class DistributionSafetyTests(unittest.TestCase):
                 main(["--python", "python3.11", "--destination", str(destination), "--install"])
         self.assertNotIn("Settings >", output.getvalue())
         self.assertTrue(destination.exists())
+        log = destination / "scientific-workbench-setup/installation.log"
+        self.assertTrue(log.is_file())
+        self.assertIn("Setup stopped:", log.read_text())
+        self.assertIn("env_doctor.py", log.read_text())
         self.assertFalse(any(any(str(arg).endswith("datanalysis_env.py") for arg in command) for command in commands))
 
     def test_hygiene_rejects_manifest_without_backend_directory(self):

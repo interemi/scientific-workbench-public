@@ -1027,6 +1027,8 @@ extension ScientificWorkbenchTests {
       checkedAt: Date()
     )
 
+    #expect(!store.setupChecklistIsReady)
+    store.environmentDiagnosis = verifiedCoreDiagnosis()
     #expect(store.setupChecklistIsReady)
     #expect(store.setupChecklistItems.filter(\.isRequired).allSatisfy { $0.state == .ready })
     #expect(store.setupRecoveryState == nil)
@@ -1053,6 +1055,7 @@ extension ScientificWorkbenchTests {
       warnings: [],
       refreshedAt: Date()
     )
+    store.environmentDiagnosis = verifiedCoreDiagnosis()
     store.ollamaSetupStatus = .unknown(model: store.model(for: .ollama))
 
     let localAI = try #require(store.setupChecklistItems.first { $0.id == "local_ai" })
@@ -1245,4 +1248,17 @@ extension ScientificWorkbenchTests {
     #expect(store.registryNotice?.contains("scientific-data-astro") == true)
   }
 
+  private func verifiedCoreDiagnosis() -> EnvironmentDiagnosis {
+    EnvironmentDiagnosis(
+      status: "warning",
+      selectedPython: "/usr/bin/python3",
+      pythonVersion: "3.11.15",
+      coreReady: true,
+      fullReady: false,
+      missingCoreModules: [],
+      missingOptionalGroups: [],
+      message: nil,
+      checkedAt: Date()
+    )
+  }
 }
