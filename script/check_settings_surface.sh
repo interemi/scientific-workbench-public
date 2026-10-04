@@ -27,6 +27,7 @@ tests = "\n".join(
     path.read_text(encoding="utf-8")
     for path in sorted(tests_root.glob("*.swift"))
 )
+guide = (root / "Guides/Scientific_Workbench_User_Guide.md").read_text(encoding="utf-8")
 all_text = "\n".join([settings, store, ollama_models, tests])
 
 def fail(message: str) -> None:
@@ -98,6 +99,30 @@ required_copy = [
 missing_copy = [needle for needle in required_copy if needle not in settings]
 if missing_copy:
     fail("missing safety/setup copy: " + ", ".join(missing_copy))
+
+def locked_requirement_count(name: str) -> int:
+    lock = root / "distribution/locks" / name
+    return sum(
+        bool(line.strip()) and not line.lstrip().startswith("#")
+        for line in lock.read_text(encoding="utf-8").splitlines()
+    )
+
+core_count = locked_requirement_count("core-macos-arm64-py311.txt")
+full_count = locked_requirement_count("full-macos-arm64-py311.txt")
+build_count = locked_requirement_count("full-build-py311.txt")
+for count, phrase in [
+    (core_count, "locked Python runtime requirements"),
+    (full_count, "locked Python runtime requirements plus"),
+    (build_count, "build tools"),
+]:
+    if f"{count} {phrase}" not in settings:
+        fail(f"Settings profile guidance drifted from lock count: {count} {phrase}")
+if f"{core_count} reviewed Python runtime requirements" not in guide:
+    fail("bundled guide Core count drifted from its lock")
+if f"{full_count} runtime requirements and {build_count}" not in guide:
+    fail("bundled guide Full count drifted from its locks")
+if 'store.openOptionalCapability("env_doctor")' not in settings:
+    fail("profile readiness action no longer opens env_doctor")
 
 if 'Text("Danger full access")' in settings:
     fail("Scientific Workbench must not expose unrestricted Codex filesystem access")

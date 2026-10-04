@@ -10,10 +10,44 @@ struct SettingsView: View {
       }
 
       Section("Installation Profiles") {
-        Text("Core supports the synthetic first-run examples and common table, FITS, and document workflows. It does not need an Ollama model or a cloud account.")
-        Text("Full adds Python packages for advanced workflows, including notebook and presentation routes. Its reviewed locked setup currently targets Apple Silicon, Python 3.11, and macOS 15 or later; it does not install external applications.")
-        Text("Ollama models, TeX, LibreOffice, IRAF, and other optional backends need separate setup only for routes that use them. Check each capability's requirements and preflight before running it.")
-        Text("The source repository's INSTALL.md lists exact commands, supported lock combinations, and current validation limits.")
+        Text("Start with Core. Install Full in a separate new Python environment only when your chosen workflow needs its additional packages. Switching the Python path does not update or remove an existing environment.")
+          .font(.callout)
+
+        InstallationProfileCard(
+          title: "Core · recommended start",
+          icon: "checkmark.circle",
+          scope: "Five synthetic examples; common table, FITS, and document workflows. No Ollama model or cloud account is needed for deterministic runs.",
+          installation: "32 locked Python runtime requirements; about 455 MiB installed on the development Mac. Reviewed lock: Apple Silicon, Python 3.11, macOS 14 or later."
+        )
+        InstallationProfileCard(
+          title: "Full · add only when needed",
+          icon: "square.stack.3d.up",
+          scope: "Includes Core and adds Python packages for advanced notebook, presentation, SQL, OCR, and scientific routes. A working Core environment does not establish Full readiness.",
+          installation: "200 locked Python runtime requirements plus 3 build tools; about 1.43 GiB installed on the development Mac. Reviewed lock: Apple Silicon, Python 3.11, macOS 15 or later."
+        )
+
+        Text("The disk figures are one measurement from 2026-10-03, not download sizes or a promise for another Mac. Intel uses an unpinned compatibility route; check the installation guide before choosing it.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        Label("Neither profile installs Ollama models, TeX, LibreOffice, IRAF, Keynote, APT, or TEAREDUCE. Set up an external tool only for a route that requires it; a missing dependency must remain visible as a block or warning.", systemImage: "puzzlepiece.extension")
+          .font(.callout)
+
+        HStack {
+          Button("Check Core and Full readiness") {
+            store.searchText = ""
+            store.openOptionalCapability("env_doctor")
+          }
+          .accessibilityIdentifier("settings.open-profile-diagnostic")
+          .help("Opens the environment diagnostic; run it to inspect missing packages and optional backends without changing an environment.")
+
+          Button("Open Installation Guide") {
+            store.openUserGuide()
+          }
+          .disabled(store.userGuideURL == nil)
+        }
+        Text("The diagnostic opens in Capabilities and runs only after you select Run Capability. The bundled user guide and source INSTALL.md explain exact commands, supported locks, and recovery steps.")
+          .font(.caption)
           .foregroundStyle(.secondary)
       }
 
@@ -198,5 +232,27 @@ struct SettingsView: View {
         .font(.caption)
         .foregroundStyle(.red)
     }
+  }
+}
+
+private struct InstallationProfileCard: View {
+  let title: String
+  let icon: String
+  let scope: String
+  let installation: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      Label(title, systemImage: icon)
+        .font(.headline)
+      Text(scope)
+        .font(.callout)
+      Text(installation)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
   }
 }

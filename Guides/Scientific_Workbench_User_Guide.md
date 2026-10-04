@@ -69,11 +69,21 @@ reviewed locked Core setup currently targets native Apple Silicon, Python
 3.11, and macOS 14 or later. Ollama and cloud accounts are optional for these
 deterministic workflows.
 
+The Core lock contains 32 reviewed Python runtime requirements. One fresh
+installation on the development Mac occupied about 455 MiB. This is installed
+filesystem use, not download size or a minimum free-space guarantee.
+
 **Full** adds Python packages for advanced routes such as notebooks and
 presentations. Its reviewed locked setup currently targets Apple Silicon,
 Python 3.11, and macOS 15 or later. A working Core environment does not prove
 that Full is installed or ready. Intel uses an unpinned compatibility route;
 check the exact-commit validation before relying on it.
+
+Full includes Core. Its lock contains 200 runtime requirements and 3
+installation/build tools; the fresh local installation occupied about 1.43 GiB.
+Both sizes were measured once on 2026-10-03, so they will vary by machine and
+environment. Install Full into a separate **new** environment when the chosen
+workflow needs it; do not upgrade a preserved Core environment in place.
 
 Neither profile installs external applications or Ollama models. TeX,
 LibreOffice, IRAF, astronomy backends, and other optional tools need separate
@@ -81,6 +91,16 @@ setup only for the workflows that use them. Check the selected capability's
 requirements and preflight rather than assuming a profile supplies every
 backend. The source repository's `INSTALL.md`, `docs/WORKFLOW_REQUIREMENTS.md`,
 and `docs/OPTIONAL_BACKENDS.md` give the exact commands and limits.
+
+In **Settings → Installation Profiles**, select **Check Core and Full
+readiness** to open `env_doctor` in Capabilities. Select **Run Capability** only
+when you want a new diagnostic job: it reports Core/Full package readiness and
+missing optional backends without changing installed environments or original
+inputs. The report is written to a new run folder. Inspect the
+job's recommendations, then use `INSTALL.md` to create a new environment if
+packages are missing. Select its Python path in Settings and refresh the
+environment. A green environment discovery badge alone does not prove that
+Full or any separate application is ready.
 
 ## 4. Normal workflow
 
