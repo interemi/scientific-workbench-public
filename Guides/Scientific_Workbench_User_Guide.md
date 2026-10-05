@@ -118,6 +118,22 @@ choose **Recheck Environment**. External apps remain separate prerequisites.
 
 ## 4. Normal workflow
 
+### Find a capability directly
+
+To find a direct tool, open **Capabilities** and search by the work you want
+to do, such as **inspect FITS**, **profile CSV**, or **match sky catalogs**.
+The task, format, Python profile, app-readiness, owning-skill, and workflow-level
+filters narrow all 55 routes. **Clear filters** restores the full list.
+Each row shows its level, catalog readiness, and starting Python profile.
+These labels do not check whether an external program is installed or whether
+your particular input is suitable. Read the selected route's notice and
+[setup matrix](../docs/CAPABILITY_SETUP_MATRIX.md), then check **Settings →
+Environment Diagnosis** before running. Expert routes require a review
+confirmation; CLI and legacy routes retain their distinct level and
+documentation. **Maintenance** contains the separate maintainer gates.
+
+### Plan a workflow in Chat
+
 1. Open Chat.
 2. Attach files/folders with Files/Folder or drag them into the composer.
 3. Describe your objective.

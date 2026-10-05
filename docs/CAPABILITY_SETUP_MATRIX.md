@@ -7,8 +7,11 @@ the Python profile and any additional tool
 for one capability. It describes the current registry and app classification;
 it is not a claim that every backend or external application was exercised on
 your Mac. Follow [INSTALL.md](../INSTALL.md) for a source build and the first
-synthetic run, then use the **Capabilities** view to search by the exact ID
-below. The app's **Environment** view reports availability on the current
+synthetic run, then use **Capabilities** to search by a task name such as
+"inspect FITS" or "profile CSV", or by the exact ID below. Its task, format,
+Python profile, app-readiness, owning-skill, and workflow-level filters help
+narrow the list; the full catalog remains visible by default. The app's
+**Settings → Environment Diagnosis** view reports availability on the current
 machine. Some legacy and narrow tools have guided argument builders but are
 still expert/CLI routes, not ordinary app actions.
 
@@ -48,6 +51,13 @@ route. The app automatically enables only a normal-mode `app_ready` step;
 expert and optional steps still need explicit review. The
 current [M102 record](M102_GUIDED_COVERAGE.en.md) documents guided input
 construction for all 55 IDs; it does not prove a backend is available.
+The catalog's **App readiness** filter is this static classification, not a
+live check of Python packages, external programs, or input suitability. Its
+**Full routes** filter includes Full, Full recommended, Full tested, and the
+TEAREDUCE route whose routing check starts in Core but whose copied-notebook
+launcher needs Full. Full includes Core. Check the row below and the current
+Environment Diagnosis before running anything; a Core or Full badge alone
+does not install an external backend.
 
 The **Registry preflight** column is copied from the canonical registry:
 17 `explicit`, eight `inline`, and 30 `none`. `explicit` declares a separate
@@ -246,8 +256,12 @@ For one selected capability, use this sequence:
 1. Install Core or Full in a **new** `datanalysis` destination using
    [INSTALL.md](../INSTALL.md); verify the five-skill snapshot.
 2. Set the skill root, Python, and a separate output folder in Settings.
-3. Search the exact ID in **Capabilities**. Check its access/readiness state
-   and use **Environment** plus any named preflight before supplying data.
+3. Search by task name or exact ID in **Capabilities**. Use the format,
+   profile, readiness, skill, and level filters to narrow the list; clear them
+   if a route is hidden. Check its access/readiness state and use
+   **Settings → Environment Diagnosis** plus any named preflight before
+   supplying data. CLI-only rows are labeled as such and require the route's
+   documented arguments.
 4. Start with synthetic or copied inputs in a new run directory. A direct
    **Run Capability** action starts immediately, so check its inputs and output
    folder first. For a Chat-generated plan, review **Dry Run** before

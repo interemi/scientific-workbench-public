@@ -8,6 +8,8 @@ struct CapabilityCatalogView: View {
   let isMaintenance: Bool
   @State private var rawArguments = ""
   @State private var accessConfirmed = false
+  @State private var discoveryFilters = CapabilityDiscoveryFilters()
+  @State private var maintenanceSearchText = ""
 
   var body: some View {
     HStack(spacing: 0) {
@@ -26,28 +28,19 @@ struct CapabilityCatalogView: View {
       .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
     }
     .onChange(of: entries.map(\.id)) { _, _ in
-      let visibleIDs = modeEntries.map(\.id)
-      if store.selectedCapabilityID == nil || !visibleIDs.contains(store.selectedCapabilityID ?? "") {
-        store.selectedCapabilityID = modeEntries.first?.id
-      }
+      selectVisibleEntryIfNeeded()
+    }
+    .onChange(of: filteredEntries.map(\.id)) { _, _ in
+      selectVisibleEntryIfNeeded()
     }
     .onChange(of: store.selectedCapabilityID) {
       rawArguments = ""
       accessConfirmed = false
-    }
-    .onChange(of: store.capabilityCatalogMode) {
-      guard !isMaintenance else { return }
-      if !modeEntries.contains(where: { $0.id == store.selectedCapabilityID }) {
-        store.searchText = ""
-        store.selectedCapabilityID = modeEntries.first?.id
-        rawArguments = ""
-        accessConfirmed = false
-      }
+      revealExternallySelectedEntryIfNeeded()
     }
     .onAppear {
-      if !modeEntries.contains(where: { $0.id == store.selectedCapabilityID }) {
-        store.selectedCapabilityID = modeEntries.first?.id
-      }
+      revealExternallySelectedEntryIfNeeded()
+      selectVisibleEntryIfNeeded()
     }
   }
 
@@ -66,35 +59,17 @@ struct CapabilityCatalogView: View {
       .padding(.horizontal, 16)
       .padding(.top, 18)
 
-      if !isMaintenance {
-        Picker("Workflow mode", selection: $store.capabilityCatalogMode) {
-          ForEach(CapabilityCatalogMode.allCases) { mode in
-            Label(mode.title, systemImage: mode.iconName)
-              .tag(mode)
-          }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .padding(.horizontal, 16)
-        .help("Choose which workflow class is visible")
-
-        HStack {
-          Text(store.capabilityCatalogMode.detail)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
-          Spacer()
-          Text("\(modeEntries.count)")
-            .font(.caption)
-            .monospacedDigit()
-            .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 16)
-      }
-
-      TextField("Search \(title.lowercased())", text: $store.searchText)
+      TextField(
+        isMaintenance ? "Search maintenance gates" : "Find a task, e.g. inspect FITS or profile CSV",
+        text: isMaintenance ? $maintenanceSearchText : $store.searchText
+      )
         .textFieldStyle(.roundedBorder)
         .padding(.horizontal, 16)
+        .accessibilityIdentifier("catalog.search")
+
+      if !isMaintenance {
+        discoveryControls
+      }
 
       if let error = store.registryError {
         Text(error)
@@ -110,11 +85,41 @@ struct CapabilityCatalogView: View {
       }
 
       List(selection: $store.selectedCapabilityID) {
-        ForEach(filteredEntries.groupedByBlock(), id: \.0) { block, blockEntries in
-          Section(block) {
-            ForEach(blockEntries) { entry in
-              CapabilityRow(entry: entry)
-                .tag(Optional(entry.id))
+        if filteredEntries.isEmpty {
+          ContentUnavailableView(
+            "No matching capabilities",
+            systemImage: "line.3.horizontal.decrease.circle",
+            description: Text("Change the task or requirement filters, or clear the search.")
+          )
+          .accessibilityIdentifier("catalog.empty-results")
+        } else if isMaintenance {
+          ForEach(filteredEntries.groupedByBlock(), id: \.0) { block, blockEntries in
+            Section(block) {
+              ForEach(blockEntries) { entry in
+                CapabilityRow(entry: entry)
+                  .tag(Optional(entry.id))
+              }
+            }
+          }
+        } else {
+          ForEach(CapabilityTask.allCases) { task in
+            let taskEntries = filteredEntries
+              .filter { CapabilityDiscovery.forEntry($0).task == task }
+              .sorted {
+                if $0.isGoldenPath != $1.isGoldenPath {
+                  return $0.isGoldenPath
+                }
+                return CapabilityDiscovery.forEntry($0).title.localizedStandardCompare(
+                  CapabilityDiscovery.forEntry($1).title
+                ) == .orderedAscending
+              }
+            if !taskEntries.isEmpty {
+              Section(task.title) {
+                ForEach(taskEntries) { entry in
+                  CapabilityRow(entry: entry)
+                    .tag(Optional(entry.id))
+                }
+              }
             }
           }
         }
@@ -125,26 +130,113 @@ struct CapabilityCatalogView: View {
     .background(.bar)
   }
 
-  private var filteredEntries: [CapabilityEntry] {
-    let query = store.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !query.isEmpty else { return modeEntries }
-    return modeEntries.filter { entry in
-      [entry.id, entry.label, entry.visibleBlock, entry.kind, entry.supportLevel, entry.shortDescription]
-        .joined(separator: " ")
-        .localizedCaseInsensitiveContains(query)
+  private var discoveryControls: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack {
+        Text("Find by task and requirements")
+          .font(.caption)
+          .fontWeight(.semibold)
+        Spacer()
+        Button("Clear filters") {
+          discoveryFilters = CapabilityDiscoveryFilters()
+          store.searchText = ""
+        }
+        .font(.caption)
+        .accessibilityIdentifier("catalog.clear-filters")
+      }
+
+      Picker("Task", selection: $discoveryFilters.task) {
+        Text("All tasks").tag(Optional<CapabilityTask>.none)
+        ForEach(CapabilityTask.allCases) { task in
+          Text(task.title).tag(Optional(task))
+        }
+      }
+      .accessibilityIdentifier("catalog.filter.task")
+
+      Picker("Format", selection: $discoveryFilters.format) {
+        Text("All formats").tag(Optional<CapabilityInputFormat>.none)
+        ForEach(CapabilityInputFormat.allCases) { format in
+          Text(format.title).tag(Optional(format))
+        }
+      }
+      .accessibilityIdentifier("catalog.filter.format")
+
+      Picker("Python profile", selection: $discoveryFilters.profile) {
+        Text("All profiles").tag(Optional<CapabilityProfileFilter>.none)
+        ForEach(CapabilityProfileFilter.allCases) { profile in
+          Text(profile.title).tag(Optional(profile))
+        }
+      }
+      .accessibilityIdentifier("catalog.filter.profile")
+
+      Picker("App readiness", selection: $discoveryFilters.readiness) {
+        Text("All readiness levels").tag(Optional<CapabilityReadinessFilter>.none)
+        ForEach(CapabilityReadinessFilter.allCases) { readiness in
+          Text(readiness.title).tag(Optional(readiness))
+        }
+      }
+      .accessibilityIdentifier("catalog.filter.readiness")
+
+      Picker("Owning skill", selection: $discoveryFilters.skill) {
+        Text("All skills").tag(Optional<SkillRootRole>.none)
+        ForEach(SkillRootRole.allCases.filter { $0 != .maintainer }, id: \.self) { skill in
+          Text(skill.defaultDirectoryName).tag(Optional(skill))
+        }
+      }
+      .accessibilityIdentifier("catalog.filter.skill")
+
+      Picker("Workflow level", selection: $discoveryFilters.level) {
+        Text("All levels").tag(Optional<CapabilityCatalogMode>.none)
+        ForEach(CapabilityCatalogMode.allCases) { level in
+          Text(level.title).tag(Optional(level))
+        }
+      }
+      .accessibilityIdentifier("catalog.filter.level")
+
+      Text("\(filteredEntries.count) of \(entries.count) routes · Full includes Core. Catalog readiness is not a live backend check; review Settings before running.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
+    .pickerStyle(.menu)
+    .controlSize(.small)
+    .padding(.horizontal, 16)
+  }
+
+  private var filteredEntries: [CapabilityEntry] {
+    if isMaintenance {
+      let query = maintenanceSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !query.isEmpty else { return entries }
+      return entries.filter {
+        [$0.id, $0.label, $0.shortDescription]
+          .joined(separator: " ").localizedCaseInsensitiveContains(query)
+      }
+    }
+    return entries.filter { discoveryFilters.matches($0, query: store.searchText) }
   }
 
   private var selectedEntry: CapabilityEntry? {
-    if let selected = store.selectedCapability, modeEntries.contains(selected) {
+    if let selected = store.selectedCapability, filteredEntries.contains(selected) {
       return selected
     }
-    return modeEntries.first
+    return filteredEntries.first
   }
 
-  private var modeEntries: [CapabilityEntry] {
-    guard !isMaintenance else { return entries }
-    return entries.filter { $0.isVisible(in: store.capabilityCatalogMode) }
+  private func selectVisibleEntryIfNeeded() {
+    if !filteredEntries.contains(where: { $0.id == store.selectedCapabilityID }) {
+      store.selectedCapabilityID = filteredEntries.first?.id
+    }
+  }
+
+  private func revealExternallySelectedEntryIfNeeded() {
+    guard !isMaintenance,
+          let id = store.selectedCapabilityID,
+          entries.contains(where: { $0.id == id }),
+          !filteredEntries.contains(where: { $0.id == id }) else { return }
+    discoveryFilters = CapabilityDiscoveryFilters()
+    if !filteredEntries.contains(where: { $0.id == id }) {
+      store.searchText = ""
+    }
   }
 }
 
@@ -152,14 +244,17 @@ struct CapabilityRow: View {
   let entry: CapabilityEntry
 
   var body: some View {
+    let discovery = CapabilityDiscovery.forEntry(entry)
     HStack(spacing: 10) {
       Image(systemName: entry.blockIconName)
         .foregroundStyle(.secondary)
         .frame(width: 16)
       VStack(alignment: .leading, spacing: 2) {
-        Text(entry.label)
+        Text(entry.isMaintainerOnly ? entry.label : discovery.title)
           .lineLimit(1)
-        Text("\(entry.appReadiness.title) · \(entry.supportLevel)")
+        Text(entry.isMaintainerOnly
+          ? entry.supportLevel
+          : "\(entry.workflowMode.title) · \(entry.appReadiness.title) · \(discovery.profile.title)")
           .font(.caption)
           .foregroundStyle(.secondary)
           .lineLimit(1)
@@ -171,6 +266,8 @@ struct CapabilityRow: View {
           .help("Requires datanalysis")
       }
     }
+    .accessibilityLabel("\(discovery.title), \(entry.workflowMode.title), \(entry.appReadiness.title), \(discovery.profile.title)")
+    .accessibilityIdentifier("catalog.capability.\(entry.id)")
   }
 }
 
@@ -188,7 +285,8 @@ struct CapabilityDetailPanel: View {
           VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 8) {
               HStack {
-                Text(capability.label)
+                Text(capability.isMaintainerOnly
+                  ? capability.label : CapabilityDiscovery.forEntry(capability).title)
                   .font(.title2)
                   .fontWeight(.semibold)
                 Spacer()
@@ -200,6 +298,16 @@ struct CapabilityDetailPanel: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
+              if !isMaintenance {
+                Text("\(capability.workflowMode.title) · \(capability.appReadiness.title) · \(CapabilityDiscovery.forEntry(capability).profile.title)")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                if capability.appReadiness == .cliOnly || capability.appReadiness == .notApplicableToApp {
+                  Text("CLI route: review docs/CAPABILITY_SETUP_MATRIX.md and the owning skill's --help before using advanced parameters.")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                }
+              }
             }
 
             metadataGrid(capability)
@@ -398,7 +506,11 @@ struct CapabilityDetailPanel: View {
           await store.run(capability: capability, rawArguments: rawArguments)
         }
       } label: {
-        Label("Run Capability", systemImage: "play.fill")
+        Label(
+          capability.appReadiness == .cliOnly || capability.appReadiness == .notApplicableToApp
+            ? "Run CLI Route" : "Run Capability",
+          systemImage: "play.fill"
+        )
       }
       .buttonStyle(.borderedProminent)
       .disabled(!canRun(capability))
