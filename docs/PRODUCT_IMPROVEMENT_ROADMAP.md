@@ -163,6 +163,14 @@ P1.03 has a [dated local technical review](PHASE4_PROFILE_GUIDANCE_LOCAL_REVIEW_
 at `6255679`. Its profile choice, lock counts, and diagnostic routing are
 locally checked; public integration and independent comprehension are not
 established.
+P1.04 has a [dated local technical review](PHASE4_ENVIRONMENT_DIAGNOSIS_LOCAL_REVIEW_2026-10-04.md)
+at `c06ce46`. It distinguishes selected-interpreter discovery from Core/Full
+package readiness and previews repair into a new destination without changing
+an existing environment. Public integration remains pending.
+P1.05 has a [dated local technical review](PHASE4_CAPABILITY_DISCOVERY_LOCAL_REVIEW_2026-10-05.md)
+at `53aa13a`. It covers 55 reviewed route labels, task searches, six facets,
+separate Maintenance search, and CLI/Expert context. Public integration and
+independent usability remain unverified.
 
 Exit: the three scripted first-use paths can choose, prepare, run or cancel,
 and inspect a workflow without losing the connection between its plan, job,

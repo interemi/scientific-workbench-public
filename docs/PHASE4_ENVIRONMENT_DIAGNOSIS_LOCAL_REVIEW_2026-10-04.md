@@ -1,6 +1,7 @@
 # P1.04 environment diagnosis and safe repair: local technical review
 
 - **Date:** 2026-10-04
+- **Source commit:** `c06ce46` on `codex/phase4-dashboard-journey`
 - **Branch:** `codex/phase4-dashboard-journey`; public integration pending
 - **Scope:** transient environment diagnosis, a reviewable new-environment plan,
   and installer failure logging; no persisted model changed
