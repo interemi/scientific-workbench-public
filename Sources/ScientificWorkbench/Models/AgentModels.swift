@@ -533,6 +533,11 @@ struct AgentPlanEstimate: Hashable, Sendable {
     )
   }
 
+  static func runtimeText(for step: AgentPlanStep) -> String {
+    let range = runtimeRange(for: step)
+    return "Estimated step time: \(format(seconds: range.min))-\(format(seconds: range.max))"
+  }
+
   private static func runtimeRange(for step: AgentPlanStep) -> (min: Int, max: Int) {
     switch step.capabilityID {
     case "datanalysis_env.status":

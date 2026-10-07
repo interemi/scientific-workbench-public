@@ -106,6 +106,15 @@ struct AgentControlBar: View {
 
         Spacer()
       }
+
+      if store.agentAutoRun {
+        Label(
+          "Auto-run starts a new plan before manual scope review. Turn it off to inspect the steps and use Dry Run first.",
+          systemImage: "exclamationmark.triangle"
+        )
+        .font(.caption)
+        .foregroundStyle(.orange)
+      }
     }
     .padding(.horizontal, 36)
     .padding(.vertical, 16)

@@ -31,8 +31,9 @@ not promises that the listed features have shipped.
 4. Start with the [synthetic first-run examples](docs/SYNTHETIC_FIRST_RUN_EXAMPLES.md).
    **Dashboard** prepares a fresh local copy and selects its suggested capability.
    A direct **Run Capability** action starts immediately, so review its inputs
-   and output folder first. For a Chat-generated plan, use **Dry Run** to
-   inspect its commands before **Run Enabled**.
+   and output folder first. For a Chat-generated plan, leave **Auto-run** off,
+   inspect each enabled step's execution scope, then use **Dry Run** to inspect
+   its commands before **Run Enabled**.
 
 The 55 catalogued routes have different readiness levels: 17 `app_ready`, 19
 `app_ready_partial`, 7 `blocked_optional`, 10 `cli_only`, and 2
