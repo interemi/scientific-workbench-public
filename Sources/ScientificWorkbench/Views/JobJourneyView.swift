@@ -71,11 +71,11 @@ struct JobJourneyView: View {
         ?? job.artifacts.first,
         FileManager.default.fileExists(atPath: primary.path) {
         Button {
-          store.openArtifact(primary)
+          store.revealArtifact(primary)
         } label: {
-          Label("Open artifact: \(primary.label ?? primary.relativePath)", systemImage: "doc")
+          Label("Reveal artifact: \(primary.label ?? primary.relativePath)", systemImage: "folder")
         }
-        .accessibilityIdentifier("jobs.open-artifact")
+        .accessibilityIdentifier("jobs.reveal-artifact")
       }
     }
     .padding(12)

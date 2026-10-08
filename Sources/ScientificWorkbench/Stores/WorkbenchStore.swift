@@ -2374,11 +2374,22 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func openArtifact(_ artifact: Artifact) {
-    NSWorkspace.shared.open(artifact.url)
+    guard let url = safeArtifactURL(artifact) else { return }
+    NSWorkspace.shared.open(url)
   }
 
   func revealArtifact(_ artifact: Artifact) {
-    NSWorkspace.shared.activateFileViewerSelecting([artifact.url])
+    guard let url = safeArtifactURL(artifact) else { return }
+    NSWorkspace.shared.activateFileViewerSelecting([url])
+  }
+
+  private func safeArtifactURL(_ artifact: Artifact) -> URL? {
+    guard let job = jobs.first(where: { job in
+      job.artifacts.contains { $0.id == artifact.id }
+    }), ArtifactInspectionService().inspect(artifact, in: job).canPreview else {
+      return nil
+    }
+    return artifact.url.standardizedFileURL.resolvingSymlinksInPath()
   }
 
   func redactedPreviewText(_ text: String) -> String {

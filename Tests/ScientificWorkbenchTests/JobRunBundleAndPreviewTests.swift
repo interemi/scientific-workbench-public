@@ -287,6 +287,7 @@ extension ScientificWorkbenchTests {
     try "a,b\n1,2\n".write(to: root.appendingPathComponent("table.csv"), atomically: true, encoding: .utf8)
     try "# %ECSV 1.0\na b\n1 2\n".write(to: root.appendingPathComponent("table.ecsv"), atomically: true, encoding: .utf8)
     try "# Report\n\nSafe text.".write(to: root.appendingPathComponent("report.md"), atomically: true, encoding: .utf8)
+    try "SIMPLE  = T".write(to: root.appendingPathComponent("raw.fits"), atomically: true, encoding: .utf8)
     try "token=secret-value-123".write(to: root.appendingPathComponent("stdout.log"), atomically: true, encoding: .utf8)
     try """
     {"cells":[{"cell_type":"markdown","source":["# Notebook\\n"]},{"cell_type":"code","source":["print(1)\\n"]}]}
@@ -308,10 +309,32 @@ extension ScientificWorkbenchTests {
     #expect(ecsv.text?.contains("# %ECSV 1.0") == true)
     #expect(service.load(artifact: try artifact("report.md"), redact: redact).kind == .markdown)
     #expect(service.load(artifact: try artifact("analysis.ipynb"), redact: redact).kind == .notebook)
+    let rawFITS = service.load(artifact: try artifact("raw.fits"), redact: redact)
+    #expect(rawFITS.kind == .unavailable)
+    #expect(rawFITS.note?.contains("PNG quicklook") == true)
     let log = service.load(artifact: try artifact("stdout.log"), redact: redact)
     #expect(log.kind == .log)
     #expect(log.text?.contains("[REDACTED]") == true)
     #expect(log.text?.contains("secret-value-123") == false)
+  }
+
+  @Test
+  func textPreviewKeepsValidUTF8WhenTheByteLimitCutsACharacter() throws {
+    let root = FileManager.default.temporaryDirectory
+      .appendingPathComponent("Scientific-Workbench-UTF8-Preview-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let path = root.appendingPathComponent("table.csv")
+    let data = Data((String(repeating: "a", count: 79_999) + "é").utf8)
+    try data.write(to: path)
+    let artifact = Artifact(path: path.path, relativePath: "table.csv", byteCount: Int64(data.count))
+    let preview = ArtifactPreviewService().load(artifact: artifact, redact: { $0 })
+
+    #expect(preview.kind == .table)
+    #expect(preview.text?.utf8.count == 79_999)
+    #expect(preview.note?.contains("truncated") == true)
+    #expect(try Data(contentsOf: path) == data)
   }
 
   @Test

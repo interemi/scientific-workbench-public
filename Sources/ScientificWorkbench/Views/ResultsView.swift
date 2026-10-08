@@ -5,6 +5,9 @@ struct ResultsView: View {
   @State private var selectedArtifactID: UUID?
   @State private var pendingMixedFollowUpJob: JobRecord?
   @State private var isReplacingInputSelection = false
+  @State private var comparisonSource: ArtifactComparisonSource?
+
+  private let inspectionService = ArtifactInspectionService()
 
   var body: some View {
     HSplitView {
@@ -61,6 +64,19 @@ struct ResultsView: View {
             .padding(.horizontal)
           }
 
+          if let artifact = selectedArtifact {
+            Button {
+              comparisonSource = ArtifactComparisonSource(job: job, artifact: artifact)
+            } label: {
+              Label("Compare two artifacts", systemImage: "square.split.2x1")
+            }
+            .disabled(!store.jobs.contains { candidate in
+              candidate.artifacts.contains { $0.id != artifact.id }
+            })
+            .accessibilityIdentifier("results.compare-artifacts")
+            .padding(.horizontal)
+          }
+
           List(selection: $selectedArtifactID) {
             ForEach(job.artifacts) { artifact in
               HStack {
@@ -73,6 +89,9 @@ struct ResultsView: View {
                     .truncationMode(.middle)
                   Text(artifactDetail(for: artifact))
                     .font(.caption)
+                    .foregroundStyle(.secondary)
+                  Text(inspectionService.role(for: artifact).rawValue)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                 }
               }
@@ -95,7 +114,9 @@ struct ResultsView: View {
       .frame(minWidth: 340, idealWidth: 390)
 
       if let artifact = selectedArtifact {
-        ArtifactPreview(store: store, artifact: artifact)
+        if let job = store.selectedJob {
+          ArtifactPreview(store: store, job: job, artifact: artifact)
+        }
       } else if let job = store.selectedJob {
         ResultsSummaryView(store: store, job: job)
       } else {
@@ -117,7 +138,11 @@ struct ResultsView: View {
     }
     .onChange(of: store.selectedJobID) {
       selectedArtifactID = nil
+      comparisonSource = nil
       selectPreferredArtifact()
+    }
+    .sheet(item: $comparisonSource) { source in
+      ArtifactComparisonSheet(store: store, source: source)
     }
     .confirmationDialog(
       "Replace the current input selection?",
@@ -241,12 +266,16 @@ struct ResultsSummaryView: View {
 
 struct ArtifactPreview: View {
   @ObservedObject var store: WorkbenchStore
+  let job: JobRecord
   let artifact: Artifact
   @State private var payload: ArtifactPreviewPayload?
+  @State private var showingExternalOpenConfirmation = false
   private let previewService = ArtifactPreviewService()
+  private let inspectionService = ArtifactInspectionService()
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    let inspection = inspectionService.inspect(artifact, in: job)
+    return VStack(alignment: .leading, spacing: 12) {
       HStack {
         VStack(alignment: .leading, spacing: 4) {
           Text(store.redactedPreviewText(artifact.relativePath))
@@ -263,12 +292,13 @@ struct ArtifactPreview: View {
         }
         Spacer()
         Button {
-          store.openArtifact(artifact)
+          showingExternalOpenConfirmation = true
         } label: {
-          Label("Open", systemImage: "arrow.up.right.square")
+          Label("Open Externally", systemImage: "arrow.up.right.square")
         }
-        .accessibilityLabel("Open artifact \(store.redactedPreviewText(artifact.relativePath))")
-        .accessibilityHint("Opens the selected artifact in its default macOS app.")
+        .accessibilityLabel("Open artifact externally: \(store.redactedPreviewText(artifact.relativePath))")
+        .accessibilityHint("Requires confirmation because the default app may modify the file or run code.")
+        .disabled(!inspection.canPreview)
         Button {
           store.revealArtifact(artifact)
         } label: {
@@ -276,16 +306,32 @@ struct ArtifactPreview: View {
         }
         .accessibilityLabel("Reveal artifact \(store.redactedPreviewText(artifact.relativePath))")
         .accessibilityHint("Shows the selected artifact in Finder.")
+        .disabled(!inspection.canPreview)
       }
 
+      ArtifactMetadataView(store: store, job: job, artifact: artifact, inspection: inspection)
       preview
     }
     .padding(24)
     .task(id: artifact.id) {
-      payload = previewService.load(
-        artifact: artifact,
-        redact: store.redactedPreviewText
-      )
+      let currentInspection = inspectionService.inspect(artifact, in: job)
+      payload = currentInspection.canPreview
+        ? previewService.load(artifact: artifact, redact: store.redactedPreviewText)
+        : ArtifactPreviewPayload(
+          kind: .unavailable,
+          title: "Preview unavailable",
+          note: "The artifact is missing or resolves outside its recorded run folder."
+        )
+    }
+    .confirmationDialog(
+      "Open artifact in another app?",
+      isPresented: $showingExternalOpenConfirmation,
+      titleVisibility: .visible
+    ) {
+      Button("Open Externally") { store.openArtifact(artifact) }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("The default app may change this file or run code. The preview in Scientific Workbench is read-only.")
     }
   }
 
@@ -320,8 +366,8 @@ struct ArtifactPreview: View {
         }
 
         if artifact.artifactType == "preview_png",
-           store.selectedJob?.capabilityID == "inspect_fits" {
-          if let input = store.selectedJob?.requestInputPaths.first,
+           job.capabilityID == "inspect_fits" {
+          if let input = job.requestInputPaths.first,
              FirstRunExampleService.isGeneratedFITS(at: input) {
             Text("Synthetic TAN WCS: horizontal right ascension and vertical declination in ICRS, one arcsecond per pixel; pixel unit: adu.")
               .font(.caption)
