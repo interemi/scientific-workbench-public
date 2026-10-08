@@ -39,6 +39,44 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func processRunnerRetainsBoundedPartialLogsWhenTaskIsCancelled() async throws {
+    let markerDirectory = try makeProcessTreeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: markerDirectory) }
+    let readyMarker = markerDirectory.appendingPathComponent("ready.pid")
+    let recorder = InterruptedOutputRecorder()
+    let runner = ProcessRunner()
+    let task = Task {
+      try await runner.run(
+        ProcessCommand(
+          executable: "/bin/sh",
+          arguments: [
+            "-c",
+            "printf 'partial stdout\\n'; printf 'partial stderr\\n' >&2; printf '%s' \"$$\" > \"$1\"; exec /bin/sleep 30",
+            "process-runner-fixture",
+            readyMarker.path
+          ],
+          workingDirectory: nil
+        ),
+        onInterrupted: { output in await recorder.record(output) }
+      )
+    }
+
+    _ = try await waitForProcessPID(at: readyMarker)
+    task.cancel()
+
+    do {
+      _ = try await task.value
+      Issue.record("Expected the running process to be cancelled.")
+    } catch ProcessRunnerError.cancelled {
+      let captured = try #require(await recorder.captured())
+      #expect(captured.stdout.contains("partial stdout"))
+      #expect(captured.stderr.contains("partial stderr"))
+    } catch {
+      Issue.record("Unexpected cancellation error: \(error)")
+    }
+  }
+
+  @Test
   func processRunnerUsesSelectedWorkingDirectory() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent("Scientific-Workbench-WorkingDirectory-\(UUID().uuidString)", isDirectory: true)
@@ -551,4 +589,16 @@ private struct ProcessTreePIDs {
 
 private enum ProcessTreeTestError: Error {
   case fixtureDidNotStart
+}
+
+private actor InterruptedOutputRecorder {
+  private var output: InterruptedProcessOutput?
+
+  func record(_ output: InterruptedProcessOutput) {
+    self.output = output
+  }
+
+  func captured() -> InterruptedProcessOutput? {
+    output
+  }
 }

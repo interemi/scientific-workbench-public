@@ -117,7 +117,10 @@ needed for the reviewed workflow and record its version.
    provisional run-folder paths; it executes no command and creates no run
    folders. **Auto-run** deliberately skips this manual review after planning.
 7. Execute the smallest useful case and review **Jobs**, **Results**, the
-   manifest, and the unchanged-input evidence.
+   manifest, and the unchanged-input evidence. **Jobs** names the current
+   app-level stage and last recorded state change; it does not infer an
+   internal percentage from an external tool. Open **Results** from the
+   selected job to inspect its retained artifacts.
 
 An optional backend that is absent should normally produce a controlled block.
 Do not relabel it as a pass, weaken the gate, or install unrelated dependencies

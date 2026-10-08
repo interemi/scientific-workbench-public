@@ -56,9 +56,16 @@ extension ScientificWorkbenchTests {
     #expect(store.selectedJobID == job.id)
     #expect(store.jobs.count == 1)
 
+    store.openJobResults(job)
+    #expect(store.selectedSection == .results)
+    #expect(store.selectedJobID == job.id)
+    #expect(store.jobs.count == 1)
+
     store.jobs = []
     store.selectedSection = .home
     store.openJob(job)
+    #expect(store.selectedSection == .home)
+    store.openJobResults(job)
     #expect(store.selectedSection == .home)
   }
 

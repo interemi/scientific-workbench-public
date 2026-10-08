@@ -148,49 +148,52 @@ struct JobDetailView: View {
           StatusBadge(status: job.displaySeverity)
         }
 
-      if job.status == .running {
-        Button(role: .cancel) {
-          store.cancelActiveRun()
+        if job.status == .running {
+          Button(role: .cancel) {
+            store.cancelActiveRun()
           } label: {
             Label(store.isCancellationRequested ? "Cancelling..." : "Cancel Run", systemImage: "xmark.circle")
           }
-        .disabled(store.isCancellationRequested)
-      }
+          .disabled(store.isCancellationRequested)
+          .accessibilityIdentifier("jobs.cancel-run")
+        }
+
+        JobJourneyView(store: store, job: job)
 
         HStack(spacing: 10) {
-        if job.status != .queued && job.status != .running {
-          Button {
-            Task { await store.retryJob(job) }
-          } label: {
-            Label("Retry Job", systemImage: "arrow.counterclockwise")
+          if job.status != .queued && job.status != .running {
+            Button {
+              Task { await store.retryJob(job) }
+            } label: {
+              Label("Retry Job", systemImage: "arrow.counterclockwise")
+            }
+            .disabled(store.hasActiveJob)
           }
-          .disabled(store.hasActiveJob)
-        }
 
-        if store.workflowRecoveryState?.stoppedJobID == job.id, store.canResumeAgentPlan {
-          Button {
-            Task { await store.resumeAgentPlanFromLastSuccess() }
-          } label: {
-            Label("Run Remaining", systemImage: "play.forward")
+          if store.workflowRecoveryState?.stoppedJobID == job.id, store.canResumeAgentPlan {
+            Button {
+              Task { await store.resumeAgentPlanFromLastSuccess() }
+            } label: {
+              Label("Run Remaining", systemImage: "play.forward")
+            }
+            .disabled(store.hasActiveJob)
+            .help("Resume the workflow after its last successful step.")
           }
-          .disabled(store.hasActiveJob)
-          .help("Resume the workflow after its last successful step.")
-        }
 
-        Button {
-          store.refreshRunBundle(for: job)
-        } label: {
-          Label("Refresh Bundle", systemImage: "arrow.clockwise")
-        }
-        .help("Re-read summary, manifest, logs, next steps, and artifacts from the run folder.")
+          Button {
+            store.refreshRunBundle(for: job)
+          } label: {
+            Label("Refresh Bundle", systemImage: "arrow.clockwise")
+          }
+          .help("Re-read summary, manifest, logs, next steps, and artifacts from the run folder.")
 
-        Button {
-          store.exportJobSupportBundle(job)
-        } label: {
-          Label("Support Bundle", systemImage: "lifepreserver")
+          Button {
+            store.exportJobSupportBundle(job)
+          } label: {
+            Label("Support Bundle", systemImage: "lifepreserver")
+          }
+          .help("Export a redacted diagnostic bundle for this job.")
         }
-        .help("Export a redacted diagnostic bundle for this job.")
-      }
 
         Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 10) {
           GridRow {
@@ -246,14 +249,6 @@ struct JobDetailView: View {
         LogBlock(title: "stdout", text: job.stdout)
         LogBlock(title: "stderr", text: job.stderr)
 
-        HStack {
-          Button {
-            store.revealRunDirectory(job)
-          } label: {
-            Label("Reveal Run Folder", systemImage: "folder")
-          }
-          Spacer()
-        }
       }
       .padding(24)
     }

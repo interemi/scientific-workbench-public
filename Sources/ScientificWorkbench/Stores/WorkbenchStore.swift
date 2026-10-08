@@ -9,6 +9,18 @@ private struct PendingCloudAgentSubmission {
   var request: CloudConsentRequest
 }
 
+private actor InterruptedProcessOutputCapture {
+  private var output: InterruptedProcessOutput?
+
+  func record(_ output: InterruptedProcessOutput) {
+    self.output = output
+  }
+
+  func snapshot() -> InterruptedProcessOutput? {
+    output
+  }
+}
+
 @MainActor
 final class WorkbenchStore: ObservableObject {
   @Published var selectedSection: AppSection? = .agent
@@ -1245,6 +1257,12 @@ final class WorkbenchStore: ObservableObject {
     selectedSection = .jobs
   }
 
+  func openJobResults(_ job: JobRecord) {
+    guard jobs.contains(where: { $0.id == job.id }) else { return }
+    selectedJobID = job.id
+    selectedSection = .results
+  }
+
   func useNativeCatalogAlternative() {
     openOptionalCapability(
       optionalAstronomyBackendStatus.nativeAlternativeCapabilityID
@@ -2203,6 +2221,7 @@ final class WorkbenchStore: ObservableObject {
     jobs.insert(job, at: 0)
     selectedJobID = job.id
     persistJobHistory()
+    let interruptedOutput = InterruptedProcessOutputCapture()
     if selectJobs {
       selectedSection = .jobs
     }
@@ -2246,7 +2265,9 @@ final class WorkbenchStore: ObservableObject {
       job.startedAt = Date()
       replace(job)
 
-      let result = try await runner.run(command)
+      let result = try await runner.run(command, onInterrupted: { output in
+        await interruptedOutput.record(output)
+      })
       let stdoutEnvelope = envelopeParser.parse(result.stdout)
       job.stdout = redactSecrets(result.stdout)
       job.stderr = redactSecrets(result.stderr)
@@ -2291,6 +2312,10 @@ final class WorkbenchStore: ObservableObject {
       }
       return job
     } catch {
+      if let partial = await interruptedOutput.snapshot() {
+        job.stdout = redactSecrets(partial.stdout)
+        job.stderr = redactSecrets(partial.stderr)
+      }
       if isCancellationRequested || error is CancellationError || isProcessRunnerCancellation(error) {
         job.status = .cancelled
         job.message = "Run cancelled by user."
@@ -2306,7 +2331,7 @@ final class WorkbenchStore: ObservableObject {
         runDirectory: runDirectory,
         command: job.command,
         stdout: job.stdout,
-        stderr: job.message ?? ""
+        stderr: job.stderr.isEmpty ? (job.message ?? "") : job.stderr
       )
       runBundleService.hydrate(&job, redact: redactSecrets)
       runBundleService.writeNextStepsIfMissing(for: job)

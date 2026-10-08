@@ -28,8 +28,8 @@ public issue.
 | `WARNING` | The run completed but reported a limitation or condition requiring review. | Read warnings and `next_actions`; do not silently promote it to an unconditional pass. |
 | `BLOCKED_CONTROLADO` / `BLOCKED` | A known prerequisite, confirmation, dependency, or safe boundary prevented execution. | Follow the recovery advice or use the documented alternative. |
 | `FAIL`, legacy `ERROR`, or `ROTO` | The capability or contract failed. A zero process exit code does not override this structured failure. | Inspect the structured error, stdout/stderr, and manifest before retrying. |
-| `QUEUED` / `RUNNING` | The job has not reached a terminal state. | Wait, inspect progress, or request cancellation. |
-| `CANCELLED` | The user, timeout handling, or relaunch recovery stopped the job. | Verify no child process remains, then decide whether to retry or run remaining steps. |
+| `QUEUED` / `RUNNING` | The job has not reached a terminal state. | Open **Jobs** for its current app-level stage and last recorded change. External tools may not report finer progress; request cancellation if needed. |
+| `CANCELLED` | The user or relaunch recovery stopped the job. | Inspect retained partial files and captured logs, verify no child process remains, then decide whether to retry or run remaining steps. |
 | `TIMED_OUT` | The configured process deadline expired and the owned process group was terminated. | Reduce inputs, split the workflow, or increase the reviewed timeout within the allowed range. |
 | Provider `UNKNOWN` | No connection probe applies to the current session/configuration. | Test the current credential/model/endpoint if a provider is needed. |
 | Provider `TESTING` | A probe is in flight. | Wait. Changing the credential, model, or endpoint invalidates its result. |
@@ -144,6 +144,10 @@ provider or a manually edited command.
 
 - Wait for the terminal job state; cancellation first requests graceful
   termination and then escalates for the owned process group.
+- Open the selected job's **Run → Job → Result** card. The last recorded change
+  is an app state transition, not a heartbeat from the external tool. After the
+  job stops, inspect its run folder, captured stdout/stderr, partial files, and
+  recovery advice before retrying. A retry creates a new run folder.
 - Check Activity Monitor only after the app reports the outcome.
 - Record any surviving child PID and command in a support bundle; do not kill
   unrelated processes.
