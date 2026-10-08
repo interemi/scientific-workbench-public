@@ -269,7 +269,6 @@ struct ArtifactPreview: View {
   let job: JobRecord
   let artifact: Artifact
   @State private var payload: ArtifactPreviewPayload?
-  @State private var showingExternalOpenConfirmation = false
   private let previewService = ArtifactPreviewService()
   private let inspectionService = ArtifactInspectionService()
 
@@ -291,14 +290,6 @@ struct ArtifactPreview: View {
             .textSelection(.enabled)
         }
         Spacer()
-        Button {
-          showingExternalOpenConfirmation = true
-        } label: {
-          Label("Open Externally", systemImage: "arrow.up.right.square")
-        }
-        .accessibilityLabel("Open artifact externally: \(store.redactedPreviewText(artifact.relativePath))")
-        .accessibilityHint("Requires confirmation because the default app may modify the file or run code.")
-        .disabled(!inspection.canPreview)
         Button {
           store.revealArtifact(artifact)
         } label: {
@@ -322,16 +313,6 @@ struct ArtifactPreview: View {
           title: "Preview unavailable",
           note: "The artifact is missing or resolves outside its recorded run folder."
         )
-    }
-    .confirmationDialog(
-      "Open artifact in another app?",
-      isPresented: $showingExternalOpenConfirmation,
-      titleVisibility: .visible
-    ) {
-      Button("Open Externally") { store.openArtifact(artifact) }
-      Button("Cancel", role: .cancel) {}
-    } message: {
-      Text("The default app may change this file or run code. The preview in Scientific Workbench is read-only.")
     }
   }
 

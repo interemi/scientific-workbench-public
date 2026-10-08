@@ -2373,11 +2373,6 @@ final class WorkbenchStore: ObservableObject {
     return false
   }
 
-  func openArtifact(_ artifact: Artifact) {
-    guard let url = safeArtifactURL(artifact) else { return }
-    NSWorkspace.shared.open(url)
-  }
-
   func revealArtifact(_ artifact: Artifact) {
     guard let url = safeArtifactURL(artifact) else { return }
     NSWorkspace.shared.activateFileViewerSelecting([url])
