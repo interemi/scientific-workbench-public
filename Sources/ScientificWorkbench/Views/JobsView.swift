@@ -2,6 +2,7 @@ import SwiftUI
 
 struct JobsView: View {
   @ObservedObject var store: WorkbenchStore
+  @State private var recentFilter = RecentJobFilter()
 
   var body: some View {
     HStack(spacing: 0) {
@@ -10,23 +11,52 @@ struct JobsView: View {
 
       Divider()
 
-      if let job = store.selectedJob {
-        JobDetailView(store: store, job: job)
-          .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
-      } else {
+      if store.jobs.isEmpty {
         ContentUnavailableView {
           Label("No Jobs Yet", systemImage: "list.bullet.rectangle")
         } description: {
           Text("Plan a workflow in Chat or run a capability. Its logs, recovery advice, and artifacts will appear here.")
         } actions: {
-          Button("Open Chat") {
-            store.selectedSection = .agent
-          }
-          .accessibilityIdentifier("jobs.empty.open-chat")
+          Button("Open Chat") { store.selectedSection = .agent }
+            .accessibilityIdentifier("jobs.empty.open-chat")
+        }
+        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+      } else if matchingJobs.isEmpty {
+        ContentUnavailableView {
+          Label("No Matching Jobs", systemImage: "line.3.horizontal.decrease.circle")
+        } description: {
+          Text("Change the search, date, status, or artifact type. Your job history has not been changed.")
+        } actions: {
+          Button("Clear Search and Filters") { recentFilter = RecentJobFilter() }
+            .accessibilityIdentifier("jobs.clear-search")
+        }
+        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+      } else if let job = selectedVisibleJob {
+        JobDetailView(store: store, job: job)
+          .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+      } else {
+        ContentUnavailableView {
+          Label("Select a Matching Job", systemImage: "list.bullet.rectangle")
+        } description: {
+          Text("Choose a job from the filtered list to inspect its logs, recovery advice, and artifacts.")
+        } actions: {
+          Button("Clear Search and Filters") { recentFilter = RecentJobFilter() }
+            .accessibilityIdentifier("jobs.clear-search")
         }
         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
       }
     }
+  }
+
+  private var matchingJobs: [JobRecord] {
+    guard recentFilter.isActive else { return store.jobs }
+    let now = Date()
+    return store.jobs.filter { recentFilter.matches($0, now: now) }
+  }
+
+  private var selectedVisibleJob: JobRecord? {
+    guard let selected = store.selectedJob else { return nil }
+    return matchingJobs.first { $0.id == selected.id }
   }
 
   private var jobList: some View {
@@ -40,6 +70,50 @@ struct JobsView: View {
       }
       .padding(.horizontal, 16)
       .padding(.top, 18)
+
+      TextField("Search jobs, capabilities, dates, or artifacts", text: $recentFilter.query)
+        .textFieldStyle(.roundedBorder)
+        .padding(.horizontal, 16)
+        .accessibilityIdentifier("jobs.search")
+
+      HStack(spacing: 8) {
+        Picker("Date", selection: $recentFilter.window) {
+          ForEach(RecentJobWindow.allCases, id: \.self) { window in
+            Text(window.title).tag(window)
+          }
+        }
+        .accessibilityIdentifier("jobs.filter.date")
+
+        Picker("Status", selection: $recentFilter.status) {
+          Text("Any status").tag(Optional<JobStatus>.none)
+          ForEach(JobStatus.allCases, id: \.self) { status in
+            Text(status.title).tag(Optional(status))
+          }
+        }
+        .accessibilityIdentifier("jobs.filter.status")
+      }
+      .padding(.horizontal, 16)
+
+      Picker("Artifact type", selection: $recentFilter.artifactType) {
+        ForEach(RecentArtifactType.allCases, id: \.self) { artifactType in
+          Text(artifactType.title).tag(artifactType)
+        }
+      }
+      .padding(.horizontal, 16)
+      .accessibilityIdentifier("jobs.filter.artifact")
+
+      HStack {
+        Text("\(matchingJobs.count) of \(store.jobs.count) jobs")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Spacer()
+        if recentFilter.isActive {
+          Button("Clear") { recentFilter = RecentJobFilter() }
+            .font(.caption)
+            .accessibilityIdentifier("jobs.clear-filters")
+        }
+      }
+      .padding(.horizontal, 16)
 
       HStack(spacing: 8) {
         Button {
@@ -99,9 +173,13 @@ struct JobsView: View {
         Text("No jobs have run yet. Open Chat or Capabilities to start a reproducible run.")
           .foregroundStyle(.secondary)
           .padding(.horizontal, 16)
+      } else if matchingJobs.isEmpty {
+        Text("No jobs match these filters. Clear them to see the preserved history.")
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 16)
       } else {
         List(selection: $store.selectedJobID) {
-          ForEach(store.jobs) { job in
+          ForEach(matchingJobs) { job in
             VStack(alignment: .leading, spacing: 5) {
               HStack {
                 Text(job.capabilityLabel)
