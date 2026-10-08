@@ -65,6 +65,7 @@ remain unverified.
 | `docs/TROUBLESHOOTING.md` | Reproducible diagnosis and safe recovery |
 | `docs/PUBLIC_READINESS.md` | Dated source validation and use limits |
 | `docs/PUBLIC_SOURCE_HANDOFF.md` | Reviewed source export and publication handoff |
+| `docs/GITHUB_RELEASE_PLAN.md` | Planned source pre-release process and separate app-bundle requirements |
 
 Names without spaces are retained only for technical identifiers. The skills
 are siblings under `skills/`; the app runs each capability from its owning
