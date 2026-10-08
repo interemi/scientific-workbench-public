@@ -144,16 +144,21 @@ struct OllamaSetupService: Sendable {
     models: [String],
     model: String
   ) -> String {
-    guard cliPath != nil else {
-      return "Install Ollama first, then come back here to download the compact local model."
-    }
     guard serverReachable else {
+      guard cliPath != nil else {
+        return "Ollama CLI and local server were not found. Install Ollama, then check again."
+      }
       return "Ollama CLI is installed. Open Ollama so the local server starts, then check again."
     }
     guard models.contains(model) else {
+      guard cliPath != nil else {
+        return "The local server is running, but \(model) is missing and the Ollama CLI is needed to download it here."
+      }
       return "Ollama is running. Download \(model) to enable local AI chat and planning."
     }
-    return "Ollama is ready with \(model). Local AI can be tested now."
+    return cliPath == nil
+      ? "The local server has \(model). Test Local AI; in-app downloads still need the Ollama CLI."
+      : "Ollama is ready with \(model). Local AI can be tested now."
   }
 }
 

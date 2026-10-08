@@ -191,6 +191,7 @@ final class WorkbenchStore: ObservableObject {
   private var rememberedCloudConsentScopes: Set<CloudConsentSessionScope> = []
   private var outputRootRiskApprovalFingerprint: String?
   private var ollamaPullTask: Task<OllamaCommandResult, Error>?
+  private var ollamaSetupCheckID: UUID?
   private var codexBridgeTask: Task<String, Error>?
 
   init(
@@ -523,6 +524,8 @@ final class WorkbenchStore: ObservableObject {
     switch provider {
     case .ollama:
       ollamaModel = model
+      ollamaSetupCheckID = nil
+      isCheckingOllamaSetup = false
       var status = ollamaSetupStatus
       status.targetModel = self.model(for: .ollama)
       ollamaSetupStatus = status
@@ -559,6 +562,9 @@ final class WorkbenchStore: ObservableObject {
     switch provider {
     case .ollama:
       ollamaBaseURL = baseURL
+      ollamaSetupCheckID = nil
+      isCheckingOllamaSetup = false
+      ollamaSetupStatus = .unknown(model: model(for: .ollama))
     case .openAI, .grok, .gemini:
       break
     }
@@ -925,13 +931,20 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func refreshOllamaSetup() async {
+    let checkID = UUID()
+    let endpoint = baseURL(for: .ollama)
+    let checkedModel = model(for: .ollama)
+    ollamaSetupCheckID = checkID
     isCheckingOllamaSetup = true
     let status = await ollamaSetupService.status(
-      baseURL: baseURL(for: .ollama),
-      model: model(for: .ollama)
+      baseURL: endpoint,
+      model: checkedModel
     )
-    ollamaSetupStatus = status
+    guard ollamaSetupCheckID == checkID else { return }
+    ollamaSetupCheckID = nil
     isCheckingOllamaSetup = false
+    guard endpoint == baseURL(for: .ollama), checkedModel == model(for: .ollama) else { return }
+    ollamaSetupStatus = status
   }
 
   func openOllamaDownloadPage() {

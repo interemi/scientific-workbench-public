@@ -77,25 +77,33 @@ struct ResultsView: View {
             .padding(.horizontal)
           }
 
-          List(selection: $selectedArtifactID) {
-            ForEach(job.artifacts) { artifact in
-              HStack {
-                Image(systemName: icon(for: artifact))
-                  .foregroundStyle(.secondary)
-                  .frame(width: 16)
-                VStack(alignment: .leading, spacing: 2) {
-                  Text(store.redactedPreviewText(artifact.label ?? artifact.relativePath))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                  Text(artifactDetail(for: artifact))
-                    .font(.caption)
+          if job.artifacts.isEmpty {
+            ContentUnavailableView {
+              Label("No Recorded Artifacts", systemImage: "doc.questionmark")
+            } description: {
+              Text("Inspect the job status and logs, or refresh its run bundle after the process stops.")
+            }
+          } else {
+            List(selection: $selectedArtifactID) {
+              ForEach(job.artifacts) { artifact in
+                HStack {
+                  Image(systemName: icon(for: artifact))
                     .foregroundStyle(.secondary)
-                  Text(inspectionService.role(for: artifact).rawValue)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                  VStack(alignment: .leading, spacing: 2) {
+                    Text(store.redactedPreviewText(artifact.label ?? artifact.relativePath))
+                      .lineLimit(1)
+                      .truncationMode(.middle)
+                    Text(artifactDetail(for: artifact))
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                    Text(inspectionService.role(for: artifact).rawValue)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                  }
                 }
+                .tag(Optional(artifact.id))
               }
-              .tag(Optional(artifact.id))
             }
           }
         } else {
@@ -224,7 +232,9 @@ struct ResultsSummaryView: View {
           Spacer()
           StatusBadge(status: job.displaySeverity)
         }
-        Text("Select an artifact to preview it, or reveal the run folder for the full bundle.")
+        Text(job.artifacts.isEmpty
+          ? "No artifact is recorded for this job. Inspect its logs and recovery advice; a running job may still have partial files in its separate run folder."
+          : "Select an artifact to preview it, or reveal the run folder for the full bundle.")
           .foregroundStyle(.secondary)
 
         if let shortSummary = job.shortSummary {
@@ -234,6 +244,9 @@ struct ResultsSummaryView: View {
         }
 
         HStack {
+          if job.artifacts.isEmpty {
+            Button("Open Job") { store.selectedSection = .jobs }
+          }
           Button {
             store.revealRunDirectory(job)
           } label: {

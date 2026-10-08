@@ -9,7 +9,7 @@ struct OllamaSetupView: View {
         Label("Ollama local AI", systemImage: "desktopcomputer")
           .font(.headline)
         Spacer()
-        StatusBadge(status: store.ollamaSetupStatus.badgeTitle)
+        StatusBadge(status: presentationState.badgeTitle)
       }
 
       Text("Recommended for this Mac: \(OllamaModelProfile.recommended.model), a newer Qwen3 4B model around 2.5 GB that should stay comfortable on 16 GB RAM while giving better planning, Spanish, and code-like reasoning than the tiny fallback.")
@@ -25,6 +25,7 @@ struct OllamaSetupView: View {
         }
       }
       .pickerStyle(.segmented)
+      .disabled(store.isPullingOllamaModel)
 
       Text(selectedProfile?.detailText ?? "Custom model: \(store.model(for: .ollama)). Make sure it is available in Ollama before testing or planning.")
         .font(.caption)
@@ -32,14 +33,35 @@ struct OllamaSetupView: View {
 
       TextField("Custom Ollama model", text: ollamaCustomModelBinding)
         .textContentType(.none)
+        .disabled(store.isPullingOllamaModel)
 
       TextField("Local endpoint", text: ollamaBaseURLBinding)
         .textContentType(.URL)
+        .disabled(store.isPullingOllamaModel)
 
-      Text(store.ollamaSetupStatus.message)
+      Text(presentationState.guidance(model: store.model(for: .ollama)))
         .font(.caption)
         .foregroundStyle(.secondary)
         .textSelection(.enabled)
+
+      if !store.isPullingOllamaModel {
+        Text(store.ollamaSetupStatus.message)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+      }
+
+      if store.connectionStatus(for: .ollama).state != .unknown {
+        HStack {
+          Text("Last Local AI connection test")
+            .font(.caption)
+          StatusBadge(status: store.connectionStatus(for: .ollama).state.badgeTitle)
+        }
+        Text(store.connectionStatus(for: .ollama).message)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+      }
 
       VStack(alignment: .leading, spacing: 4) {
         ForEach(store.ollamaSetupStatus.detailLines, id: \.self) { line in
@@ -83,9 +105,6 @@ struct OllamaSetupView: View {
         .disabled(store.connectionStatus(for: .ollama).state == .testing)
       }
 
-      Text("After installation, open Ollama once, download the model here, then run Test Local AI.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
     }
     .padding(.vertical, 8)
     .onAppear {
@@ -96,6 +115,13 @@ struct OllamaSetupView: View {
 
   private var selectedProfile: OllamaModelProfile? {
     OllamaModelProfile.matching(model: store.model(for: .ollama))
+  }
+
+  private var presentationState: OllamaPresentationState {
+    store.ollamaSetupStatus.presentationState(
+      isDownloading: store.isPullingOllamaModel,
+      isCancellationRequested: store.isCancellationRequested
+    )
   }
 
   private var ollamaModelSelection: Binding<String> {

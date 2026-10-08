@@ -25,7 +25,18 @@ struct AgentBoundaryStrip: View {
 
   private var aiValue: String {
     if !store.aiProvider.requiresAPIKey {
-      return "\(store.aiProvider.title) local chat/planning"
+      let presentation = store.ollamaSetupStatus.presentationState(
+        isDownloading: store.isPullingOllamaModel,
+        isCancellationRequested: store.isCancellationRequested
+      )
+      if store.isPullingOllamaModel {
+        return presentation.title(model: store.model(for: .ollama))
+      }
+      let connection = store.connectionStatus(for: .ollama)
+      if connection.state == .testing { return "Testing Ollama connection" }
+      if connection.state == .connected { return "Ollama connection verified" }
+      if connection.state != .unknown { return "Ollama test: \(connection.state.badgeTitle)" }
+      return presentation.title(model: store.model(for: .ollama))
     }
     if store.selectedAIIsConfigured {
       return "\(store.aiProvider.title); \(store.cloudAttachmentContextMode.boundaryTitle)"
@@ -54,7 +65,7 @@ private struct BoundaryItem: View {
         Text(value)
           .font(.caption)
           .fontWeight(.medium)
-          .lineLimit(1)
+          .lineLimit(2)
           .truncationMode(.middle)
       }
       Spacer(minLength: 0)
@@ -127,6 +138,8 @@ struct ProviderBadge: View {
   let status: AIConnectionStatus
   let hasConfiguredKey: Bool
   let hasCodex: Bool
+  let ollamaState: OllamaPresentationState
+  let ollamaModel: String
 
   var body: some View {
     Label(title, systemImage: icon)
@@ -135,12 +148,23 @@ struct ProviderBadge: View {
       .padding(.vertical, 4)
       .background(.thinMaterial, in: Capsule())
       .foregroundStyle(.secondary)
-      .help(status.message)
+      .help(provider.requiresAPIKey || (status.state != .unknown && ollamaState != .downloadingModel && ollamaState != .cancellingDownload)
+        ? status.message
+        : ollamaState.guidance(model: ollamaModel))
   }
 
   private var title: String {
-    if !provider.requiresAPIKey, status.state == .connected { return "\(provider.title) local" }
-    if !provider.requiresAPIKey { return "\(provider.title) local" }
+    if !provider.requiresAPIKey {
+      if ollamaState == .downloadingModel || ollamaState == .cancellingDownload {
+        return ollamaState.title(model: ollamaModel)
+      }
+      switch status.state {
+      case .unknown: return ollamaState.title(model: ollamaModel)
+      case .testing: return "Testing Ollama connection"
+      case .connected: return "Ollama connection verified"
+      default: return "Ollama test: \(status.state.badgeTitle)"
+      }
+    }
     if status.state == .connected, hasCodex { return "\(provider.title) + Codex" }
     if status.state == .connected { return "\(provider.title) connected" }
     if hasConfiguredKey { return "\(provider.title) configured" }

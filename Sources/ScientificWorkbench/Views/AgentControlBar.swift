@@ -20,7 +20,9 @@ struct AgentControlBar: View {
           provider: store.aiProvider,
           status: store.connectionStatus(for: store.aiProvider),
           hasConfiguredKey: store.selectedAIIsConfigured,
-          hasCodex: CodexBridge(executablePath: store.codexExecutablePath).isAvailable
+          hasCodex: CodexBridge(executablePath: store.codexExecutablePath).isAvailable,
+          ollamaState: ollamaState,
+          ollamaModel: store.model(for: .ollama)
         )
       }
 
@@ -34,10 +36,14 @@ struct AgentControlBar: View {
         .frame(maxWidth: 360)
         .accessibilityIdentifier("agent.provider")
 
-        StatusBadge(status: store.connectionStatus(for: store.aiProvider).state.badgeTitle)
+        StatusBadge(status: selectedProviderBadgeTitle)
           .accessibilityLabel("Selected provider connection status")
-          .accessibilityValue(store.connectionStatus(for: store.aiProvider).state.badgeTitle)
-          .help(store.connectionStatus(for: store.aiProvider).message)
+          .accessibilityValue(selectedProviderBadgeTitle)
+          .help(store.aiProvider.requiresAPIKey
+            ? store.connectionStatus(for: store.aiProvider).message
+            : (store.isPullingOllamaModel || store.connectionStatus(for: .ollama).state == .unknown
+              ? ollamaState.guidance(model: store.model(for: .ollama))
+              : store.connectionStatus(for: .ollama).message))
 
         Button("Test") {
           Task { await store.testAIConnection() }
@@ -115,8 +121,51 @@ struct AgentControlBar: View {
         .font(.caption)
         .foregroundStyle(.orange)
       }
+
+      if store.aiProvider == .ollama, ollamaNeedsAttention {
+        HStack(alignment: .top, spacing: 10) {
+          Text(ollamaGuidance)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+          Button("Open Local AI Setup") { store.selectedSection = .settings }
+            .font(.caption)
+            .fixedSize()
+        }
+        .accessibilityIdentifier("agent.ollama-guidance")
+      }
     }
     .padding(.horizontal, 36)
     .padding(.vertical, 16)
+  }
+
+  private var ollamaState: OllamaPresentationState {
+    store.ollamaSetupStatus.presentationState(
+      isDownloading: store.isPullingOllamaModel,
+      isCancellationRequested: store.isCancellationRequested
+    )
+  }
+
+  private var selectedProviderBadgeTitle: String {
+    if store.aiProvider.requiresAPIKey {
+      return store.connectionStatus(for: store.aiProvider).state.badgeTitle
+    }
+    if store.isPullingOllamaModel { return ollamaState.badgeTitle }
+    let state = store.connectionStatus(for: .ollama).state
+    return state == .unknown ? ollamaState.badgeTitle : state.badgeTitle
+  }
+
+  private var ollamaNeedsAttention: Bool {
+    if store.isPullingOllamaModel { return true }
+    let connection = store.connectionStatus(for: .ollama).state
+    return connection != .connected && (ollamaState != .ready || connection != .unknown)
+  }
+
+  private var ollamaGuidance: String {
+    let connection = store.connectionStatus(for: .ollama)
+    if !store.isPullingOllamaModel, connection.state != .unknown, connection.state != .connected {
+      return "\(connection.message) Check Local AI in Settings. Deterministic planning and Core workflows remain available."
+    }
+    return ollamaState.guidance(model: store.model(for: .ollama))
   }
 }

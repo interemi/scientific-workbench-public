@@ -290,6 +290,31 @@ extension ScientificWorkbenchTests {
 
   @Test
   @MainActor
+  func changingOllamaEndpointInvalidatesPreviouslyCheckedAvailability() {
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults)
+    store.ollamaSetupStatus = OllamaSetupStatus(
+      cliPath: "/isolated/ollama",
+      serverReachable: true,
+      installedModels: [store.model(for: .ollama)],
+      targetModel: store.model(for: .ollama),
+      message: "Previous endpoint was ready.",
+      checkedAt: Date()
+    )
+    store.aiConnectionStatuses[.ollama] = AIConnectionStatus(
+      state: .connected,
+      message: "Previous endpoint was connected.",
+      checkedAt: Date()
+    )
+
+    store.setBaseURL("http://127.0.0.1:11435", for: .ollama)
+
+    #expect(store.ollamaSetupStatus.presentationState() == .unchecked)
+    #expect(store.connectionStatus(for: .ollama).state == .unknown)
+  }
+
+  @Test
+  @MainActor
   func testLocalAIConnectionDoesNotCreateOrMutateWorkflowState() async throws {
     let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
     let recorder = RequestRecorder(responseBody: #"{"message":{"content":"OK"}}"#)

@@ -14,6 +14,57 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func ollamaPresentationExplainsUnavailableAndActiveStatesWithoutClaimingReadiness() {
+    var status = OllamaSetupStatus.unknown(model: "test-model")
+    #expect(status.presentationState() == .unchecked)
+    #expect(status.badgeTitle == "check")
+    #expect(status.detailLines == ["Local AI setup has not been checked."])
+    #expect(status.presentationState().guidance(model: status.targetModel).contains("Deterministic planning"))
+
+    status.checkedAt = Date()
+    #expect(status.presentationState() == .install)
+    status.cliPath = "/isolated/ollama"
+    #expect(status.presentationState() == .startServer)
+    status.serverReachable = true
+    status.cliPath = nil
+    #expect(status.presentationState() == .downloadRequiresCLI)
+    status.cliPath = "/isolated/ollama"
+    #expect(status.presentationState() == .downloadModel)
+    #expect(status.presentationState().guidance(model: status.targetModel).contains("test-model"))
+    #expect(status.presentationState(isDownloading: true) == .downloadingModel)
+    #expect(status.presentationState(isDownloading: true, isCancellationRequested: true) == .cancellingDownload)
+
+    status.installedModels = ["test-model"]
+    #expect(status.presentationState() == .ready)
+    #expect(status.presentationState().title(model: status.targetModel).contains("last check"))
+    status.cliPath = nil
+    #expect(status.presentationState() == .ready)
+  }
+
+  @Test
+  func ollamaSetupReportsReachableServerWithoutCLIAccurately() async {
+    let service = OllamaSetupService(
+      pathEnvironment: "",
+      fileExists: { _ in false },
+      dataLoader: { request in
+        let response = HTTPURLResponse(
+          url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+        )!
+        return (Data(#"{"models":[{"name":"test-model"}]}"#.utf8), response)
+      }
+    )
+    let status = await service.status(baseURL: "http://localhost:11434", model: "test-model")
+    #expect(status.serverReachable)
+    #expect(status.cliPath == nil)
+    #expect(status.presentationState() == .ready)
+    #expect(status.message.contains("in-app downloads still need the Ollama CLI"))
+
+    let missing = await service.status(baseURL: "http://localhost:11434", model: "missing-model")
+    #expect(missing.presentationState() == .downloadRequiresCLI)
+    #expect(missing.message.contains("CLI is needed to download it here"))
+  }
+
+  @Test
   func ollamaSetupServiceLocatesCLIAndParsesInstalledModels() async throws {
     let recorder = RequestRecorder(
       responseBody: #"{"models":[{"name":"qwen3:4b-instruct"},{"name":"llama3.2"}]}"#

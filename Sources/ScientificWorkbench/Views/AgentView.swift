@@ -24,6 +24,11 @@ struct AgentView: View {
       )
       .id(request.id)
     }
+    .task {
+      if store.aiProvider == .ollama, store.ollamaSetupStatus.checkedAt == nil {
+        await store.refreshOllamaSetup()
+      }
+    }
   }
 
   private var chatTranscript: some View {
