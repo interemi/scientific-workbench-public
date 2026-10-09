@@ -277,6 +277,8 @@ struct CapabilityDetailPanel: View {
   @Binding var rawArguments: String
   @Binding var accessConfirmed: Bool
   let isMaintenance: Bool
+  @State private var pendingExampleKind: FirstRunExampleKind?
+  @State private var isReplacingInputSelection = false
 
   var body: some View {
     Group {
@@ -368,6 +370,22 @@ struct CapabilityDetailPanel: View {
       } else {
         ContentUnavailableView("No Capability Selected", systemImage: "square.grid.2x2")
       }
+    }
+    .confirmationDialog(
+      "Replace the current input selection?",
+      isPresented: $isReplacingInputSelection
+    ) {
+      Button("Prepare Synthetic Example") {
+        if let pendingExampleKind {
+          prepareSyntheticExample(pendingExampleKind)
+        }
+        pendingExampleKind = nil
+      }
+      Button("Cancel", role: .cancel) {
+        pendingExampleKind = nil
+      }
+    } message: {
+      Text("The selected files will be removed from this session's input list. They will not be changed or deleted on disk.")
     }
   }
 
@@ -524,10 +542,24 @@ struct CapabilityDetailPanel: View {
         .disabled(store.isCancellationRequested)
       }
 
-      Button("Use Example Args") {
-        rawArguments = exampleArguments(for: capability)
+      if let kind = syntheticExampleKind(for: capability) {
+        Button("Prepare Synthetic Example") {
+          if !store.inputPaths.isEmpty,
+             store.inputPaths != store.preparedFirstRunExample?.inputPaths {
+            pendingExampleKind = kind
+            isReplacingInputSelection = true
+          } else {
+            prepareSyntheticExample(kind)
+          }
+        }
+        .disabled(store.canCancelActiveRun)
+        .accessibilityIdentifier("capability.prepare-example")
       }
-      .disabled(exampleArguments(for: capability).isEmpty)
+      if let error = store.firstRunExampleError {
+        Label(error, systemImage: "exclamationmark.triangle")
+          .font(.caption)
+          .foregroundStyle(.orange)
+      }
     }
   }
 
@@ -561,20 +593,18 @@ struct CapabilityDetailPanel: View {
     }
   }
 
-  private func exampleArguments(for capability: CapabilityEntry) -> String {
-    let exampleRoot = capability.resolvedSkillRoot(fallback: store.skillRootPath)
+  private func syntheticExampleKind(for capability: CapabilityEntry) -> FirstRunExampleKind? {
     switch capability.id {
-    case "profile_table":
-      return "\"\(exampleRoot)/examples/tabular/ops.csv\" --summary-json summary.json"
-    case "inspect_fits":
-      return "\"\(exampleRoot)/examples/science/legacy_spectroscopy_mini/mini_template.fits\" --summary-json summary.json"
-    case "document_intake_workbench":
-      return "--output-dir artifacts \"\(exampleRoot)/examples/documents\" --summary-json summary.json"
-    case "portable_smoke_test":
-      return "--output-dir artifacts --examples-dir \"\(exampleRoot)/examples\" --profile core --summary-json summary.json"
-    default:
-      return ""
+    case "profile_table": return .table
+    case "inspect_fits": return .fits
+    case "document_intake_workbench": return .document
+    default: return nil
     }
+  }
+
+  private func prepareSyntheticExample(_ kind: FirstRunExampleKind) {
+    rawArguments = ""
+    store.prepareFirstRunExample(kind)
   }
 }
 
