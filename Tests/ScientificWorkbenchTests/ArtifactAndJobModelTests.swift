@@ -427,6 +427,80 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func jobRecoveryIssuesUseStructuredKindsForSpecificSafeRoutes() {
+    let cases: [(String, JobRecoveryIssue)] = [
+      ("missing_input", .missingInput),
+      ("output_conflict", .outputConflict),
+      ("permission_denied", .permissionDenied),
+      ("missing_optional_backend", .optionalBackend),
+      ("dependency_error", .pythonEnvironment),
+      ("timeout", .timedOut),
+      ("network_error", .network),
+      ("model_unavailable", .modelUnavailable),
+    ]
+
+    for (kind, expected) in cases {
+      var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
+      job.status = .blocked
+      job.structuredErrors = [JobStructuredError(kind: kind, message: "Check this run.", recoveryHint: nil)]
+
+      #expect(job.recoveryIssue == expected)
+      #expect(job.recoveryIssue?.guidance.isEmpty == false)
+      #expect(job.recoveryIssue?.actionLabel.isEmpty == false)
+    }
+  }
+
+  @Test
+  func jobRecoveryIssuesRecognizeDiagnosticTextButIgnoreUnrelatedLogs() {
+    let cases: [(String, JobRecoveryIssue)] = [
+      ("OSError: [Errno 28] No space left on device", .diskSpace),
+      ("ModuleNotFoundError: No module named 'astropy'", .pythonEnvironment),
+      ("The output target exists and will not be overwritten.", .outputConflict),
+      ("PermissionError: operation not permitted", .permissionDenied),
+    ]
+
+    for (message, expected) in cases {
+      var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
+      job.status = .failed
+      job.stderr = message
+      #expect(job.recoveryIssue == expected)
+    }
+
+    var unrelatedLog = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
+    unrelatedLog.status = .failed
+    unrelatedLog.stdout = "Example documentation: PermissionError and No space left on device."
+    #expect(unrelatedLog.recoveryIssue == nil)
+
+    unrelatedLog.status = .succeeded
+    unrelatedLog.structuredErrors = [
+      JobStructuredError(kind: "output_conflict", message: "Historical warning.", recoveryHint: nil)
+    ]
+    #expect(unrelatedLog.recoveryIssue == nil)
+  }
+
+  @Test
+  func jobRecoveryIssuePrefersSpecificConflictOverGenericDependencyFailure() {
+    var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
+    job.status = .failed
+    job.structuredErrors = [
+      JobStructuredError(kind: "dependency_error", message: "Generic error.", recoveryHint: nil),
+      JobStructuredError(kind: "output_conflict", message: "Existing output.", recoveryHint: nil),
+    ]
+
+    #expect(job.recoveryIssue == .outputConflict)
+    #expect(job.recoveryIssue?.opensCapability == true)
+
+    job.status = .timedOut
+    #expect(job.recoveryIssue == .timedOut)
+
+    job.status = .failed
+    job.structuredErrors = [
+      JobStructuredError(kind: "network_error", message: "Ollama timed out.", recoveryHint: nil)
+    ]
+    #expect(job.recoveryIssue == .network)
+  }
+
+  @Test
   func jobRecordCodableRoundTripsTimedOutStatus() throws {
     var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
     job.status = .timedOut

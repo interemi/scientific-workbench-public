@@ -306,7 +306,12 @@ struct JobDetailView: View {
             .textSelection(.enabled)
         }
 
-        RecoveryAdviceView(advice: job.recoveryAdvice)
+        if let issue = job.recoveryIssue {
+          JobRecoveryIssueView(store: store, job: job, issue: issue)
+            .id(job.id)
+        } else {
+          RecoveryAdviceView(advice: job.recoveryAdvice)
+        }
         JobFindingsView(
           warnings: job.warnings,
           errors: job.structuredErrors,
@@ -330,6 +335,83 @@ struct JobDetailView: View {
       }
       .padding(24)
     }
+  }
+}
+
+private struct JobRecoveryIssueView: View {
+  @ObservedObject var store: WorkbenchStore
+  let job: JobRecord
+  let issue: JobRecoveryIssue
+  @State private var isRechecking = false
+  @State private var recheckResult: String?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Label(issue.title, systemImage: "cross.case")
+        .font(.headline)
+      Text(issue.guidance)
+        .font(.callout)
+        .textSelection(.enabled)
+
+      HStack(spacing: 10) {
+        Button(issue.actionLabel) {
+          if issue.opensCapability {
+            store.openOptionalCapability(job.capabilityID)
+          } else {
+            store.selectedSection = .settings
+          }
+        }
+        .accessibilityIdentifier("jobs.recovery.action")
+
+        if issue == .pythonEnvironment {
+          Button("Recheck Python") {
+            isRechecking = true
+            recheckResult = nil
+            Task {
+              await store.refreshEnvironment()
+              let diagnosis = store.environmentDiagnosis
+              let core = diagnosis.coreReady.map { $0 ? "ready" : "blocked" } ?? "not verified"
+              let full = diagnosis.fullReady.map { $0 ? "ready" : "incomplete" } ?? "not verified"
+              recheckResult = "Current Python check: Core \(core), Full \(full). Open Settings for the detailed diagnosis."
+              isRechecking = false
+            }
+          }
+          .disabled(isRechecking || store.isCheckingEnvironment)
+          .accessibilityIdentifier("jobs.recovery.recheck-python")
+        } else if issue == .optionalBackend,
+                  job.capabilityID == "stilts_workbench" || job.capabilityID == "apt_workbench" {
+          Button("Recheck Backends") {
+            isRechecking = true
+            recheckResult = nil
+            Task {
+              await store.refreshOptionalAstronomyBackends()
+              let status = store.optionalAstronomyBackendStatus
+              recheckResult = job.capabilityID == "apt_workbench"
+                ? "Current APT check: \(status.aptOverallStatus). \(status.aptSummary)"
+                : "Current STILTS check: \(status.overallStatus). \(status.summary)"
+              isRechecking = false
+            }
+          }
+          .disabled(isRechecking || store.isCheckingOptionalAstronomyBackends)
+          .accessibilityIdentifier("jobs.recovery.recheck-backends")
+        }
+      }
+
+      if isRechecking {
+        ProgressView("Checking current setup")
+          .controlSize(.small)
+      } else if let recheckResult {
+        Text(recheckResult)
+          .font(.caption)
+          .textSelection(.enabled)
+        Text("This check does not rerun or change the original job.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

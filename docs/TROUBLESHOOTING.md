@@ -49,6 +49,17 @@ For any failed workflow, inspect these in order:
 This order keeps the app-owned structured evidence ahead of guesses from an AI
 provider or a manually edited command.
 
+For a recognized job failure, **Jobs** also shows a likely-cause card. It uses
+the structured error kind when available, with a limited fallback to the job
+message and stderr. Its action opens the relevant setup screen or capability;
+it does not retry, install a dependency, delete an occupied output, or change
+the failed run. **Recheck Python** and **Recheck Backends** report the current
+setup for applicable jobs; a successful recheck does not retroactively turn
+the historical job into a pass. For other causes, inspect the original error
+and use the linked setup or a new Dry Run to verify the changed condition.
+Use **Support Bundle** to export redacted diagnostic logs, and review that
+bundle before sharing it.
+
 ## Common problems
 
 ### The capability catalog does not load
