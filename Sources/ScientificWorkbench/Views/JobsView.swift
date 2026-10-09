@@ -226,7 +226,7 @@ struct JobDetailView: View {
           StatusBadge(status: job.displaySeverity)
         }
 
-        if job.status == .running {
+        if job.status == .queued || job.status == .running {
           Button(role: .cancel) {
             store.cancelActiveRun()
           } label: {

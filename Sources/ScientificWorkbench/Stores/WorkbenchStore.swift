@@ -2278,9 +2278,11 @@ final class WorkbenchStore: ObservableObject {
       job.startedAt = Date()
       replace(job)
 
-      let result = try await runner.run(command, onInterrupted: { output in
-        await interruptedOutput.record(output)
-      })
+      let result = try await runner.run(
+        command,
+        onInterrupted: { output in await interruptedOutput.record(output) },
+        cancellationRequested: { await self.isCancellationRequested }
+      )
       let stdoutEnvelope = envelopeParser.parse(result.stdout)
       job.stdout = redactSecrets(result.stdout)
       job.stderr = redactSecrets(result.stderr)

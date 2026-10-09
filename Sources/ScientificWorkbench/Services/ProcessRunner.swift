@@ -161,8 +161,12 @@ actor ProcessRunner {
 
   func run(
     _ command: ProcessCommand,
-    onInterrupted: (@Sendable (InterruptedProcessOutput) async -> Void)? = nil
+    onInterrupted: (@Sendable (InterruptedProcessOutput) async -> Void)? = nil,
+    cancellationRequested: (@Sendable () async -> Bool)? = nil
   ) async throws -> ProcessResult {
+    if await cancellationRequested?() == true {
+      throw ProcessRunnerError.cancelled
+    }
     let startedAt = Date()
     let tempRoot = FileManager.default.temporaryDirectory
       .appendingPathComponent("Scientific-Workbench-\(UUID().uuidString)", isDirectory: true)

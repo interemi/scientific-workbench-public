@@ -39,6 +39,25 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func processRunnerDoesNotStartAJobCancelledDuringPreparation() async throws {
+    let directory = try makeProcessTreeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let marker = directory.appendingPathComponent("should-not-exist")
+
+    do {
+      _ = try await ProcessRunner().run(
+        ProcessCommand(executable: "/usr/bin/touch", arguments: [marker.path], workingDirectory: nil),
+        cancellationRequested: { true }
+      )
+      Issue.record("Expected cancellation before process start.")
+    } catch ProcessRunnerError.cancelled {
+      #expect(!FileManager.default.fileExists(atPath: marker.path))
+    } catch {
+      Issue.record("Unexpected pre-start cancellation error: \(error)")
+    }
+  }
+
+  @Test
   func processRunnerRetainsBoundedPartialLogsWhenTaskIsCancelled() async throws {
     let markerDirectory = try makeProcessTreeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: markerDirectory) }
