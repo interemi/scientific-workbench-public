@@ -178,27 +178,41 @@ struct JobsView: View {
           .foregroundStyle(.secondary)
           .padding(.horizontal, 16)
       } else {
-        List(selection: $store.selectedJobID) {
-          ForEach(matchingJobs) { job in
-            VStack(alignment: .leading, spacing: 5) {
-              HStack {
-                Text(job.capabilityLabel)
-                  .lineLimit(1)
-                Spacer()
-                StatusBadge(status: job.displaySeverity)
+        ScrollView {
+          LazyVStack(spacing: 4) {
+            ForEach(matchingJobs) { job in
+              Button {
+                store.selectedJobID = job.id
+              } label: {
+                VStack(alignment: .leading, spacing: 5) {
+                  HStack {
+                    Text(job.capabilityLabel)
+                      .lineLimit(1)
+                    Spacer()
+                    StatusBadge(status: job.displaySeverity)
+                  }
+                  Text(DateFormatters.timestamp.string(from: job.createdAt))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background {
+                  if store.selectedJobID == job.id {
+                    RoundedRectangle(cornerRadius: 8)
+                      .fill(.tint.opacity(0.15))
+                  }
+                }
               }
-              Text(DateFormatters.timestamp.string(from: job.createdAt))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+              .buttonStyle(.plain)
+              .accessibilityLabel("\(job.capabilityLabel), \(job.displaySeverity)")
+              .accessibilityHint("Created \(DateFormatters.timestamp.string(from: job.createdAt)). Select to review logs and artifacts.")
+              .accessibilityAddTraits(store.selectedJobID == job.id ? .isSelected : [])
             }
-            .padding(.vertical, 4)
-            .tag(Optional(job.id))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(job.capabilityLabel), \(job.displaySeverity)")
-            .accessibilityHint("Created \(DateFormatters.timestamp.string(from: job.createdAt)). Select to review logs and artifacts.")
           }
+          .padding(.horizontal, 8)
         }
-        .listStyle(.sidebar)
       }
     }
     .frame(maxHeight: .infinity, alignment: .top)
