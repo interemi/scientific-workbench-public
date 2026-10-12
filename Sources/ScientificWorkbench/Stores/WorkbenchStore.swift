@@ -526,9 +526,7 @@ final class WorkbenchStore: ObservableObject {
       ollamaModel = model
       ollamaSetupCheckID = nil
       isCheckingOllamaSetup = false
-      var status = ollamaSetupStatus
-      status.targetModel = self.model(for: .ollama)
-      ollamaSetupStatus = status
+      ollamaSetupStatus = .unknown(model: self.model(for: .ollama))
     case .openAI: openAIModel = model
     case .grok: grokModel = model
     case .gemini: geminiModel = model

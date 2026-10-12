@@ -315,6 +315,36 @@ extension ScientificWorkbenchTests {
 
   @Test
   @MainActor
+  func changingOllamaModelInvalidatesPreviousModelReadiness() {
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults)
+    let previousModel = store.model(for: .ollama)
+    store.ollamaSetupStatus = OllamaSetupStatus(
+      cliPath: "/isolated/ollama",
+      serverReachable: true,
+      installedModels: [previousModel],
+      targetModel: previousModel,
+      message: "Ollama is ready with \(previousModel).",
+      checkedAt: Date()
+    )
+    store.aiConnectionStatuses[.ollama] = AIConnectionStatus(
+      state: .connected,
+      message: "Connected using \(previousModel).",
+      checkedAt: Date()
+    )
+
+    store.setModel("uninstalled-test-model", for: .ollama)
+
+    #expect(store.ollamaSetupStatus.targetModel == "uninstalled-test-model")
+    #expect(store.ollamaSetupStatus.presentationState() == .unchecked)
+    #expect(store.ollamaSetupStatus.checkedAt == nil)
+    #expect(store.ollamaSetupStatus.installedModels.isEmpty)
+    #expect(!store.ollamaSetupStatus.message.contains(previousModel))
+    #expect(store.connectionStatus(for: .ollama).state == .unknown)
+  }
+
+  @Test
+  @MainActor
   func testLocalAIConnectionDoesNotCreateOrMutateWorkflowState() async throws {
     let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
     let recorder = RequestRecorder(responseBody: #"{"message":{"content":"OK"}}"#)
