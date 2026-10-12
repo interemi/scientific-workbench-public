@@ -146,9 +146,9 @@ struct OllamaSetupService: Sendable {
   ) -> String {
     guard serverReachable else {
       guard cliPath != nil else {
-        return "Ollama CLI and local server were not found. Install Ollama, then check again."
+        return "Ollama CLI was not found, and the configured local endpoint could not be verified. Check the endpoint. Install Ollama if needed, then check again."
       }
-      return "Ollama CLI is installed. Open Ollama so the local server starts, then check again."
+      return "Ollama CLI is installed, but the configured local endpoint could not be verified. Check the endpoint and start Ollama if needed, then check again."
     }
     guard models.contains(model) else {
       guard cliPath != nil else {

@@ -130,8 +130,8 @@ enum OllamaPresentationState: Equatable, Sendable {
   func title(model: String) -> String {
     switch self {
     case .unchecked: return "Ollama not checked"
-    case .install: return "Ollama CLI and server unavailable"
-    case .startServer: return "Ollama server unavailable"
+    case .install: return "Ollama CLI missing; endpoint check failed"
+    case .startServer: return "Ollama endpoint check failed"
     case .downloadRequiresCLI: return "Model missing; Ollama CLI unavailable"
     case .downloadModel: return "Ollama model missing"
     case .downloadingModel: return "Downloading \(model)"
@@ -145,9 +145,9 @@ enum OllamaPresentationState: Equatable, Sendable {
     case .unchecked:
       return "Check local AI setup. Deterministic planning and Core workflows remain available without Ollama."
     case .install:
-      return "Install Ollama, then check again. Deterministic planning and Core workflows remain available."
+      return "The configured local endpoint could not be verified and the Ollama CLI was not found. Check the endpoint or install Ollama, then check again. Core workflows remain available."
     case .startServer:
-      return "Open Ollama to start its local server, then check again. Core workflows remain available."
+      return "The configured local endpoint could not be verified. Check its address and start Ollama if needed, then check again. Core workflows remain available."
     case .downloadRequiresCLI:
       return "The local server is reachable, but \(model) is missing and the Ollama CLI is needed for in-app downloads. Install the CLI or use deterministic planning."
     case .downloadModel:

@@ -115,6 +115,14 @@ enum JobRecoveryIssue: String, Sendable {
   var opensCapability: Bool {
     self == .missingInput || self == .outputConflict
   }
+
+  func offersLocalAIRecheck(for job: JobRecord) -> Bool {
+    guard self == .network || self == .modelUnavailable else { return false }
+    let messages = [job.message, job.stderr] + job.structuredErrors.map(\.message)
+    return messages.compactMap { $0 }.contains {
+      $0.localizedCaseInsensitiveContains("ollama")
+    }
+  }
 }
 
 extension JobRecord {

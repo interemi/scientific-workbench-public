@@ -113,6 +113,25 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func ollamaSetupUnreachableEndpointDoesNotAssumeServerIsStopped() async {
+    let service = OllamaSetupService(
+      pathEnvironment: "/isolated/bin",
+      fileExists: { $0 == "/isolated/bin/ollama" },
+      dataLoader: { _ in throw URLError(.cannotConnectToHost) }
+    )
+
+    let status = await service.status(
+      baseURL: "http://127.0.0.1:65534",
+      model: "qwen3:4b-instruct"
+    )
+
+    #expect(status.presentationState() == .startServer)
+    #expect(status.message.contains("configured local endpoint could not be verified"))
+    #expect(status.message.contains("start Ollama if needed"))
+    #expect(status.presentationState().guidance(model: status.targetModel).contains("Check its address"))
+  }
+
+  @Test
   func ollamaSetupServiceRejectsRemoteEndpointBeforeAnyNetworkRequest() async {
     let recorder = RequestRecorder(responseBody: #"{"models":[]}"#)
     let service = OllamaSetupService(

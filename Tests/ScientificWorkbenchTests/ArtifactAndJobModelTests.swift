@@ -501,6 +501,27 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func localAIRecheckOnlyAppearsForOllamaRelatedJobErrors() {
+    var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
+    job.status = .failed
+    job.structuredErrors = [
+      JobStructuredError(kind: "network_error", message: "Could not connect to Ollama.", recoveryHint: nil)
+    ]
+    #expect(job.recoveryIssue == .network)
+    #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == true)
+
+    job.structuredErrors = [
+      JobStructuredError(kind: "network_error", message: "Cloud provider could not be reached.", recoveryHint: nil)
+    ]
+    #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == false)
+
+    job.structuredErrors = [
+      JobStructuredError(kind: "model_unavailable", message: "Ollama model was not found.", recoveryHint: nil)
+    ]
+    #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == true)
+  }
+
+  @Test
   func jobRecordCodableRoundTripsTimedOutStatus() throws {
     var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
     job.status = .timedOut

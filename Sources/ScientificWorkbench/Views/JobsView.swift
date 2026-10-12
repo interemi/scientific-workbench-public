@@ -408,6 +408,21 @@ private struct JobRecoveryIssueView: View {
           }
           .disabled(isRechecking || store.isCheckingOptionalAstronomyBackends)
           .accessibilityIdentifier("jobs.recovery.recheck-backends")
+        } else if issue.offersLocalAIRecheck(for: job) {
+          Button("Recheck Local AI") {
+            isRechecking = true
+            recheckResult = nil
+            Task {
+              await store.refreshOllamaSetup()
+              let status = store.ollamaSetupStatus
+              recheckResult = status.checkedAt == nil
+                ? "Current Local AI check was interrupted. Open Settings and check the selected model again."
+                : "Current Local AI setup for \(status.targetModel): \(status.message)"
+              isRechecking = false
+            }
+          }
+          .disabled(isRechecking || store.isCheckingOllamaSetup)
+          .accessibilityIdentifier("jobs.recovery.recheck-local-ai")
         }
       }
 
