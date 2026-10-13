@@ -65,6 +65,14 @@ Switching capability still
 requires a fresh confirmation for restricted routes; keeping a draft does not
 authorize or start a run.
 
+Workflow execution captures its input selection and output root at the start.
+Later selection changes apply to future work; they do not replace `{inputN}` or
+`{outputRoot}` placeholders, job destinations, or the declared inputs of the
+workflow already running. Safety checks still apply to the captured context;
+changing it does not carry an old output-folder approval to a different path.
+Inspect each job's request and the workflow summary for the inputs and exact
+run folders actually used; legacy capabilities can have a separate run root.
+
 For a recognized job failure, **Jobs** also shows a likely-cause card. It uses
 the structured error kind when available, with a limited fallback to the job
 message and stderr. Its action opens the relevant setup screen or capability;

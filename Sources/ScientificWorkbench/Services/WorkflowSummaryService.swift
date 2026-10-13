@@ -107,7 +107,7 @@ struct WorkflowSummaryService {
 
     \(inputLines)
 
-    Scientific Workbench treats original inputs as read-only. Outputs for this workflow were written under:
+    Scientific Workbench treats original inputs as read-only. Configured output root captured for this workflow:
 
     `\(redact(request.outputRootPath))`
 

@@ -2239,6 +2239,8 @@ final class WorkbenchStore: ObservableObject {
       return agentStatusMessage
     }
 
+    let workflowInputPaths = inputPaths
+    let workflowOutputRootPath = outputRootPath
     if !resumeFromPreviousSuccesses {
       agentPlanStepExecutions = [:]
       persistAgentState()
@@ -2252,7 +2254,7 @@ final class WorkbenchStore: ObservableObject {
       request: WorkflowExecutionCoordinator.Request(
         plan: plan,
         capabilities: capabilities,
-        inputPaths: inputPaths,
+        inputPaths: workflowInputPaths,
         existingStepExecutions: agentPlanStepExecutions,
         resumeFromPreviousSuccesses: resumeFromPreviousSuccesses,
         allowRestrictedLocalAutomationSteps: enableRestrictedStepsForLaunchAutomation
@@ -2262,13 +2264,15 @@ final class WorkbenchStore: ObservableObject {
         setCancellationRequested: { self.isCancellationRequested = $0 },
         setRunningWorkflow: { self.isRunningAgentWorkflow = $0 },
         setStatusMessage: { self.agentStatusMessage = $0 },
-        makeRunDirectory: { self.makeRunDirectory(for: $0) },
+        makeRunDirectory: { self.makeRunDirectory(for: $0, outputRootPathOverride: workflowOutputRootPath) },
         resolveRawArguments: { rawArguments, runDirectory, previousRunDirectory, completedRunDirectories in
           self.resolveAgentRawArguments(
             rawArguments,
             runDirectory: runDirectory,
             previousRunDirectory: previousRunDirectory,
-            completedRunDirectories: completedRunDirectories
+            completedRunDirectories: completedRunDirectories,
+            inputPathsOverride: workflowInputPaths,
+            outputRootPathOverride: workflowOutputRootPath
           )
         },
         runStep: { request in
@@ -2278,7 +2282,8 @@ final class WorkbenchStore: ObservableObject {
             inputPathsOverride: request.inputPaths,
             selectJobs: false,
             runDirectoryOverride: request.runDirectory,
-            allowDuringAgentWorkflow: true
+            allowDuringAgentWorkflow: true,
+            outputRootPathOverride: workflowOutputRootPath
           )
         },
         recordStepExecution: { stepID, execution in
@@ -2292,7 +2297,9 @@ final class WorkbenchStore: ObservableObject {
             jobIDs: jobIDs,
             status: status,
             startedAt: startedAt,
-            finishedAt: finishedAt
+            finishedAt: finishedAt,
+            inputPathsOverride: workflowInputPaths,
+            outputRootPathOverride: workflowOutputRootPath
           )
         },
         persistAgentState: { self.persistAgentState() }
@@ -2356,7 +2363,8 @@ final class WorkbenchStore: ObservableObject {
     runDirectoryOverride: String? = nil,
     retryOfJobID: UUID? = nil,
     allowDuringAgentWorkflow: Bool = false,
-    prepareGuidedArtifactsDirectory: Bool = false
+    prepareGuidedArtifactsDirectory: Bool = false,
+    outputRootPathOverride: String? = nil
   ) async -> JobRecord? {
     guard allowDuringAgentWorkflow || (!isRunningAgentWorkflow && !hasActiveJob) else {
       agentStatusMessage = "Wait for the active Scientific Workbench run to finish or cancel it first."
@@ -2371,11 +2379,12 @@ final class WorkbenchStore: ObservableObject {
       isCancellationRequested = false
     }
     let requestInputPaths = inputPathsOverride ?? inputPaths
-    guard ensureOutputRootWriteApproved(inputPaths: requestInputPaths) else { return nil }
-    let runDirectory = runDirectoryOverride ?? makeRunDirectory(for: capability)
+    let requestOutputRootPath = outputRootPathOverride ?? outputRootPath
+    guard ensureOutputRootWriteApproved(inputPaths: requestInputPaths, outputRootPathOverride: requestOutputRootPath) else { return nil }
+    let runDirectory = runDirectoryOverride ?? makeRunDirectory(for: capability, outputRootPathOverride: requestOutputRootPath)
     let allowedRunRoot = legacyWorkspacePolicy.runRoot(
       for: capability.id,
-      preferredOutputRoot: outputRootPath
+      preferredOutputRoot: requestOutputRootPath
     )
     do {
       try filesystemSafetyPolicy.validateRunDirectory(
@@ -2581,10 +2590,10 @@ final class WorkbenchStore: ObservableObject {
     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: job.runDirectory)])
   }
 
-  private func makeRunDirectory(for capability: CapabilityEntry) -> String {
+  private func makeRunDirectory(for capability: CapabilityEntry, outputRootPathOverride: String? = nil) -> String {
     let runRoot = legacyWorkspacePolicy.runRoot(
       for: capability.id,
-      preferredOutputRoot: outputRootPath
+      preferredOutputRoot: outputRootPathOverride ?? outputRootPath
     )
     return runDirectoryFactory.makePath(root: runRoot, capabilityID: capability.id)
   }
@@ -2616,12 +2625,14 @@ final class WorkbenchStore: ObservableObject {
     }
   }
 
-  private func ensureOutputRootWriteApproved(inputPaths: [String]) -> Bool {
-    switch filesystemSafetyPolicy.assessOutputRoot(outputRootPath, inputPaths: inputPaths) {
+  private func ensureOutputRootWriteApproved(inputPaths: [String], outputRootPathOverride: String? = nil) -> Bool {
+    let requestedRoot = outputRootPathOverride ?? outputRootPath
+    switch filesystemSafetyPolicy.assessOutputRoot(requestedRoot, inputPaths: inputPaths) {
     case .safe:
       return true
     case .requiresConfirmation(let reason):
-      guard outputRootRiskApprovalIsCurrent(inputPaths: inputPaths) else {
+      guard FilesystemPath.canonicalURL(requestedRoot) == FilesystemPath.canonicalURL(outputRootPath),
+            outputRootRiskApprovalIsCurrent(inputPaths: inputPaths) else {
         agentStatusMessage = "Output blocked until you confirm the path in Settings: \(reason)"
         return false
       }
@@ -3096,15 +3107,18 @@ final class WorkbenchStore: ObservableObject {
     _ rawArguments: String,
     runDirectory: String?,
     previousRunDirectory: String?,
-    completedRunDirectories: [String: String] = [:]
+    completedRunDirectories: [String: String] = [:],
+    inputPathsOverride: [String]? = nil,
+    outputRootPathOverride: String? = nil
   ) -> String {
     guard !rawArguments.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       return rawArguments
     }
 
-    let currentRun = runDirectory ?? outputRootPath
+    let requestOutputRootPath = outputRootPathOverride ?? outputRootPath
+    let currentRun = runDirectory ?? requestOutputRootPath
     var replacements: [String: String] = [
-      "{outputRoot}": outputRootPath,
+      "{outputRoot}": requestOutputRootPath,
       "{runDirectory}": currentRun,
       "{artifactsDir}": URL(fileURLWithPath: currentRun).appendingPathComponent("artifacts").path,
       "{summaryJson}": URL(fileURLWithPath: currentRun).appendingPathComponent("summary.json").path,
@@ -3124,7 +3138,7 @@ final class WorkbenchStore: ObservableObject {
         .path
     }
 
-    for (index, inputPath) in inputPaths.enumerated() {
+    for (index, inputPath) in (inputPathsOverride ?? inputPaths).enumerated() {
       replacements["{input\(index)}"] = inputPath
     }
 
@@ -3431,9 +3445,13 @@ final class WorkbenchStore: ObservableObject {
     jobIDs: [UUID],
     status: String,
     startedAt: Date,
-    finishedAt: Date
+    finishedAt: Date,
+    inputPathsOverride: [String]? = nil,
+    outputRootPathOverride: String? = nil
   ) -> String? {
-    guard ensureOutputRootWriteApproved(inputPaths: inputPaths) else { return nil }
+    let summaryInputPaths = inputPathsOverride ?? inputPaths
+    let summaryOutputRootPath = outputRootPathOverride ?? outputRootPath
+    guard ensureOutputRootWriteApproved(inputPaths: summaryInputPaths, outputRootPathOverride: summaryOutputRootPath) else { return nil }
     do {
       let fileURL = try workflowSummaryService.write(
         request: WorkflowSummaryRequest(
@@ -3441,8 +3459,8 @@ final class WorkbenchStore: ObservableObject {
           enabledSteps: enabledSteps,
           jobs: jobs,
           jobIDs: jobIDs,
-          inputPaths: inputPaths,
-          outputRootPath: outputRootPath,
+          inputPaths: summaryInputPaths,
+          outputRootPath: summaryOutputRootPath,
           status: status,
           startedAt: startedAt,
           finishedAt: finishedAt,
