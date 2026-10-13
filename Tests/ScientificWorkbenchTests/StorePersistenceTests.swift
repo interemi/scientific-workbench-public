@@ -1050,6 +1050,11 @@ extension ScientificWorkbenchTests {
     #expect(reloadedStore.canResumeAgentPlan == false)
     #expect(reloadedStore.jobs.count == 3)
     #expect(reloadedStore.jobs.filter { $0.capabilityID == envCapability.id }.count == 2)
+    let summaryPath = try #require(reloadedStore.lastWorkflowSummaryPath)
+    let summary = try String(contentsOfFile: summaryPath, encoding: .utf8)
+    let finalExecution = try #require(reloadedStore.agentPlanStepExecutions[finalStep.id])
+    #expect(summary.contains("Step ID: `\(finalStep.id.uuidString)`\n   - Job ID: `\(finalExecution.jobID.uuidString)`"))
+    #expect(summary.contains("Plan ID: `\(try #require(reloadedStore.agentPlan?.id).uuidString)`"))
   }
 
   @Test

@@ -49,6 +49,14 @@ For any failed workflow, inspect these in order:
 This order keeps the app-owned structured evidence ahead of guesses from an AI
 provider or a manually edited command.
 
+New workflow summaries include the plan ID, each enabled step ID, and its linked
+job ID. Use the job ID in **Jobs** to locate its captured command, logs, run
+folder, and artifacts. Repeated uses of a capability have separate step and job
+IDs. If an exact association is unavailable, the summary reports **No linked
+job** instead of inferring a result from another job with the same capability.
+The plan ID identifies a plan, not a unique execution; rerunning that plan creates
+new jobs and a separate summary. Existing summaries are retained unchanged.
+
 For a recognized job failure, **Jobs** also shows a likely-cause card. It uses
 the structured error kind when available, with a limited fallback to the job
 message and stderr. Its action opens the relevant setup screen or capability;

@@ -10,6 +10,7 @@ struct WorkflowSummaryRequest {
   var status: String
   var startedAt: Date
   var finishedAt: Date
+  var stepExecutions: [AgentPlanStepExecution] = []
 }
 
 struct WorkflowSummaryService {
@@ -50,20 +51,30 @@ struct WorkflowSummaryService {
       ? "- None attached."
       : request.inputPaths.map { "- `\(redact($0))` (read-only)" }.joined(separator: "\n")
     let stepLines = request.enabledSteps.enumerated().map { index, step in
-      let matchingJob = workflowJobs.first { $0.capabilityID == step.capabilityID }
-      let jobStatus = matchingJob?.status.title ?? "Not run"
-      return "\(index + 1). `\(redact(step.capabilityID))` - \(jobStatus)"
+      let executions = request.stepExecutions.filter {
+        $0.stepID == step.id && $0.capabilityID == step.capabilityID
+      }
+      let matchingJob = executions.count == 1 ? workflowJobs.first {
+        $0.id == executions[0].jobID && $0.capabilityID == step.capabilityID
+          && $0.runDirectory == executions[0].runDirectory
+      } : nil
+      let jobStatus = matchingJob?.status.title ?? "No linked job (not run or association unavailable)"
+      let jobID = matchingJob?.id.uuidString ?? "Unavailable"
+      return "\(index + 1). `\(redact(step.capabilityID))` - \(jobStatus)\n"
+        + "   - Step ID: `\(step.id.uuidString)`\n   - Job ID: `\(jobID)`"
     }.joined(separator: "\n")
     let jobLines = workflowJobs.isEmpty
       ? "- No jobs were started."
       : workflowJobs.map { job in
         let exitCode = job.exitCode.map(String.init) ?? "-"
-        return "- `\(redact(job.capabilityLabel))`: \(job.status.title), exit \(exitCode), run folder `\(redact(job.runDirectory))`"
+        return "- `\(redact(job.capabilityLabel))`: \(job.status.title), exit \(exitCode), "
+          + "job ID `\(job.id.uuidString)`, run folder `\(redact(job.runDirectory))`. "
+          + "Inspect this job in Jobs for its captured logs and command."
       }.joined(separator: "\n")
     let artifactLines = workflowJobs
       .flatMap { job in
         job.artifacts.map { artifact in
-          "- `\(redact(artifact.relativePath))` from `\(redact(job.capabilityLabel))`"
+          "- `\(redact(artifact.relativePath))` from `\(redact(job.capabilityLabel))`, job ID `\(job.id.uuidString)`"
         }
       }
       .prefix(40)
@@ -87,6 +98,7 @@ struct WorkflowSummaryService {
     ## Plan
 
     Title: \(redact(request.plan.title))
+    Plan ID: `\(request.plan.id.uuidString)`
     Source: \(request.plan.source.title)
 
     \(redact(request.plan.rationale))

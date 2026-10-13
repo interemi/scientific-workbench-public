@@ -15,6 +15,10 @@ struct EditablePlanCard: View {
           Text("\(plan.source.title) - \(DateFormatters.timestamp.string(from: plan.createdAt))")
             .font(.caption)
             .foregroundStyle(.secondary)
+          Text("Plan ID: \(plan.id.uuidString)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
         }
         Spacer()
         Button {

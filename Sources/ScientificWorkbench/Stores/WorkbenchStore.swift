@@ -3284,7 +3284,8 @@ final class WorkbenchStore: ObservableObject {
           outputRootPath: outputRootPath,
           status: status,
           startedAt: startedAt,
-          finishedAt: finishedAt
+          finishedAt: finishedAt,
+          stepExecutions: Array(agentPlanStepExecutions.values)
         ),
         redact: redactSecrets
       )
