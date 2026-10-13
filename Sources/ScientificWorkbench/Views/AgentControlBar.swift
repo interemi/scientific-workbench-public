@@ -60,6 +60,7 @@ struct AgentControlBar: View {
           Label("Import Plan", systemImage: "square.and.arrow.down.on.square")
         }
         .accessibilityIdentifier("agent.import-plan")
+        .disabled(!store.canChangeWorkflowContext)
         .help("Import an exported Scientific Workbench plan for review and rerun.")
 
         Spacer()

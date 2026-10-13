@@ -11,6 +11,7 @@ struct WorkflowSummaryRequest {
   var startedAt: Date
   var finishedAt: Date
   var stepExecutions: [AgentPlanStepExecution] = []
+  var workflowExecutionID: UUID?
 }
 
 struct WorkflowSummaryService {
@@ -90,6 +91,7 @@ struct WorkflowSummaryService {
     return """
     # Scientific Workbench Workflow Summary
 
+    Workflow Run ID: \(request.workflowExecutionID.map { "`\($0.uuidString)`" } ?? "Not recorded")
     Status: \(redact(request.status))
     Started: \(ISO8601DateFormatter().string(from: request.startedAt))
     Finished: \(ISO8601DateFormatter().string(from: request.finishedAt))

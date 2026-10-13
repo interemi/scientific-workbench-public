@@ -21,6 +21,57 @@ private func consentTestCapability() -> CapabilityEntry {
 extension ScientificWorkbenchTests {
   @Test
   @MainActor
+  func activeWorkflowKeepsItsPlanAndRejectsPendingCloudSubmission() async throws {
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Active-Plan-\(UUID())")!
+    let recorder = RequestRecorder(responseBody: #"{"output_text":"unexpected"}"#)
+    let store = WorkbenchStore(
+      loadSecrets: false,
+      defaults: defaults,
+      loadPersistedState: false,
+      cloudAIClient: CloudAIClient(dataLoader: recorder.load)
+    )
+    let capability = consentTestCapability()
+    let step = AgentPlanStep(capabilityID: capability.id, summary: "Keep this step",
+      rawArguments: "", usesInputs: true, usesPreviousOutput: false)
+    let plan = AgentPlan(title: "Current workflow", rationale: "Preserve the active plan",
+      steps: [step], source: .local)
+    store.capabilities = [capability]
+    store.agentPlan = plan
+    store.agentMode = .chat
+    store.aiProvider = .openAI
+    store.openAIAPIKey = "sk-test-openai"
+    store.agentPrompt = "Keep this unsent draft."
+    let messages = store.agentChatMessages
+
+    await store.submitAgentChatPrompt()
+    try #require(store.pendingCloudConsentRequest != nil)
+    store.isRunningAgentWorkflow = true
+
+    store.updateAgentPlanTitle("Unexpected replacement")
+    store.updateAgentPlanRationale("Unexpected replacement")
+    store.updateAgentPlanStep(step.id) { $0.isEnabled = false }
+    #expect(await store.planAgentWorkflow(prompt: "Replace the active plan") == nil)
+    #expect(store.importAgentPlan(from: "/unused-while-running.json") == nil)
+    await store.confirmPendingCloudRequest(approvalScope: .appSession)
+    await store.submitAgentChatPrompt()
+
+    #expect(store.agentPlan == plan)
+    #expect(store.agentPrompt == "Keep this unsent draft.")
+    #expect(store.agentChatMessages == messages)
+    #expect(store.pendingCloudConsentRequest == nil)
+    #expect(store.jobs.isEmpty)
+    #expect(await recorder.requests.isEmpty)
+
+    store.isRunningAgentWorkflow = false
+    store.isPlanningAgentWorkflow = true
+    #expect(await store.runAgentPlan().contains("Wait for planning"))
+    #expect(store.workflowExecutionIdentity == nil)
+    #expect(store.agentPlan == plan)
+    #expect(store.jobs.isEmpty)
+  }
+
+  @Test
+  @MainActor
   func cloudChatDefaultsToOneRequestConsent() async throws {
     let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
     let recorder = RequestRecorder(responseBody: #"{"output_text":"cloud-ok"}"#)

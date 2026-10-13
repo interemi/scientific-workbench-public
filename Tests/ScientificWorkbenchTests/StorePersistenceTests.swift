@@ -1055,6 +1055,10 @@ extension ScientificWorkbenchTests {
     let finalExecution = try #require(reloadedStore.agentPlanStepExecutions[finalStep.id])
     #expect(summary.contains("Step ID: `\(finalStep.id.uuidString)`\n   - Job ID: `\(finalExecution.jobID.uuidString)`"))
     #expect(summary.contains("Plan ID: `\(try #require(reloadedStore.agentPlan?.id).uuidString)`"))
+    let resumedRunID = try #require(reloadedStore.workflowExecutionIdentity?.id)
+    #expect(summary.contains("Workflow Run ID: `\(resumedRunID.uuidString)`"))
+    #expect(reloadedStore.jobs.filter { $0.status == .succeeded }
+      .allSatisfy { reloadedStore.workflowRunID(for: $0) == resumedRunID })
   }
 
   @Test

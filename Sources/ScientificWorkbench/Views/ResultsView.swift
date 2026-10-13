@@ -28,6 +28,9 @@ struct ResultsView: View {
           JobEvidenceStagesView(job: job, compact: true)
             .padding(.horizontal)
 
+          JobIdentityView(store: store, job: job)
+            .padding(.horizontal)
+
           if store.canPrepareMixedDataFollowUp(for: job) {
             VStack(alignment: .leading, spacing: 6) {
               Button("Inspect folder data") {

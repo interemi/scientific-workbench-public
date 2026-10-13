@@ -97,7 +97,8 @@ struct AgentView: View {
           Label(store.isPlanningAgentWorkflow ? "Thinking..." : "Send", systemImage: "paperplane.fill")
         }
         .buttonStyle(.borderedProminent)
-        .disabled(store.isPlanningAgentWorkflow || store.agentPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .disabled(store.isPlanningAgentWorkflow || store.isRunningAgentWorkflow
+          || store.agentPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
     }
     .padding(.horizontal, 36)

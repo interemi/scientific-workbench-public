@@ -19,17 +19,7 @@ struct JobJourneyView: View {
       Text("Run → Job → Result")
         .font(.headline)
 
-      Text("Job ID: \(job.id.uuidString)")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .textSelection(.enabled)
-      if let plan = store.agentPlan,
-         let step = plan.steps.first(where: { store.agentPlanStepExecutions[$0.id]?.jobID == job.id }) {
-        Text("Plan ID: \(plan.id.uuidString) · Step ID: \(step.id.uuidString)")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .textSelection(.enabled)
-      }
+      JobIdentityView(store: store, job: job)
 
       stage("Run", detail: journey.runStage, image: "checkmark.circle")
       stage("Job", detail: journey.jobStage, image: "gearshape.2")

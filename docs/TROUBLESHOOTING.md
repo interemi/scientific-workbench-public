@@ -55,7 +55,17 @@ folder, and artifacts. Repeated uses of a capability have separate step and job
 IDs. If an exact association is unavailable, the summary reports **No linked
 job** instead of inferring a result from another job with the same capability.
 The plan ID identifies a plan, not a unique execution; rerunning that plan creates
-new jobs and a separate summary. Existing summaries are retained unchanged.
+new jobs and a separate summary. Each workflow execution or resume attempt now
+has its own **Workflow Run ID**, shown in the plan, linked jobs, Results, and its
+summary. The summary connects that ID to each job's logs and indexed artifacts.
+Resuming also links the successful jobs reused by that attempt. The current-run
+UI association lasts for this session; after relaunch, consult the retained
+summary. Direct capability jobs and older summaries do not invent a workflow
+run ID. Existing summaries are retained unchanged.
+
+Plan edits and importing or submitting another plan are blocked while the
+workflow runs. Cancel it first or wait for it to stop, then edit and review the
+remaining steps. Cancellation and navigation stay available.
 
 During the current session, changing screens preserves each capability's advanced
 argument draft, catalog filters, and each job's selected result artifact. These

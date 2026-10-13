@@ -34,6 +34,7 @@ final class WorkbenchStore: ObservableObject {
   @Published private(set) var capabilityArgumentDrafts: [String: String] = [:]
   @Published private var selectedResultArtifactPaths: [UUID: String] = [:]
   @Published private(set) var previousWorkflowDraft: WorkflowDraftBackup?
+  @Published private(set) var workflowExecutionIdentity: WorkflowExecutionIdentity?
   @Published var workflowNavigationNotice: String?
   @Published var jobs: [JobRecord] = []
   @Published var selectedJobID: UUID?
@@ -335,6 +336,14 @@ final class WorkbenchStore: ObservableObject {
     selectedResultArtifactPaths[job.id] = preferred?.path
   }
 
+  func workflowRunID(for job: JobRecord) -> UUID? {
+    guard let identity = workflowExecutionIdentity, identity.jobIDs.contains(job.id),
+          jobs.contains(where: {
+            $0.id == job.id && $0.capabilityID == job.capabilityID && $0.runDirectory == job.runDirectory
+          }) else { return nil }
+    return identity.id
+  }
+
   var latestAPTJob: JobRecord? {
     jobs.first { $0.capabilityID == "apt_workbench" }
   }
@@ -386,6 +395,7 @@ final class WorkbenchStore: ObservableObject {
     agentPlan = nil
     agentPlanStepExecutions = [:]
     lastWorkflowSummaryPath = nil
+    workflowExecutionIdentity = nil
     selectedCapabilityID = nil
     selectedJobID = nil
     capabilityArgumentDrafts = [:]
@@ -433,6 +443,7 @@ final class WorkbenchStore: ObservableObject {
         eligibleStepIDs.contains($0.stepID)
       }.map { ($0.stepID, $0) }) : [:]
     lastWorkflowSummaryPath = checkpoint.summaryPath
+    workflowExecutionIdentity = nil
     selectedCapabilityID = capabilities.first { $0.id == checkpoint.selectedCapabilityID && !$0.isMaintainerOnly }?.id
     selectedJobID = jobs.first { $0.id == checkpoint.selectedJobID }?.id
     capabilityArgumentDrafts = checkpoint.argumentDrafts
@@ -732,16 +743,19 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func updateAgentPlanTitle(_ title: String) {
+    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else { return }
     agentPlan?.title = title
     persistAgentState()
   }
 
   func updateAgentPlanRationale(_ rationale: String) {
+    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else { return }
     agentPlan?.rationale = rationale
     persistAgentState()
   }
 
   func updateAgentPlanStep(_ stepID: AgentPlanStep.ID, mutate: (inout AgentPlanStep) -> Void) {
+    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else { return }
     guard var plan = agentPlan,
           let index = plan.steps.firstIndex(where: { $0.id == stepID }) else { return }
     mutate(&plan.steps[index])
@@ -966,6 +980,10 @@ final class WorkbenchStore: ObservableObject {
 
   @discardableResult
   func importAgentPlan(from path: String) -> AgentPlan? {
+    guard canChangeWorkflowContext else {
+      agentStatusMessage = "Finish or cancel the active operation before importing a plan."
+      return nil
+    }
     do {
       let data = try Data(contentsOf: URL(fileURLWithPath: path))
       let payload = try JSONDecoder.scientificWorkbench.decode(ExportedAgentPlanPayload.self, from: data)
@@ -1985,6 +2003,10 @@ final class WorkbenchStore: ObservableObject {
 
   @discardableResult
   func planAgentWorkflow(prompt promptOverride: String? = nil) async -> AgentPlan? {
+    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else {
+      agentStatusMessage = "Finish or cancel the active workflow operation before planning another workflow."
+      return nil
+    }
     let prompt = (promptOverride ?? agentPrompt).trimmingCharacters(in: .whitespacesAndNewlines)
     guard !prompt.isEmpty else {
       agentStatusMessage = "Write a prompt first."
@@ -2040,6 +2062,7 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func submitAgentChatPrompt() async {
+    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else { return }
     let prompt = agentPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !prompt.isEmpty else { return }
     guard pendingCloudAgentSubmission == nil else { return }
@@ -2069,6 +2092,10 @@ final class WorkbenchStore: ObservableObject {
   func confirmPendingCloudRequest(
     approvalScope: CloudConsentApprovalScope = .requestOnly
   ) async {
+    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else {
+      cancelPendingCloudRequest(message: "Finish or cancel the active workflow operation before submitting this request. Nothing was sent.")
+      return
+    }
     guard let pendingCloudAgentSubmission,
           pendingCloudConsentRequest?.id == pendingCloudAgentSubmission.request.id else {
       pendingCloudConsentRequest = nil
@@ -2224,6 +2251,7 @@ final class WorkbenchStore: ObservableObject {
 
   @discardableResult
   private func runAgentPlan(resumeFromPreviousSuccesses: Bool) async -> String {
+    guard !isPlanningAgentWorkflow else { return "Wait for planning to finish before running a workflow." }
     guard let plan = agentPlan else {
       agentStatusMessage = "Create a plan before running."
       return agentStatusMessage
@@ -2249,6 +2277,8 @@ final class WorkbenchStore: ObservableObject {
     isRunningAgentWorkflow = true
     isCancellationRequested = false
     lastWorkflowSummaryPath = nil
+    let executionIdentity = WorkflowExecutionIdentity(planID: plan.id)
+    workflowExecutionIdentity = executionIdentity
     selectedSection = .jobs
     return await workflowExecutionCoordinator.run(
       request: WorkflowExecutionCoordinator.Request(
@@ -2283,7 +2313,8 @@ final class WorkbenchStore: ObservableObject {
             selectJobs: false,
             runDirectoryOverride: request.runDirectory,
             allowDuringAgentWorkflow: true,
-            outputRootPathOverride: workflowOutputRootPath
+            outputRootPathOverride: workflowOutputRootPath,
+            workflowExecutionID: executionIdentity.id
           )
         },
         recordStepExecution: { stepID, execution in
@@ -2291,6 +2322,7 @@ final class WorkbenchStore: ObservableObject {
         },
         setSelectedJobID: { self.selectedJobID = $0 },
         writeWorkflowSummary: { enabledSteps, jobIDs, status, startedAt, finishedAt in
+          self.workflowExecutionIdentity?.jobIDs.formUnion(jobIDs)
           _ = self.writeWorkflowSummary(
             plan: plan,
             enabledSteps: enabledSteps,
@@ -2299,7 +2331,8 @@ final class WorkbenchStore: ObservableObject {
             startedAt: startedAt,
             finishedAt: finishedAt,
             inputPathsOverride: workflowInputPaths,
-            outputRootPathOverride: workflowOutputRootPath
+            outputRootPathOverride: workflowOutputRootPath,
+            workflowExecutionID: executionIdentity.id
           )
         },
         persistAgentState: { self.persistAgentState() }
@@ -2364,7 +2397,8 @@ final class WorkbenchStore: ObservableObject {
     retryOfJobID: UUID? = nil,
     allowDuringAgentWorkflow: Bool = false,
     prepareGuidedArtifactsDirectory: Bool = false,
-    outputRootPathOverride: String? = nil
+    outputRootPathOverride: String? = nil,
+    workflowExecutionID: UUID? = nil
   ) async -> JobRecord? {
     guard allowDuringAgentWorkflow || (!isRunningAgentWorkflow && !hasActiveJob) else {
       agentStatusMessage = "Wait for the active Scientific Workbench run to finish or cancel it first."
@@ -2401,6 +2435,9 @@ final class WorkbenchStore: ObservableObject {
     job.requestRawArguments = rawArguments
     job.retryOfJobID = retryOfJobID
     jobs.insert(job, at: 0)
+    if let workflowExecutionID, workflowExecutionIdentity?.id == workflowExecutionID {
+      workflowExecutionIdentity?.jobIDs.insert(job.id)
+    }
     selectedJobID = job.id
     persistJobHistory()
     let interruptedOutput = InterruptedProcessOutputCapture()
@@ -3447,7 +3484,8 @@ final class WorkbenchStore: ObservableObject {
     startedAt: Date,
     finishedAt: Date,
     inputPathsOverride: [String]? = nil,
-    outputRootPathOverride: String? = nil
+    outputRootPathOverride: String? = nil,
+    workflowExecutionID: UUID? = nil
   ) -> String? {
     let summaryInputPaths = inputPathsOverride ?? inputPaths
     let summaryOutputRootPath = outputRootPathOverride ?? outputRootPath
@@ -3464,7 +3502,8 @@ final class WorkbenchStore: ObservableObject {
           status: status,
           startedAt: startedAt,
           finishedAt: finishedAt,
-          stepExecutions: Array(agentPlanStepExecutions.values)
+          stepExecutions: Array(agentPlanStepExecutions.values),
+          workflowExecutionID: workflowExecutionID
         ),
         redact: redactSecrets
       )

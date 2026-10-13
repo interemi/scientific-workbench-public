@@ -12,6 +12,7 @@ struct EditablePlanCard: View {
             .font(.title3)
             .fontWeight(.semibold)
             .textFieldStyle(.plain)
+            .disabled(store.isRunningAgentWorkflow || store.isPlanningAgentWorkflow)
           Text("\(plan.source.title) - \(DateFormatters.timestamp.string(from: plan.createdAt))")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -19,6 +20,12 @@ struct EditablePlanCard: View {
             .font(.caption2)
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
+          if let identity = store.workflowExecutionIdentity, identity.planID == plan.id {
+            Text("Latest Workflow Run ID: \(identity.id.uuidString)")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .textSelection(.enabled)
+          }
         }
         Spacer()
         Button {
@@ -50,6 +57,7 @@ struct EditablePlanCard: View {
       TextField("Why this plan?", text: rationaleBinding, axis: .vertical)
         .lineLimit(2...5)
         .textFieldStyle(.roundedBorder)
+        .disabled(store.isRunningAgentWorkflow || store.isPlanningAgentWorkflow)
 
       PlanEstimateView(estimate: AgentPlanEstimate.estimate(plan: currentPlan))
 
@@ -63,6 +71,7 @@ struct EditablePlanCard: View {
 
       ForEach(Array(plan.steps.enumerated()), id: \.element.id) { index, step in
         EditableAgentStepRow(store: store, index: index + 1, step: step)
+          .disabled(store.isRunningAgentWorkflow || store.isPlanningAgentWorkflow)
       }
 
       runActions
@@ -87,7 +96,7 @@ struct EditablePlanCard: View {
           Label("Run Remaining", systemImage: "forward.end.fill")
         }
         .help("Continue from the last successful workflow step.")
-        .disabled(store.isRunningAgentWorkflow)
+        .disabled(store.isRunningAgentWorkflow || store.isPlanningAgentWorkflow)
       }
 
       Button {
@@ -99,7 +108,7 @@ struct EditablePlanCard: View {
         Label(store.isRunningAgentWorkflow ? "Running..." : "Run Enabled", systemImage: "play.fill")
       }
       .buttonStyle(.borderedProminent)
-      .disabled(store.isRunningAgentWorkflow || store.enabledAgentPlanSteps.isEmpty)
+      .disabled(store.isRunningAgentWorkflow || store.isPlanningAgentWorkflow || store.enabledAgentPlanSteps.isEmpty)
 
       if store.isRunningAgentWorkflow {
         Button(role: .cancel) {
