@@ -28,6 +28,11 @@ struct ContentView: View {
 
           Divider()
 
+          if let stage = WorkflowJourneyStage.forSection(store.selectedSection) {
+            WorkflowJourneyBar(store: store, currentStage: stage)
+            Divider()
+          }
+
           if let notice = store.workflowNavigationNotice {
             HStack {
               Text(notice)

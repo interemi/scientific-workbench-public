@@ -5,6 +5,77 @@ import Testing
 extension ScientificWorkbenchTests {
   @Test
   @MainActor
+  func workflowJourneyBackEditAndExitPreserveActiveContextWithoutExecuting() throws {
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Journey-\(UUID())")!
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false)
+    let capability = sampleCapability()
+    let job = JobRecord(capability: capability, runDirectory: "/synthetic/run")
+    let plan = AgentPlan(title: "Review this workflow", rationale: "Keep the context",
+      steps: [AgentPlanStep(capabilityID: capability.id, summary: "Inspect",
+        rawArguments: "{input0}", usesInputs: true, usesPreviousOutput: false)], source: .local)
+    store.capabilities = [capability]
+    store.agentPlan = plan
+    store.agentPrompt = "An unsent draft"
+    store.inputPaths = ["/synthetic/input.csv"]
+    store.setCapabilityArgumentDraft("--delimiter ';'", for: capability.id)
+    store.recentJobFilter.query = "preserved search"
+    store.recentJobFilter.status = .failed
+
+    #expect(!store.navigateWorkflow(to: .results))
+    #expect(!store.hasAvailableWorkflowSummary)
+    #expect(store.selectedSection == .agent)
+    #expect(store.navigateWorkflow(to: .review))
+    #expect(store.selectedCapabilityID == capability.id)
+    store.navigateBackInWorkflow()
+    #expect(store.selectedSection == .home)
+    store.navigateBackInWorkflow()
+    #expect(store.selectedSection == .home)
+
+    store.jobs = [job]
+    store.selectedJobID = job.id
+    store.isRunningAgentWorkflow = true
+    #expect(store.navigateWorkflow(to: .results))
+    store.navigateBackInWorkflow()
+    #expect(store.selectedSection == .jobs)
+    #expect(store.navigateWorkflow(to: .plan))
+    #expect(store.navigateWorkflow(to: .inputs))
+    #expect(store.selectedSection == .home)
+    #expect(store.isRunningAgentWorkflow)
+    #expect(!store.isCancellationRequested)
+    #expect(store.agentPlan == plan)
+    #expect(store.agentPrompt == "An unsent draft")
+    #expect(store.inputPaths == ["/synthetic/input.csv"])
+    #expect(store.selectedJobID == job.id)
+    #expect(store.jobs.count == 1)
+    #expect(store.jobs[0].command.isEmpty)
+    #expect(store.capabilityArgumentDraft(for: capability.id) == "--delimiter ';'")
+    #expect(store.recentJobFilter.query == "preserved search")
+    #expect(store.recentJobFilter.status == .failed)
+    #expect(!store.outputRootRiskApproved)
+  }
+
+  @Test
+  @MainActor
+  func openingSpecificJobRetainsMatchingFiltersAndClearsFiltersThatHideIt() throws {
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Job-Filters-\(UUID())")!
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false)
+    let job = JobRecord(capability: sampleCapability(), runDirectory: "/synthetic/run")
+    store.jobs = [job]
+    store.recentJobFilter.query = job.id.uuidString
+    store.openJob(job)
+    #expect(store.recentJobFilter.query == job.id.uuidString)
+
+    store.recentJobFilter.query = "no matching job"
+    store.selectedSection = .home
+    store.openJob(job)
+    #expect(store.selectedSection == .jobs)
+    #expect(store.selectedJobID == job.id)
+    #expect(!store.recentJobFilter.isActive)
+    #expect(store.jobs.count == 1)
+  }
+
+  @Test
+  @MainActor
   func workflowNavigationPreservesPerCapabilityDraftsFiltersAndInputsWithoutRunning() throws {
     let defaults = UserDefaults(suiteName: "Scientific-Workbench-Navigation-\(UUID())")!
     let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false)

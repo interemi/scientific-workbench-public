@@ -2,7 +2,7 @@ import SwiftUI
 
 struct JobsView: View {
   @ObservedObject var store: WorkbenchStore
-  @State private var recentFilter = RecentJobFilter()
+  private var recentFilter: Binding<RecentJobFilter> { $store.recentJobFilter }
 
   var body: some View {
     HStack(spacing: 0) {
@@ -27,7 +27,7 @@ struct JobsView: View {
         } description: {
           Text("Change the search, date, status, or artifact type. Your job history has not been changed.")
         } actions: {
-          Button("Clear Search and Filters") { recentFilter = RecentJobFilter() }
+          Button("Clear Search and Filters") { store.recentJobFilter = RecentJobFilter() }
             .accessibilityIdentifier("jobs.clear-search")
         }
         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
@@ -40,7 +40,7 @@ struct JobsView: View {
         } description: {
           Text("Choose a job from the filtered list to inspect its logs, recovery advice, and artifacts.")
         } actions: {
-          Button("Clear Search and Filters") { recentFilter = RecentJobFilter() }
+          Button("Clear Search and Filters") { store.recentJobFilter = RecentJobFilter() }
             .accessibilityIdentifier("jobs.clear-search")
         }
         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
@@ -49,9 +49,9 @@ struct JobsView: View {
   }
 
   private var matchingJobs: [JobRecord] {
-    guard recentFilter.isActive else { return store.jobs }
+    guard store.recentJobFilter.isActive else { return store.jobs }
     let now = Date()
-    return store.jobs.filter { recentFilter.matches($0, now: now) }
+    return store.jobs.filter { store.recentJobFilter.matches($0, now: now) }
   }
 
   private var selectedVisibleJob: JobRecord? {
@@ -71,20 +71,20 @@ struct JobsView: View {
       .padding(.horizontal, 16)
       .padding(.top, 18)
 
-      TextField("Search jobs, capabilities, dates, or artifacts", text: $recentFilter.query)
+      TextField("Search jobs, capabilities, dates, or artifacts", text: recentFilter.query)
         .textFieldStyle(.roundedBorder)
         .padding(.horizontal, 16)
         .accessibilityIdentifier("jobs.search")
 
       HStack(spacing: 8) {
-        Picker("Date", selection: $recentFilter.window) {
+        Picker("Date", selection: recentFilter.window) {
           ForEach(RecentJobWindow.allCases, id: \.self) { window in
             Text(window.title).tag(window)
           }
         }
         .accessibilityIdentifier("jobs.filter.date")
 
-        Picker("Status", selection: $recentFilter.status) {
+        Picker("Status", selection: recentFilter.status) {
           Text("Any status").tag(Optional<JobStatus>.none)
           ForEach(JobStatus.allCases, id: \.self) { status in
             Text(status.title).tag(Optional(status))
@@ -94,7 +94,7 @@ struct JobsView: View {
       }
       .padding(.horizontal, 16)
 
-      Picker("Artifact type", selection: $recentFilter.artifactType) {
+      Picker("Artifact type", selection: recentFilter.artifactType) {
         ForEach(RecentArtifactType.allCases, id: \.self) { artifactType in
           Text(artifactType.title).tag(artifactType)
         }
@@ -107,8 +107,8 @@ struct JobsView: View {
           .font(.caption)
           .foregroundStyle(.secondary)
         Spacer()
-        if recentFilter.isActive {
-          Button("Clear") { recentFilter = RecentJobFilter() }
+        if store.recentJobFilter.isActive {
+          Button("Clear") { store.recentJobFilter = RecentJobFilter() }
             .font(.caption)
             .accessibilityIdentifier("jobs.clear-filters")
         }

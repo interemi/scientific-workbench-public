@@ -48,6 +48,21 @@ policy; restricted steps require fresh review and explicit enablement.
 
 ## 3. First launch
 
+The workflow navigation bar connects **Inputs**, **Preflight & Scope**, **Plan**,
+**Run & Logs**, **Results**, and the latest **Summary**. **Current view** describes
+the screen you opened; it does not certify that preflight, consent, or scientific
+review passed. Review the selected capability's requirements and execution scope,
+then the plan's steps and permissions before running. Some guided capabilities
+run directly after this review without an AI plan.
+
+Use **Back** to open the preceding workflow view and **Edit Plan** to return to
+Chat. **Exit to Dashboard** keeps the draft, inputs, job selection, and results.
+An active process continues until you cancel it in Chat or Jobs. **New Workflow**
+archives and clears the current draft after active operations finish. Results
+requires a selected job; Summary requires a retained summary file. Job filters
+are preserved during this session. Opening a specific job clears filters only
+when they would hide that job.
+
 Open Settings and inspect the Setup Checklist:
 
 - **Scientific environment:** the selected Python passes the Core package check.

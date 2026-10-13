@@ -37,6 +37,7 @@ final class WorkbenchStore: ObservableObject {
   @Published private(set) var workflowExecutionIdentity: WorkflowExecutionIdentity?
   @Published var workflowNavigationNotice: String?
   @Published var jobs: [JobRecord] = []
+  @Published var recentJobFilter = RecentJobFilter()
   @Published var selectedJobID: UUID?
   @Published var inputPaths: [String] = [] {
     didSet {
@@ -376,6 +377,32 @@ final class WorkbenchStore: ObservableObject {
     !canCancelActiveRun && !isPlanningAgentWorkflow && !isReviewingRadialVelocityInput
       && !isReviewingPhotometricCalibration && !isReviewingDocumentStyles
       && !isCheckingKeynote && !isExportingKeynote
+  }
+
+  var hasAvailableWorkflowSummary: Bool {
+    guard let lastWorkflowSummaryPath else { return false }
+    return FileManager.default.fileExists(atPath: lastWorkflowSummaryPath)
+  }
+
+  @discardableResult
+  func navigateWorkflow(to stage: WorkflowJourneyStage) -> Bool {
+    guard stage != .results || selectedJob != nil else { return false }
+    if stage == .review, selectedCapability == nil || selectedCapability?.isMaintainerOnly == true {
+      let planCapability = agentPlan?.steps.filter(\.isEnabled).compactMap { step in
+        userCapabilities.first { $0.id == step.capabilityID }
+      }.first
+      if let capability = planCapability ?? userCapabilities.first {
+        selectedCapabilityID = capability.id
+        capabilityCatalogMode = capability.catalogMode ?? .normal
+      }
+    }
+    selectedSection = stage.section
+    return true
+  }
+
+  func navigateBackInWorkflow() {
+    guard let previous = WorkflowJourneyStage.forSection(selectedSection)?.previous else { return }
+    navigateWorkflow(to: previous)
   }
 
   @discardableResult
@@ -1444,6 +1471,9 @@ final class WorkbenchStore: ObservableObject {
 
   func openJob(_ job: JobRecord) {
     guard jobs.contains(where: { $0.id == job.id }) else { return }
+    if !recentJobFilter.matches(job) {
+      recentJobFilter = RecentJobFilter()
+    }
     selectedJobID = job.id
     selectedSection = .jobs
   }
