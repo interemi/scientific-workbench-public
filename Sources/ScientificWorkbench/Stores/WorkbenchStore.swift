@@ -27,7 +27,12 @@ final class WorkbenchStore: ObservableObject {
   @Published var settingsRecoverySection: SettingsRecoverySection?
   @Published var capabilities: [CapabilityEntry] = []
   @Published var selectedCapabilityID: String?
+  @Published var selectedMaintenanceCapabilityID: String?
   @Published var capabilityCatalogMode: CapabilityCatalogMode = .normal
+  @Published var capabilityDiscoveryFilters = CapabilityDiscoveryFilters()
+  @Published var maintenanceSearchText = ""
+  @Published private(set) var capabilityArgumentDrafts: [String: String] = [:]
+  @Published private var selectedResultArtifactPaths: [UUID: String] = [:]
   @Published var jobs: [JobRecord] = []
   @Published var selectedJobID: UUID?
   @Published var inputPaths: [String] = [] {
@@ -291,9 +296,41 @@ final class WorkbenchStore: ObservableObject {
     return capabilities.first { $0.id == selectedCapabilityID }
   }
 
+  var selectedMaintenanceCapability: CapabilityEntry? {
+    guard let selectedMaintenanceCapabilityID else { return nil }
+    return maintainerCapabilities.first { $0.id == selectedMaintenanceCapabilityID }
+  }
+
   var selectedJob: JobRecord? {
     guard let selectedJobID else { return jobs.first }
     return jobs.first { $0.id == selectedJobID }
+  }
+
+  func capabilityArgumentDraft(for capabilityID: String) -> String {
+    capabilityArgumentDrafts[capabilityID] ?? ""
+  }
+
+  func setCapabilityArgumentDraft(_ arguments: String, for capabilityID: String) {
+    capabilityArgumentDrafts[capabilityID] = arguments.isEmpty ? nil : arguments
+  }
+
+  func selectedResultArtifactID(for job: JobRecord) -> UUID? {
+    guard let path = selectedResultArtifactPaths[job.id] else { return nil }
+    return job.artifacts.first { $0.path == path }?.id
+  }
+
+  func selectResultArtifact(_ artifactID: UUID?, for job: JobRecord) {
+    selectedResultArtifactPaths[job.id] = job.artifacts.first { $0.id == artifactID }?.path
+  }
+
+  func selectPreferredResultArtifact(for job: JobRecord) {
+    guard selectedResultArtifactID(for: job) == nil else { return }
+    let preferredTypes = job.previewArtifactTypes
+      + ["preview_png", "preview_pdf", "app_preview", "report_md", "table_csv", "table_ecsv"]
+    let preferred = preferredTypes.lazy.compactMap { type in
+      job.artifacts.first { $0.artifactType == type }
+    }.first ?? job.artifacts.first(where: { $0.primary == true }) ?? job.artifacts.first
+    selectedResultArtifactPaths[job.id] = preferred?.path
   }
 
   var latestAPTJob: JobRecord? {

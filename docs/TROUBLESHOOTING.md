@@ -57,6 +57,14 @@ job** instead of inferring a result from another job with the same capability.
 The plan ID identifies a plan, not a unique execution; rerunning that plan creates
 new jobs and a separate summary. Existing summaries are retained unchanged.
 
+During the current session, changing screens preserves each capability's advanced
+argument draft, catalog filters, and each job's selected result artifact. These
+navigation choices are not restored after quitting. Maintenance keeps its own
+capability selection, so visiting it does not replace the selected user task.
+Switching capability still
+requires a fresh confirmation for restricted routes; keeping a draft does not
+authorize or start a run.
+
 For a recognized job failure, **Jobs** also shows a likely-cause card. It uses
 the structured error kind when available, with a limited fallback to the job
 message and stderr. Its action opens the relevant setup screen or capability;

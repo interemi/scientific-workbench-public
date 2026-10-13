@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ResultsView: View {
   @ObservedObject var store: WorkbenchStore
-  @State private var selectedArtifactID: UUID?
   @State private var pendingMixedFollowUpJob: JobRecord?
   @State private var isReplacingInputSelection = false
   @State private var comparisonSource: ArtifactComparisonSource?
@@ -84,7 +83,7 @@ struct ResultsView: View {
               Text("Inspect the job status and logs, or refresh its run bundle after the process stops.")
             }
           } else {
-            List(selection: $selectedArtifactID) {
+            List(selection: artifactSelection) {
               ForEach(job.artifacts) { artifact in
                 HStack {
                   Image(systemName: icon(for: artifact))
@@ -145,8 +144,10 @@ struct ResultsView: View {
       selectPreferredArtifact()
     }
     .onChange(of: store.selectedJobID) {
-      selectedArtifactID = nil
       comparisonSource = nil
+      selectPreferredArtifact()
+    }
+    .onChange(of: store.selectedJob?.artifacts.map(\.id)) {
       selectPreferredArtifact()
     }
     .sheet(item: $comparisonSource) { source in
@@ -172,12 +173,24 @@ struct ResultsView: View {
 
   private var selectedArtifact: Artifact? {
     guard
-      let selectedArtifactID,
-      let artifacts = store.selectedJob?.artifacts
+      let job = store.selectedJob,
+      let selectedArtifactID = store.selectedResultArtifactID(for: job)
     else {
       return nil
     }
-    return artifacts.first { $0.id == selectedArtifactID }
+    return job.artifacts.first { $0.id == selectedArtifactID }
+  }
+
+  private var artifactSelection: Binding<UUID?> {
+    let job = store.selectedJob
+    return Binding(
+      get: { job.flatMap { store.selectedResultArtifactID(for: $0) } },
+      set: { artifactID in
+        if let job {
+          store.selectResultArtifact(artifactID, for: job)
+        }
+      }
+    )
   }
 
   private func icon(for artifact: Artifact) -> String {
@@ -210,11 +223,8 @@ struct ResultsView: View {
   }
 
   private func selectPreferredArtifact() {
-    guard selectedArtifactID == nil, let job = store.selectedJob else { return }
-    let preferredTypes = job.previewArtifactTypes + ["preview_png", "preview_pdf", "app_preview", "report_md", "table_csv", "table_ecsv"]
-    selectedArtifactID = preferredTypes.lazy.compactMap { type in
-      job.artifacts.first { $0.artifactType == type }?.id
-    }.first ?? job.artifacts.first(where: { $0.primary == true })?.id ?? job.artifacts.first?.id
+    guard let job = store.selectedJob else { return }
+    store.selectPreferredResultArtifact(for: job)
   }
 }
 

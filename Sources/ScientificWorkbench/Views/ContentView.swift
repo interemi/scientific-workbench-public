@@ -161,7 +161,8 @@ struct InspectorView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
           }
-        } else if let selected = store.selectedCapability {
+        } else if let selected = store.selectedSection == .maintenance
+          ? store.selectedMaintenanceCapability : store.selectedCapability {
           Divider()
           VStack(alignment: .leading, spacing: 8) {
             Text("Selected Capability")
