@@ -16,6 +16,7 @@ struct EnvironmentDiagnosis: Equatable, Sendable {
   let missingOptionalGroups: [EnvironmentMissingGroup]
   let message: String?
   let checkedAt: Date?
+  var inspectedModules: [String: Bool] = [:]
 
   static let unknown = EnvironmentDiagnosis(
     status: "unknown",
@@ -72,6 +73,15 @@ struct EnvironmentDiagnosis: Equatable, Sendable {
     let coreModules = payload["core_modules"] as? [String: Any]
     let missingCore = coreModules?["missing"] as? [String] ?? []
     let optionalGroups = payload["optional_groups"] as? [String: [String: Any]] ?? [:]
+    let moduleReports = [coreModules?["modules"] as? [String: [String: Any]] ?? [:]]
+      + optionalGroups.values.map { $0["modules"] as? [String: [String: Any]] ?? [:] }
+    let inspectedModules = moduleReports.reduce(into: [String: Bool]()) { result, modules in
+      for (name, report) in modules {
+        if let installed = report["installed"] as? Bool {
+          result[name] = installed
+        }
+      }
+    }
     let missingGroups = optionalGroups.compactMap { id, group -> EnvironmentMissingGroup? in
       let modules = group["missing"] as? [String] ?? []
       guard !modules.isEmpty else { return nil }
@@ -92,7 +102,8 @@ struct EnvironmentDiagnosis: Equatable, Sendable {
       missingCoreModules: missingCore.sorted(),
       missingOptionalGroups: missingGroups,
       message: nil,
-      checkedAt: Date()
+      checkedAt: Date(),
+      inspectedModules: inspectedModules
     )
   }
 }

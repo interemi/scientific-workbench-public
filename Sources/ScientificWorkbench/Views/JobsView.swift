@@ -405,10 +405,7 @@ private struct JobRecoveryIssueView: View {
             recheckResult = nil
             Task {
               await store.refreshEnvironment()
-              let diagnosis = store.environmentDiagnosis
-              let core = diagnosis.coreReady.map { $0 ? "ready" : "blocked" } ?? "not verified"
-              let full = diagnosis.fullReady.map { $0 ? "ready" : "incomplete" } ?? "not verified"
-              recheckResult = "Current Python check: Core \(core), Full \(full). Open Settings for the detailed diagnosis."
+              recheckResult = JobRecoveryEnvironmentCheck.summary(diagnosis: store.environmentDiagnosis)
               isRechecking = false
             }
           }
@@ -430,6 +427,20 @@ private struct JobRecoveryIssueView: View {
           }
           .disabled(isRechecking || store.isCheckingOptionalAstronomyBackends)
           .accessibilityIdentifier("jobs.recovery.recheck-backends")
+        } else if issue == .optionalBackend {
+          Button("Recheck Named Dependencies") {
+            isRechecking = true
+            recheckResult = nil
+            Task {
+              await store.refreshEnvironment()
+              recheckResult = JobRecoveryEnvironmentCheck.summary(
+                diagnosis: store.environmentDiagnosis, job: job
+              )
+              isRechecking = false
+            }
+          }
+          .disabled(isRechecking || store.isCheckingEnvironment)
+          .accessibilityIdentifier("jobs.recovery.recheck-dependencies")
         } else if issue.offersLocalAIRecheck(for: job) {
           Button("Recheck Local AI") {
             isRechecking = true
@@ -445,6 +456,17 @@ private struct JobRecoveryIssueView: View {
           }
           .disabled(isRechecking || store.isCheckingOllamaSetup)
           .accessibilityIdentifier("jobs.recovery.recheck-local-ai")
+        } else if issue == .network {
+          Button("Recheck Network Path") {
+            isRechecking = true
+            recheckResult = nil
+            Task {
+              recheckResult = await JobRecoveryNetworkProbe().inspect().summary
+              isRechecking = false
+            }
+          }
+          .disabled(isRechecking)
+          .accessibilityIdentifier("jobs.recovery.recheck-network")
         }
       }
 

@@ -54,14 +54,20 @@ the structured error kind when available, with a limited fallback to the job
 message and stderr. Its action opens the relevant setup screen or capability;
 it does not retry, install a dependency, delete an occupied output, or change
 the failed run. **Recheck Current Files**, **Recheck Python**, **Recheck
-Backends**, and **Recheck Local AI** report the current state for applicable
+Backends**, **Recheck Named Dependencies**, **Recheck Network Path**, and
+**Recheck Local AI** report the current state for applicable
 jobs; a successful recheck does not retroactively turn the historical job
 into a pass. The file check cannot reconstruct an exact occupied target or
 required disk space when the job did not record them. STILTS and APT failures
 open their dedicated astronomy setup. Other optional-backend failures and
 network/model errors without identifiable AI-provider evidence open the
 capability for its setup and preflight, rather than an unrelated settings
-section. For cloud-AI evidence, the connection test in Settings checks
+section. The named-dependency check matches modules actually inspected by the
+Python diagnostic to names in the error. It reports whether they were located;
+it does not test importing them or executing external tools. An unrecognized
+dependency stays unverified. The network-path check observes macOS's current
+network state without sending a server request; it does not test endpoint
+availability, credentials, or models. For cloud-AI evidence, the connection test in Settings checks
 the provider you choose **now**; the job record does not separately retain its
 historical provider. Inspect the original error before testing or retrying.
 Use **Support Bundle** to export redacted diagnostic logs, and review that
