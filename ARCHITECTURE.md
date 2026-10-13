@@ -467,6 +467,17 @@ Rules:
 17. UI shows jobs/results, per-step plan status, `Run Remaining`, and the latest workflow summary from Chat.
 18. Headless automation can write structured launch transcripts including the planned workflow, raw step arguments, estimate, messages, and jobs.
 
+`New Workflow` archives a nonempty draft before clearing its session context.
+These append-only `WorkflowDraftCheckpoint` JSON files use a separate version-1
+format under `<output root>/Workflow Drafts/`; they do not change the schema-2
+job history or active agent state. They retain redacted prompt, conversation,
+input references, plan, step/job links, summary path, and argument drafts. They
+contain no credential fields. A failed archive leaves the draft in place.
+The previous draft can be restored in memory during the current session after
+registry revalidation, with fresh consent/approval and Auto-run off. Archives
+are not imported automatically after relaunch. Jobs and summary files remain
+unchanged throughout.
+
 ## Data And Artifact Policy
 
 Inputs:

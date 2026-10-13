@@ -28,7 +28,18 @@ struct ScientificWorkbenchApp: App {
         .frame(minWidth: 1120, minHeight: 720)
     }
     .commands {
+      CommandGroup(replacing: .newItem) {
+        Button("New Workflow") { store.beginNewWorkflow() }
+          .keyboardShortcut("n")
+          .disabled(!store.canChangeWorkflowContext)
+      }
+
       CommandMenu("Workbench") {
+        Button("Restore Previous Workflow Draft") { store.restorePreviousWorkflowDraft() }
+          .disabled(!store.canChangeWorkflowContext || store.previousWorkflowDraft == nil)
+
+        Divider()
+
         Button("Reload Registry") {
           Task { await store.reloadRegistry() }
         }

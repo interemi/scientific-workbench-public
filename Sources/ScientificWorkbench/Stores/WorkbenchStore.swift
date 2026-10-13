@@ -33,6 +33,8 @@ final class WorkbenchStore: ObservableObject {
   @Published var maintenanceSearchText = ""
   @Published private(set) var capabilityArgumentDrafts: [String: String] = [:]
   @Published private var selectedResultArtifactPaths: [UUID: String] = [:]
+  @Published private(set) var previousWorkflowDraft: WorkflowDraftBackup?
+  @Published var workflowNavigationNotice: String?
   @Published var jobs: [JobRecord] = []
   @Published var selectedJobID: UUID?
   @Published var inputPaths: [String] = [] {
@@ -359,6 +361,128 @@ final class WorkbenchStore: ObservableObject {
 
   var canCancelActiveRun: Bool {
     isRunningAgentWorkflow || hasActiveJob || isPullingOllamaModel || isRunningCodexBridge
+  }
+
+  var canChangeWorkflowContext: Bool {
+    !canCancelActiveRun && !isPlanningAgentWorkflow && !isReviewingRadialVelocityInput
+      && !isReviewingPhotometricCalibration && !isReviewingDocumentStyles
+      && !isCheckingKeynote && !isExportingKeynote
+  }
+
+  @discardableResult
+  func beginNewWorkflow() -> Bool {
+    guard canChangeWorkflowContext else {
+      workflowNavigationNotice = "Finish or cancel the active operation before starting a new workflow."
+      return false
+    }
+    if hasWorkflowDraft {
+      guard let backup = archiveCurrentWorkflowDraft() else { return false }
+      previousWorkflowDraft = backup
+    }
+    cancelPendingCloudRequest()
+    rememberedCloudConsentScopes.removeAll()
+    inputPaths = []
+    agentPrompt = ""
+    agentPlan = nil
+    agentPlanStepExecutions = [:]
+    lastWorkflowSummaryPath = nil
+    selectedCapabilityID = nil
+    selectedJobID = nil
+    capabilityArgumentDrafts = [:]
+    capabilityDiscoveryFilters = CapabilityDiscoveryFilters()
+    searchText = ""
+    preparedFirstRunExample = nil
+    firstRunExampleError = nil
+    agentAutoRun = false
+    outputRootRiskApproved = false
+    resetWorkflowReviews()
+    agentChatMessages = [AgentChatMessage(role: .assistant,
+      text: "Choose a task in Dashboard, attach your inputs, and review setup and the plan before running. Your originals and previous jobs are retained.")]
+    agentStatusMessage = "New workflow: choose a task and attach inputs. Auto-run is off."
+    workflowNavigationNotice = previousWorkflowDraft == nil
+      ? "New workflow ready. Choose a task or open Chat; no job has been started."
+      : "New workflow ready. The previous draft is archived in Workflow Drafts and can be restored in this session."
+    selectedSection = .home
+    persistAgentState()
+    return true
+  }
+
+  @discardableResult
+  func restorePreviousWorkflowDraft() -> Bool {
+    guard canChangeWorkflowContext, let backup = previousWorkflowDraft else { return false }
+    let checkpoint = backup.checkpoint
+    guard FilesystemPath.canonicalURL(checkpoint.outputRootPath)
+      == FilesystemPath.canonicalURL(outputRootPath) else {
+      workflowNavigationNotice = "Return to the previous draft's output folder before restoring it. No context was changed."
+      return false
+    }
+    var currentBackup: WorkflowDraftBackup?
+    if hasWorkflowDraft {
+      guard let archived = archiveCurrentWorkflowDraft() else { return false }
+      currentBackup = archived
+    }
+    cancelPendingCloudRequest()
+    rememberedCloudConsentScopes.removeAll()
+    let restoredInputs = checkpoint.inputPaths.filter { FileManager.default.fileExists(atPath: $0) }
+    inputPaths = restoredInputs
+    agentPrompt = checkpoint.prompt
+    agentPlan = checkpoint.plan.map { sanitizedAgentPlanForCurrentRegistry($0).plan }
+    let eligibleStepIDs = Set(agentPlan?.steps.filter(\.isEnabled).map(\.id) ?? [])
+    agentPlanStepExecutions = restoredInputs == checkpoint.inputPaths
+      ? Dictionary(uniqueKeysWithValues: checkpoint.stepExecutions.filter {
+        eligibleStepIDs.contains($0.stepID)
+      }.map { ($0.stepID, $0) }) : [:]
+    lastWorkflowSummaryPath = checkpoint.summaryPath
+    selectedCapabilityID = capabilities.first { $0.id == checkpoint.selectedCapabilityID && !$0.isMaintainerOnly }?.id
+    selectedJobID = jobs.first { $0.id == checkpoint.selectedJobID }?.id
+    capabilityArgumentDrafts = checkpoint.argumentDrafts
+    agentChatMessages = checkpoint.messages
+    agentAutoRun = false
+    outputRootRiskApproved = false
+    resetWorkflowReviews()
+    previousWorkflowDraft = currentBackup
+    let missingCount = checkpoint.inputPaths.count - restoredInputs.count
+    agentStatusMessage = missingCount == 0
+      ? "Previous draft restored. Review inputs, setup, and the plan before running; auto-run is off."
+      : "Draft restored with \(missingCount) missing input path(s). Reattach them and review the plan; execution checkpoints were cleared."
+    workflowNavigationNotice = agentStatusMessage
+    selectedSection = .agent
+    persistAgentState()
+    return true
+  }
+
+  private var hasWorkflowDraft: Bool {
+    !inputPaths.isEmpty || agentPlan != nil || !agentPrompt.isEmpty
+      || !capabilityArgumentDrafts.isEmpty || selectedJobID != nil
+      || lastWorkflowSummaryPath != nil || agentChatMessages.contains { $0.role == .user }
+  }
+
+  private func archiveCurrentWorkflowDraft() -> WorkflowDraftBackup? {
+    guard ensureOutputRootWriteApproved(inputPaths: inputPaths) else {
+      workflowNavigationNotice = "Choose and approve a safe output folder before archiving this draft. No context was cleared."
+      return nil
+    }
+    let checkpoint = WorkflowDraftCheckpoint(outputRootPath: outputRootPath,
+      inputPaths: inputPaths, prompt: agentPrompt, plan: agentPlan,
+      stepExecutions: Array(agentPlanStepExecutions.values), summaryPath: lastWorkflowSummaryPath,
+      selectedCapabilityID: selectedCapabilityID, selectedJobID: selectedJobID,
+      argumentDrafts: capabilityArgumentDrafts, messages: agentChatMessages)
+    do {
+      let url = try WorkflowDraftArchiveService().write(checkpoint: checkpoint, redact: redactSecrets)
+      return WorkflowDraftBackup(checkpoint: checkpoint, archivePath: url.path)
+    } catch {
+      workflowNavigationNotice = "Could not archive the draft: \(redactSecrets(error.localizedDescription)). No context was cleared."
+      return nil
+    }
+  }
+
+  private func resetWorkflowReviews() {
+    resetDocumentWorkflow()
+    resetKeynoteWorkflow()
+    radialVelocityReview = nil
+    radialVelocityReviewError = nil
+    photometricCalibrationReview = nil
+    photometricCalibrationError = nil
   }
 
   var selectedAIModel: String {

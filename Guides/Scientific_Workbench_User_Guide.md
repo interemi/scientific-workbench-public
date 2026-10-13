@@ -118,6 +118,26 @@ choose **Recheck Environment**. External apps remain separate prerequisites.
 
 ## 4. Normal workflow
 
+### Start another workflow safely
+
+Use **New Workflow** in the title bar or **File → New Workflow** (`Command-N`).
+It returns to Dashboard with an empty input selection, no active plan, and
+Auto-run off. It does not start a job or delete inputs, jobs, logs, or results.
+If you have a draft, the app must first save a redacted checkpoint in
+`<output root>/Workflow Drafts/`; if that save fails, the draft stays in place.
+The action is unavailable while a workflow or input-review operation is active.
+
+Use **Restore Previous Draft** in the notice or **Workbench → Restore Previous
+Workflow Draft** to restore the preceding draft during this session. Any current
+draft is archived before it is replaced. Review the restored inputs and plan;
+missing inputs clear its execution checkpoints, restricted routes need fresh
+review, and Auto-run remains off. Restoration does not restore cloud consent or
+output-folder approval. It requires the same output folder as the saved draft.
+After quitting, the archive remains on disk for inspection, but this session's
+one-step restore action is no longer available. The archive contains private
+paths and conversation text; redaction is not anonymization. Do not upload it
+without reviewing it.
+
 ### Find a capability directly
 
 To find a direct tool, open **Capabilities** and search by the work you want
