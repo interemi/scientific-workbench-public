@@ -432,11 +432,11 @@ extension ScientificWorkbenchTests {
       ("missing_input", .missingInput, nil),
       ("output_conflict", .outputConflict, nil),
       ("permission_denied", .permissionDenied, .paths),
-      ("missing_optional_backend", .optionalBackend, .optionalBackends),
+      ("missing_optional_backend", .optionalBackend, nil),
       ("dependency_error", .pythonEnvironment, .environment),
       ("timeout", .timedOut, .behavior),
-      ("network_error", .network, .connections),
-      ("model_unavailable", .modelUnavailable, .connections),
+      ("network_error", .network, nil),
+      ("model_unavailable", .modelUnavailable, nil),
     ]
 
     for (kind, expected, section) in cases {
@@ -445,9 +445,12 @@ extension ScientificWorkbenchTests {
       job.structuredErrors = [JobStructuredError(kind: kind, message: "Check this run.", recoveryHint: nil)]
 
       #expect(job.recoveryIssue == expected)
-      #expect(job.recoveryIssue?.guidance.isEmpty == false)
-      #expect(job.recoveryIssue?.actionLabel.isEmpty == false)
+      #expect(job.recoveryIssue?.guidance(for: job).isEmpty == false)
+      #expect(job.recoveryIssue?.actionLabel(for: job).isEmpty == false)
       #expect(job.recoveryIssue?.settingsSection(for: job) == section)
+      if section == nil {
+        #expect(job.recoveryIssue?.opensCapability(for: job) == true)
+      }
     }
   }
 
@@ -489,7 +492,7 @@ extension ScientificWorkbenchTests {
     ]
 
     #expect(job.recoveryIssue == .outputConflict)
-    #expect(job.recoveryIssue?.opensCapability == true)
+    #expect(job.recoveryIssue?.opensCapability(for: job) == true)
 
     job.status = .timedOut
     #expect(job.recoveryIssue == .timedOut)
@@ -517,12 +520,47 @@ extension ScientificWorkbenchTests {
     ]
     #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == false)
     #expect(job.recoveryIssue?.settingsSection(for: job) == .connections)
+    #expect(job.recoveryIssue?.opensCapability(for: job) == false)
+    #expect(job.recoveryIssue?.guidance(for: job).contains("historical job") == true)
 
     job.structuredErrors = [
       JobStructuredError(kind: "model_unavailable", message: "Ollama model was not found.", recoveryHint: nil)
     ]
     #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == true)
     #expect(job.recoveryIssue?.settingsSection(for: job) == .localAI)
+  }
+
+  @Test
+  func optionalBackendRecoveryOnlyOpensAstronomySettingsForThoseCapabilities() {
+    let astronomy = CapabilityEntry(
+      id: "stilts_workbench",
+      label: "STILTS",
+      script: "scripts/stilts_workbench.py",
+      visibleBlock: "astro",
+      kind: "optional",
+      supportLevel: "stable",
+      platform: "portable",
+      requiresDatanalysis: true,
+      preflightMode: "explicit",
+      smokeTier: "optional",
+      shortDescription: "Inspect STILTS readiness."
+    )
+    var stiltsJob = JobRecord(capability: astronomy, runDirectory: "/tmp/run")
+    stiltsJob.status = .blocked
+    stiltsJob.structuredErrors = [
+      JobStructuredError(kind: "missing_optional_backend", message: "STILTS unavailable.", recoveryHint: nil)
+    ]
+    #expect(stiltsJob.recoveryIssue?.settingsSection(for: stiltsJob) == .optionalBackends)
+    #expect(stiltsJob.recoveryIssue?.opensCapability(for: stiltsJob) == false)
+
+    var genericJob = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
+    genericJob.status = .blocked
+    genericJob.structuredErrors = [
+      JobStructuredError(kind: "missing_optional_backend", message: "DuckDB unavailable.", recoveryHint: nil)
+    ]
+    #expect(genericJob.recoveryIssue?.settingsSection(for: genericJob) == nil)
+    #expect(genericJob.recoveryIssue?.opensCapability(for: genericJob) == true)
+    #expect(genericJob.recoveryIssue?.actionLabel(for: genericJob) == "Review Capability Setup")
   }
 
   @Test

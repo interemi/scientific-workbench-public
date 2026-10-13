@@ -363,13 +363,13 @@ private struct JobRecoveryIssueView: View {
     VStack(alignment: .leading, spacing: 10) {
       Label(issue.title, systemImage: "cross.case")
         .font(.headline)
-      Text(issue.guidance)
+      Text(issue.guidance(for: job))
         .font(.callout)
         .textSelection(.enabled)
 
       HStack(spacing: 10) {
-        Button(issue.actionLabel) {
-          if issue.opensCapability {
+        Button(issue.actionLabel(for: job)) {
+          if issue.opensCapability(for: job) {
             store.openOptionalCapability(job.capabilityID)
           } else {
             store.settingsRecoverySection = issue.settingsSection(for: job)

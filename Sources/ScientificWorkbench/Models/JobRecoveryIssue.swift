@@ -84,7 +84,7 @@ enum JobRecoveryIssue: String, Sendable {
     }
   }
 
-  var guidance: String {
+  func guidance(for job: JobRecord) -> String {
     switch self {
     case .missingInput:
       return "Attach the required input to a new run and inspect Dry Run before starting it."
@@ -95,34 +95,50 @@ enum JobRecoveryIssue: String, Sendable {
     case .diskSpace:
       return "Check free space on the volume used by the output root. Preserve existing runs; select another output root if needed."
     case .optionalBackend:
-      return "Inspect the backend named in the error and its setup instructions. Optional tools are not installed automatically."
+      return "Inspect the backend named in the error and its capability preflight. Optional tools are not installed automatically."
     case .pythonEnvironment:
       return "Check the selected Python and scientific-data environment. Rechecking only diagnoses readiness; it does not install packages."
     case .timedOut:
       return "Inspect the logs and input size. Increase the capability timeout only if this work is expected to take longer."
     case .network:
-      return "Check the configured endpoint and connection in Settings before sending another request."
+      if offersLocalAIRecheck(for: job) {
+        return "Check the current Ollama endpoint in Local AI Setup before sending another request."
+      }
+      return usesAIConnectionSettings(for: job)
+        ? "Identify the provider from the original error or your notes before testing a current connection. The provider used by this historical job was not saved separately."
+        : "Inspect the endpoint named in the job error and the capability preflight before starting a new run."
     case .modelUnavailable:
-      return "Choose an installed Ollama model or continue with the deterministic local workflow. Downloading a model needs your action."
+      if offersLocalAIRecheck(for: job) {
+        return "Choose an installed Ollama model or continue with the deterministic local workflow. Downloading a model needs your action."
+      }
+      return usesAIConnectionSettings(for: job)
+        ? "Review the model named in the error and test the intended current provider. This job does not retain a separate provider selection."
+        : "Inspect the model named in the job error and the capability setup before starting a new run."
     }
   }
 
-  var actionLabel: String {
+  func actionLabel(for job: JobRecord) -> String {
     switch self {
     case .missingInput: return "Prepare New Run"
     case .outputConflict: return "Prepare New Output"
     case .permissionDenied: return "Review Paths"
     case .diskSpace: return "Review Output Root"
-    case .optionalBackend: return "Review Backend Setup"
+    case .optionalBackend:
+      return isAstronomyBackend(for: job) ? "Review Backend Setup" : "Review Capability Setup"
     case .pythonEnvironment: return "Review Python Setup"
     case .timedOut: return "Review Timeout"
-    case .network: return "Review AI Connection"
-    case .modelUnavailable: return "Review Local Model"
+    case .network:
+      return usesAIConnectionSettings(for: job) ? "Review AI Connection" : "Review Capability Setup"
+    case .modelUnavailable:
+      if offersLocalAIRecheck(for: job) { return "Review Local Model" }
+      return usesAIConnectionSettings(for: job) ? "Review AI Model" : "Review Capability Setup"
     }
   }
 
-  var opensCapability: Bool {
+  func opensCapability(for job: JobRecord) -> Bool {
     self == .missingInput || self == .outputConflict
+      || (self == .optionalBackend && !isAstronomyBackend(for: job))
+      || ((self == .network || self == .modelUnavailable) && !usesAIConnectionSettings(for: job))
   }
 
   var offersFilesystemRecheck: Bool {
@@ -145,13 +161,27 @@ enum JobRecoveryIssue: String, Sendable {
     case .permissionDenied, .diskSpace:
       return .paths
     case .optionalBackend:
-      return .optionalBackends
+      return isAstronomyBackend(for: job) ? .optionalBackends : nil
     case .pythonEnvironment:
       return .environment
     case .timedOut:
       return .behavior
     case .network, .modelUnavailable:
+      guard usesAIConnectionSettings(for: job) else { return nil }
       return offersLocalAIRecheck(for: job) ? .localAI : .connections
+    }
+  }
+
+  private func isAstronomyBackend(for job: JobRecord) -> Bool {
+    job.capabilityID == "stilts_workbench" || job.capabilityID == "apt_workbench"
+  }
+
+  private func usesAIConnectionSettings(for job: JobRecord) -> Bool {
+    if offersLocalAIRecheck(for: job) { return true }
+    let messages = [job.message, job.stderr] + job.structuredErrors.map(\.message)
+    let evidence = messages.compactMap { $0 }.joined(separator: "\n")
+    return ["cloud provider", "openai", "grok", "gemini"].contains {
+      evidence.localizedCaseInsensitiveContains($0)
     }
   }
 }
