@@ -70,7 +70,7 @@ enum JobRecoveryIssue: String, Sendable {
     return nil
   }
 
-  var title: String {
+  func title(for job: JobRecord) -> String {
     switch self {
     case .missingInput: return "Required input is missing"
     case .outputConflict: return "Output destination is occupied"
@@ -79,8 +79,17 @@ enum JobRecoveryIssue: String, Sendable {
     case .optionalBackend: return "An optional backend is unavailable"
     case .pythonEnvironment: return "The Python environment needs attention"
     case .timedOut: return "The run exceeded its time limit"
-    case .network: return "The AI connection needs attention"
-    case .modelUnavailable: return "The selected local model is unavailable"
+    case .network:
+      return usesAIConnectionSettings(for: job)
+        ? "The AI connection needs attention"
+        : "The capability's network connection needs attention"
+    case .modelUnavailable:
+      if offersLocalAIRecheck(for: job) {
+        return "The selected local model is unavailable"
+      }
+      return usesAIConnectionSettings(for: job)
+        ? "The selected AI model is unavailable"
+        : "A model required by this capability is unavailable"
     }
   }
 
@@ -106,14 +115,14 @@ enum JobRecoveryIssue: String, Sendable {
       }
       return usesAIConnectionSettings(for: job)
         ? "Identify the provider from the original error or your notes before testing a current connection. The provider used by this historical job was not saved separately."
-        : "Inspect the endpoint named in the job error and the capability preflight before starting a new run."
+        : "Inspect any endpoint named in the job error and the capability's connection requirements before starting a new run."
     case .modelUnavailable:
       if offersLocalAIRecheck(for: job) {
         return "Choose an installed Ollama model or continue with the deterministic local workflow. Downloading a model needs your action."
       }
       return usesAIConnectionSettings(for: job)
-        ? "Review the model named in the error and test the intended current provider. This job does not retain a separate provider selection."
-        : "Inspect the model named in the job error and the capability setup before starting a new run."
+        ? "Review any model named in the error and test the intended current provider. This job does not retain a separate provider selection."
+        : "Inspect any model named in the job error and the capability setup before starting a new run."
     }
   }
 

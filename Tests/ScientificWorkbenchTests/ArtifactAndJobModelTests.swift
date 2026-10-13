@@ -445,6 +445,7 @@ extension ScientificWorkbenchTests {
       job.structuredErrors = [JobStructuredError(kind: kind, message: "Check this run.", recoveryHint: nil)]
 
       #expect(job.recoveryIssue == expected)
+      #expect(job.recoveryIssue?.title(for: job).isEmpty == false)
       #expect(job.recoveryIssue?.guidance(for: job).isEmpty == false)
       #expect(job.recoveryIssue?.actionLabel(for: job).isEmpty == false)
       #expect(job.recoveryIssue?.settingsSection(for: job) == section)
@@ -514,6 +515,7 @@ extension ScientificWorkbenchTests {
     #expect(job.recoveryIssue == .network)
     #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == true)
     #expect(job.recoveryIssue?.settingsSection(for: job) == .localAI)
+    #expect(job.recoveryIssue?.title(for: job) == "The AI connection needs attention")
 
     job.structuredErrors = [
       JobStructuredError(kind: "network_error", message: "Cloud provider could not be reached.", recoveryHint: nil)
@@ -521,6 +523,7 @@ extension ScientificWorkbenchTests {
     #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == false)
     #expect(job.recoveryIssue?.settingsSection(for: job) == .connections)
     #expect(job.recoveryIssue?.opensCapability(for: job) == false)
+    #expect(job.recoveryIssue?.title(for: job) == "The AI connection needs attention")
     #expect(job.recoveryIssue?.guidance(for: job).contains("historical job") == true)
 
     job.structuredErrors = [
@@ -528,6 +531,7 @@ extension ScientificWorkbenchTests {
     ]
     #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == true)
     #expect(job.recoveryIssue?.settingsSection(for: job) == .localAI)
+    #expect(job.recoveryIssue?.title(for: job) == "The selected local model is unavailable")
   }
 
   @Test
@@ -561,6 +565,12 @@ extension ScientificWorkbenchTests {
     #expect(genericJob.recoveryIssue?.settingsSection(for: genericJob) == nil)
     #expect(genericJob.recoveryIssue?.opensCapability(for: genericJob) == true)
     #expect(genericJob.recoveryIssue?.actionLabel(for: genericJob) == "Review Capability Setup")
+
+    genericJob.structuredErrors = [
+      JobStructuredError(kind: "network_error", message: "Catalog endpoint unavailable.", recoveryHint: nil)
+    ]
+    #expect(genericJob.recoveryIssue?.title(for: genericJob) == "The capability's network connection needs attention")
+    #expect(genericJob.recoveryIssue?.settingsSection(for: genericJob) == nil)
   }
 
   @Test

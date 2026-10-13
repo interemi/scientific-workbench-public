@@ -361,7 +361,7 @@ private struct JobRecoveryIssueView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Label(issue.title, systemImage: "cross.case")
+      Label(issue.title(for: job), systemImage: "cross.case")
         .font(.headline)
       Text(issue.guidance(for: job))
         .font(.callout)
