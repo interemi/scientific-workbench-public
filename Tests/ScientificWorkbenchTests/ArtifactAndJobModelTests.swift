@@ -526,6 +526,41 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func filesystemRecoveryRecheckReadsCurrentStateWithoutChangingInputsOrOutputs() throws {
+    let root = FileManager.default.temporaryDirectory
+      .appendingPathComponent("Scientific-Workbench-Recovery-\(UUID().uuidString)", isDirectory: true)
+    let input = root.appendingPathComponent("input.csv")
+    let output = root.appendingPathComponent("outputs", isDirectory: true)
+    try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let original = Data("column\n42\n".utf8)
+    try original.write(to: input)
+
+    var job = JobRecord(capability: sampleCapability(), runDirectory: output.appendingPathComponent("old-run").path)
+    job.status = .failed
+    let probe = JobRecoveryFilesystemProbe()
+
+    #expect(JobRecoveryIssue.missingInput.offersFilesystemRecheck)
+    #expect(probe.inspect(issue: .missingInput, job: job, outputRootPath: output.path)
+      .contains("No input paths were recorded"))
+
+    job.requestInputPaths = [input.path]
+    let access = probe.inspect(issue: .permissionDenied, job: job, outputRootPath: output.path)
+    #expect(access.contains("1/1 recorded input paths are currently readable"))
+    #expect(access.contains("subprocess access can still differ"))
+
+    let disk = probe.inspect(issue: .diskSpace, job: job, outputRootPath: output.path)
+    #expect(disk.contains("cannot establish that a new run will fit"))
+
+    let conflict = probe.inspect(issue: .outputConflict, job: job, outputRootPath: output.path)
+    #expect(conflict.contains("exact occupied target was not retained"))
+    #expect(conflict.contains("inspect Dry Run"))
+
+    #expect(try Data(contentsOf: input) == original)
+    #expect(try FileManager.default.contentsOfDirectory(atPath: output.path).isEmpty)
+  }
+
+  @Test
   func jobRecordCodableRoundTripsTimedOutStatus() throws {
     var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
     job.status = .timedOut

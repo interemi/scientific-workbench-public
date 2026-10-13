@@ -378,7 +378,28 @@ private struct JobRecoveryIssueView: View {
         }
         .accessibilityIdentifier("jobs.recovery.action")
 
-        if issue == .pythonEnvironment {
+        if issue.offersFilesystemRecheck {
+          Button("Recheck Current Files") {
+            isRechecking = true
+            recheckResult = nil
+            let outputRootPath = store.outputRootPath
+            Task {
+              let result = await Task.detached(priority: .userInitiated) {
+                JobRecoveryFilesystemProbe().inspect(
+                  issue: issue,
+                  job: job,
+                  outputRootPath: outputRootPath
+                )
+              }.value
+              recheckResult = store.outputRootPath == outputRootPath
+                ? result
+                : "The output root changed during this check. Recheck Current Files again."
+              isRechecking = false
+            }
+          }
+          .disabled(isRechecking)
+          .accessibilityIdentifier("jobs.recovery.recheck-files")
+        } else if issue == .pythonEnvironment {
           Button("Recheck Python") {
             isRechecking = true
             recheckResult = nil

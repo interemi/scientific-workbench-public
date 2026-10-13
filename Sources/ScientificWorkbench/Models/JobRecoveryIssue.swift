@@ -125,6 +125,11 @@ enum JobRecoveryIssue: String, Sendable {
     self == .missingInput || self == .outputConflict
   }
 
+  var offersFilesystemRecheck: Bool {
+    self == .missingInput || self == .outputConflict
+      || self == .permissionDenied || self == .diskSpace
+  }
+
   func offersLocalAIRecheck(for job: JobRecord) -> Bool {
     guard self == .network || self == .modelUnavailable else { return false }
     let messages = [job.message, job.stderr] + job.structuredErrors.map(\.message)
