@@ -428,18 +428,18 @@ extension ScientificWorkbenchTests {
 
   @Test
   func jobRecoveryIssuesUseStructuredKindsForSpecificSafeRoutes() {
-    let cases: [(String, JobRecoveryIssue)] = [
-      ("missing_input", .missingInput),
-      ("output_conflict", .outputConflict),
-      ("permission_denied", .permissionDenied),
-      ("missing_optional_backend", .optionalBackend),
-      ("dependency_error", .pythonEnvironment),
-      ("timeout", .timedOut),
-      ("network_error", .network),
-      ("model_unavailable", .modelUnavailable),
+    let cases: [(String, JobRecoveryIssue, SettingsRecoverySection?)] = [
+      ("missing_input", .missingInput, nil),
+      ("output_conflict", .outputConflict, nil),
+      ("permission_denied", .permissionDenied, .paths),
+      ("missing_optional_backend", .optionalBackend, .optionalBackends),
+      ("dependency_error", .pythonEnvironment, .environment),
+      ("timeout", .timedOut, .behavior),
+      ("network_error", .network, .connections),
+      ("model_unavailable", .modelUnavailable, .connections),
     ]
 
-    for (kind, expected) in cases {
+    for (kind, expected, section) in cases {
       var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
       job.status = .blocked
       job.structuredErrors = [JobStructuredError(kind: kind, message: "Check this run.", recoveryHint: nil)]
@@ -447,6 +447,7 @@ extension ScientificWorkbenchTests {
       #expect(job.recoveryIssue == expected)
       #expect(job.recoveryIssue?.guidance.isEmpty == false)
       #expect(job.recoveryIssue?.actionLabel.isEmpty == false)
+      #expect(job.recoveryIssue?.settingsSection(for: job) == section)
     }
   }
 
@@ -509,16 +510,19 @@ extension ScientificWorkbenchTests {
     ]
     #expect(job.recoveryIssue == .network)
     #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == true)
+    #expect(job.recoveryIssue?.settingsSection(for: job) == .localAI)
 
     job.structuredErrors = [
       JobStructuredError(kind: "network_error", message: "Cloud provider could not be reached.", recoveryHint: nil)
     ]
     #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == false)
+    #expect(job.recoveryIssue?.settingsSection(for: job) == .connections)
 
     job.structuredErrors = [
       JobStructuredError(kind: "model_unavailable", message: "Ollama model was not found.", recoveryHint: nil)
     ]
     #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == true)
+    #expect(job.recoveryIssue?.settingsSection(for: job) == .localAI)
   }
 
   @Test

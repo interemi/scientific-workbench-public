@@ -1,5 +1,14 @@
 import Foundation
 
+enum SettingsRecoverySection: Hashable {
+  case environment
+  case paths
+  case behavior
+  case optionalBackends
+  case localAI
+  case connections
+}
+
 enum JobRecoveryIssue: String, Sendable {
   case missingInput
   case outputConflict
@@ -121,6 +130,23 @@ enum JobRecoveryIssue: String, Sendable {
     let messages = [job.message, job.stderr] + job.structuredErrors.map(\.message)
     return messages.compactMap { $0 }.contains {
       $0.localizedCaseInsensitiveContains("ollama")
+    }
+  }
+
+  func settingsSection(for job: JobRecord) -> SettingsRecoverySection? {
+    switch self {
+    case .missingInput, .outputConflict:
+      return nil
+    case .permissionDenied, .diskSpace:
+      return .paths
+    case .optionalBackend:
+      return .optionalBackends
+    case .pythonEnvironment:
+      return .environment
+    case .timedOut:
+      return .behavior
+    case .network, .modelUnavailable:
+      return offersLocalAIRecheck(for: job) ? .localAI : .connections
     }
   }
 }

@@ -372,6 +372,7 @@ private struct JobRecoveryIssueView: View {
           if issue.opensCapability {
             store.openOptionalCapability(job.capabilityID)
           } else {
+            store.settingsRecoverySection = issue.settingsSection(for: job)
             store.selectedSection = .settings
           }
         }

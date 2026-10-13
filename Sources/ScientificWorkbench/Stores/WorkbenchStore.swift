@@ -24,6 +24,7 @@ private actor InterruptedProcessOutputCapture {
 @MainActor
 final class WorkbenchStore: ObservableObject {
   @Published var selectedSection: AppSection? = .agent
+  @Published var settingsRecoverySection: SettingsRecoverySection?
   @Published var capabilities: [CapabilityEntry] = []
   @Published var selectedCapabilityID: String?
   @Published var capabilityCatalogMode: CapabilityCatalogMode = .normal

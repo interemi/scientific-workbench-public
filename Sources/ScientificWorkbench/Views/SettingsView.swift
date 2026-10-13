@@ -4,6 +4,17 @@ struct SettingsView: View {
   @ObservedObject var store: WorkbenchStore
 
   var body: some View {
+    ScrollViewReader { proxy in
+      settingsForm
+        .onAppear {
+          guard let destination = store.settingsRecoverySection else { return }
+          proxy.scrollTo(destination, anchor: .top)
+          store.settingsRecoverySection = nil
+        }
+    }
+  }
+
+  private var settingsForm: some View {
     Form {
       Section("Setup Checklist") {
         SetupChecklistCard(store: store, compact: true, showActions: false)
@@ -54,6 +65,7 @@ struct SettingsView: View {
       Section("Environment Diagnosis") {
         EnvironmentDiagnosisView(store: store)
       }
+      .id(SettingsRecoverySection.environment)
 
       Section("Paths") {
         HStack {
@@ -84,6 +96,7 @@ struct SettingsView: View {
           }
         }
       }
+      .id(SettingsRecoverySection.paths)
 
       Section("Behavior") {
         CapabilityTimeoutControl(minutes: $store.externalProcessTimeoutMinutes)
@@ -101,10 +114,12 @@ struct SettingsView: View {
           Task { await store.refreshEnvironment() }
         }
       }
+      .id(SettingsRecoverySection.behavior)
 
       Section("Optional Astronomy Backends") {
         OptionalAstronomyBackendsView(store: store)
       }
+      .id(SettingsRecoverySection.optionalBackends)
 
       Section("Configuration") {
         Button("Export Configuration") {
@@ -152,6 +167,7 @@ struct SettingsView: View {
       Section("Local AI Setup") {
         OllamaSetupView(store: store)
       }
+      .id(SettingsRecoverySection.localAI)
 
       Section("AI Connections") {
         Picker("Provider", selection: $store.aiProvider) {
@@ -192,6 +208,7 @@ struct SettingsView: View {
           .accessibilityIdentifier("connections.saveStatus")
         }
       }
+      .id(SettingsRecoverySection.connections)
 
       Section("Codex Bridge") {
         TextField("Codex executable", text: $store.codexExecutablePath)
