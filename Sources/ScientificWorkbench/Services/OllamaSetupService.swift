@@ -77,11 +77,12 @@ struct OllamaSetupService: Sendable {
     return (pathCandidates + commonCandidates).first(where: fileExists)
   }
 
-  func pullModel(_ model: String) async throws -> OllamaCommandResult {
+  func pullModel(_ model: String, baseURL: String? = nil) async throws -> OllamaCommandResult {
+    let request = try OllamaModelDownloadRequest(model: model, baseURL: baseURL)
     guard let cliPath = locateCLI() else {
       throw OllamaSetupError.cliMissing
     }
-    return try await run(executable: cliPath, arguments: ["pull", model])
+    return try await run(executable: cliPath, arguments: ["pull", request.model], baseURL: request.baseURL)
   }
 
   private func fetchInstalledModels(baseURL: String?) async throws -> [String] {
@@ -110,7 +111,7 @@ struct OllamaSetupService: Sendable {
     }
   }
 
-  private func run(executable: String, arguments: [String]) async throws -> OllamaCommandResult {
+  private func run(executable: String, arguments: [String], baseURL: String) async throws -> OllamaCommandResult {
     var command = ProcessCommand(
       executable: executable,
       arguments: arguments,
@@ -120,6 +121,7 @@ struct OllamaSetupService: Sendable {
       ? pullTimeoutSeconds
       : Self.defaultPullTimeoutSeconds
     command.environmentPolicy = .strict
+    command.environmentOverrides = ["OLLAMA_HOST": baseURL]
     command.redirectStandardInputToNull = true
 
     let result: ProcessResult
@@ -172,6 +174,7 @@ private struct OllamaTagsResponse: Decodable {
 
 enum OllamaSetupError: LocalizedError {
   case cliMissing
+  case invalidModel
   case invalidBaseURL(String)
   case unsafeEndpoint(String)
   case serverUnavailable
@@ -182,6 +185,8 @@ enum OllamaSetupError: LocalizedError {
     switch self {
     case .cliMissing:
       return "Ollama CLI was not found. Install Ollama first."
+    case .invalidModel:
+      return "Enter a model name or tag without spaces or command options."
     case .invalidBaseURL(let url):
       return "Ollama base URL is invalid: \(url)"
     case .unsafeEndpoint(let url):

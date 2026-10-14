@@ -76,6 +76,13 @@ authentication; OAuth is not implemented. Connection status is evidence for
 the current session and resets on restart. Leave Ollama selected to avoid paid
 provider APIs.
 
+For Ollama, **Download Selected Model** opens a review of the model, local
+endpoint, approximate file size, and network/storage scope. **Download Model**
+starts that reviewed request; changing the model or endpoint requires another
+review. The app shows an indeterminate progress indicator and cancellation.
+Check and test again after the client stops. See the [local AI setup guide](../docs/LOCAL_AI_SETUP.md)
+for model resource limits, already-installed models, and safe recovery.
+
 ### Choose Core or Full
 
 Start with **Core** for the five synthetic examples and common table, FITS,

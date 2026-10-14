@@ -6,6 +6,21 @@ enum OllamaEndpointPolicyError: Error, Equatable, Sendable {
 }
 
 enum OllamaEndpointPolicy {
+  static func commandBaseURL(baseURL: String?) throws -> String {
+    let tagsURL = try apiURL(baseURL: baseURL, endpoint: "tags")
+    guard var components = URLComponents(url: tagsURL, resolvingAgainstBaseURL: false) else {
+      throw OllamaEndpointPolicyError.invalidBaseURL(tagsURL.absoluteString)
+    }
+    if let port = components.port, !(1...65535).contains(port) {
+      throw OllamaEndpointPolicyError.invalidBaseURL(baseURL ?? tagsURL.absoluteString)
+    }
+    components.percentEncodedPath = String(components.percentEncodedPath.dropLast("/api/tags".count))
+    guard let url = components.url else {
+      throw OllamaEndpointPolicyError.invalidBaseURL(tagsURL.absoluteString)
+    }
+    return url.absoluteString
+  }
+
   static func apiURL(baseURL: String?, endpoint: String) throws -> URL {
     let raw = (baseURL?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
       ? baseURL!

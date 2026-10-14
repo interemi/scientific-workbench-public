@@ -154,7 +154,11 @@ bundle before sharing it.
 ### Ollama is unavailable
 
 - Open Ollama and confirm the configured loopback endpoint and model.
-- Pull the selected model in **Local AI Setup**.
+- Review the selected model's download in **Local AI Setup**, then confirm it.
+  The request uses the reviewed endpoint. Changing the endpoint or model requires
+  a new review; a successful setup recheck must not erase a failed download's
+  CLI error. See [local AI setup](LOCAL_AI_SETUP.md) for resource and cancellation
+  limits.
 - Scientific Workbench rejects remote and non-HTTP(S) Ollama endpoints by
   design; use `localhost`, `127.0.0.0/8`, or `::1`.
 - A missing local model should not trigger a cloud request automatically.

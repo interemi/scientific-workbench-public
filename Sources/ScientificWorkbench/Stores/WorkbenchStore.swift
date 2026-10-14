@@ -169,7 +169,7 @@ final class WorkbenchStore: ObservableObject {
   private let agentRoutingService = AgentRoutingService()
   private let cloudAIClient: CloudAIClient
   private let aiConnectionService: AIConnectionService
-  private let ollamaSetupService = OllamaSetupService()
+  private let ollamaSetupService: OllamaSetupService
   private let configurationService = ConfigurationExportImportService()
   private let supportBundleService = SupportBundleService()
   private let launchTranscriptService = LaunchTranscriptService()
@@ -211,10 +211,12 @@ final class WorkbenchStore: ObservableObject {
     cloudAIClient: CloudAIClient = CloudAIClient(),
     credentialStore: any CloudCredentialStoring = KeychainCredentialStore(),
     filesystemSafetyPolicy: FilesystemSafetyPolicy = FilesystemSafetyPolicy(),
-    firstRunExampleLibraryRoot: URL? = nil
+    firstRunExampleLibraryRoot: URL? = nil,
+    ollamaSetupService: OllamaSetupService = OllamaSetupService()
   ) {
     self.defaults = defaults
     self.cloudAIClient = cloudAIClient
+    self.ollamaSetupService = ollamaSetupService
     self.credentialStore = credentialStore
     self.aiConnectionService = AIConnectionService(client: cloudAIClient)
     self.filesystemSafetyPolicy = filesystemSafetyPolicy
@@ -1165,16 +1167,30 @@ final class WorkbenchStore: ObservableObject {
     }
   }
 
-  func pullSelectedOllamaModel() async {
+  func prepareOllamaModelDownload() -> OllamaModelDownloadRequest? {
+    do {
+      return try OllamaModelDownloadRequest(model: model(for: .ollama), baseURL: baseURL(for: .ollama))
+    } catch {
+      ollamaSetupStatus.message = "Cannot prepare model download: \(error.localizedDescription)"
+      return nil
+    }
+  }
+
+  func confirmOllamaModelDownload(_ request: OllamaModelDownloadRequest) async {
+    guard let current = prepareOllamaModelDownload(),
+          current.model == request.model, current.baseURL == request.baseURL else {
+      ollamaSetupStatus.message = "The model or endpoint changed. Review the download again; nothing was downloaded."
+      return
+    }
     guard !isPullingOllamaModel else { return }
-    guard !hasActiveJob, !isRunningAgentWorkflow, !isRunningCodexBridge else {
+    guard canChangeWorkflowContext else {
       ollamaSetupStatus.message = "Wait for the active Scientific Workbench operation to finish or cancel it before downloading a model."
       return
     }
     isCancellationRequested = false
     isPullingOllamaModel = true
-    let model = model(for: .ollama)
-    let task = Task { try await ollamaSetupService.pullModel(model) }
+    let model = request.model
+    let task = Task { try await ollamaSetupService.pullModel(model, baseURL: request.baseURL) }
     ollamaPullTask = task
     defer {
       ollamaPullTask = nil
@@ -1183,22 +1199,15 @@ final class WorkbenchStore: ObservableObject {
     }
     do {
       let result = try await task.value
-      ollamaSetupStatus.message = result.succeeded
-        ? "\(model) downloaded. Checking local AI setup again..."
-        : "Ollama pull exited with \(result.exitCode): \(result.userMessage)"
       await refreshOllamaSetup()
+      ollamaSetupStatus.message = result.succeeded
+        ? "Download command completed for \(model). \(ollamaSetupStatus.message)"
+        : "Ollama pull exited with \(result.exitCode): \(result.userMessage)"
     } catch {
       if error is CancellationError || isOllamaCancellation(error) {
         agentStatusMessage = "Ollama model download cancelled."
       }
-      ollamaSetupStatus = OllamaSetupStatus(
-        cliPath: ollamaSetupStatus.cliPath,
-        serverReachable: ollamaSetupStatus.serverReachable,
-        installedModels: ollamaSetupStatus.installedModels,
-        targetModel: model,
-        message: error.localizedDescription,
-        checkedAt: Date()
-      )
+      ollamaSetupStatus.message = "Download client stopped for \(model): \(error.localizedDescription) Recheck model availability before retrying; partial data may remain in Ollama."
     }
   }
 

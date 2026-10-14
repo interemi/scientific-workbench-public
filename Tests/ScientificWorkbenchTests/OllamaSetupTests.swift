@@ -5,12 +5,117 @@ import Testing
 
 extension ScientificWorkbenchTests {
   @Test
+  func ollamaPullUsesReviewedEndpointAndRejectsRemoteTargetsBeforeLaunching() async throws {
+    let root = try makeFakeOllamaCLI(scriptBody: """
+      #!/bin/sh
+      printf '%s' "$OLLAMA_HOST"
+      printf '%s' "$2" > "$(dirname "$0")/launched.txt"
+      """)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let marker = root.appendingPathComponent("launched.txt")
+    let service = OllamaSetupService(pathEnvironment: root.path, pullTimeoutSeconds: 5)
+    do {
+      _ = try await service.pullModel("test-model", baseURL: "https://remote.example.invalid")
+      Issue.record("A remote target must not launch the download client.")
+    } catch OllamaSetupError.unsafeEndpoint { }
+    #expect(!FileManager.default.fileExists(atPath: marker.path))
+
+    for endpoint in ["http://127.0.0.1:0", "http://127.0.0.1:65536"] {
+      do {
+        _ = try await service.pullModel("test-model", baseURL: endpoint)
+        Issue.record("An invalid port must not fall back to another download server.")
+      } catch OllamaSetupError.invalidBaseURL { }
+    }
+    #expect(!FileManager.default.fileExists(atPath: marker.path))
+
+    let result = try await service.pullModel("test-model",
+      baseURL: "http://127.0.0.1:11435/proxy/api/chat")
+    #expect(result.succeeded)
+    #expect(result.stdout == "http://127.0.0.1:11435/proxy")
+    #expect(try String(contentsOf: marker, encoding: .utf8) == "test-model")
+    #expect(try OllamaEndpointPolicy.commandBaseURL(baseURL: nil) == "http://localhost:11434")
+    #expect(try OllamaEndpointPolicy.commandBaseURL(baseURL: "http://[::1]:11435/api") == "http://[::1]:11435")
+  }
+
+  @Test
+  @MainActor
+  func preparingDownloadSendsNothingAndChangedModelOrEndpointRequiresNewReview() async throws {
+    let root = try makeFakeOllamaCLI(scriptBody: """
+      #!/bin/sh
+      printf 'unexpected' > "$(dirname "$0")/launched.txt"
+      """)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let recorder = RequestRecorder(responseBody: #"{"models":[]}"#)
+    let service = OllamaSetupService(pathEnvironment: root.path, dataLoader: recorder.load)
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Download-Review-\(UUID())")!
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults,
+      loadPersistedState: false, ollamaSetupService: service)
+    store.setModel("test-model", for: .ollama)
+    store.setBaseURL("http://127.0.0.1:11435", for: .ollama)
+    let original = try #require(store.prepareOllamaModelDownload())
+    #expect(original.reviewDetail.contains("size unknown"))
+    #expect(!store.isPullingOllamaModel)
+    #expect(await recorder.requests.isEmpty)
+
+    store.setBaseURL("http://127.0.0.1:11436", for: .ollama)
+    await store.confirmOllamaModelDownload(original)
+    #expect(store.ollamaSetupStatus.message.contains("nothing was downloaded"))
+    let changedEndpoint = try #require(store.prepareOllamaModelDownload())
+    store.setModel("another-model", for: .ollama)
+    await store.confirmOllamaModelDownload(changedEndpoint)
+    #expect(store.ollamaSetupStatus.message.contains("nothing was downloaded"))
+    #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("launched.txt").path))
+    #expect(await recorder.requests.isEmpty)
+
+    let busyRequest = try #require(store.prepareOllamaModelDownload())
+    store.isPlanningAgentWorkflow = true
+    await store.confirmOllamaModelDownload(busyRequest)
+    #expect(store.ollamaSetupStatus.message.contains("active Scientific Workbench operation"))
+    #expect(!store.isPullingOllamaModel)
+    #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("launched.txt").path))
+    #expect(await recorder.requests.isEmpty)
+    store.isPlanningAgentWorkflow = false
+
+    store.setModel("--help", for: .ollama)
+    #expect(store.prepareOllamaModelDownload() == nil)
+    #expect(store.ollamaSetupStatus.message.contains("without spaces or command options"))
+  }
+
+  @Test
+  @MainActor
+  func failedOllamaDownloadRetainsErrorAfterSetupRecheck() async throws {
+    let root = try makeFakeOllamaCLI(scriptBody: """
+      #!/bin/sh
+      printf 'synthetic download failure at %s' "$OLLAMA_HOST" >&2
+      exit 7
+      """)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let recorder = RequestRecorder(responseBody: #"{"models":[]}"#)
+    let service = OllamaSetupService(pathEnvironment: root.path,
+      dataLoader: recorder.load, pullTimeoutSeconds: 5)
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Download-Failure-\(UUID())")!
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults,
+      loadPersistedState: false, ollamaSetupService: service)
+    store.setModel("test-model", for: .ollama)
+    store.setBaseURL("http://127.0.0.1:11435", for: .ollama)
+    let request = try #require(store.prepareOllamaModelDownload())
+    await store.confirmOllamaModelDownload(request)
+
+    #expect(!store.isPullingOllamaModel)
+    #expect(store.ollamaSetupStatus.presentationState() == .downloadModel)
+    #expect(store.ollamaSetupStatus.message.contains("exited with 7"))
+    #expect(store.ollamaSetupStatus.message.contains("synthetic download failure at http://127.0.0.1:11435"))
+    #expect(await recorder.requests.count == 1)
+    #expect(await recorder.requests.first?.url?.absoluteString == "http://127.0.0.1:11435/api/tags")
+  }
+
+  @Test
   func ollamaModelProfilesExposeBalancedDefaultAndCustomMatching() {
     #expect(OllamaModelProfile.recommended == .balanced)
     #expect(OllamaModelProfile.allCases.map(\.model) == ["qwen3:1.7b", "qwen3:4b-instruct", "qwen3:8b"])
     #expect(OllamaModelProfile.matching(model: " qwen3:4b-instruct ") == .balanced)
     #expect(OllamaModelProfile.matching(model: "custom-local-model") == nil)
-    #expect(OllamaModelProfile.balanced.detailText.contains("16 GB RAM"))
+    #expect(OllamaModelProfile.balanced.detailText.contains("fit on this Mac is not guaranteed"))
   }
 
   @Test
