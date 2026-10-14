@@ -8,6 +8,11 @@ capability, see [skills and capabilities](../docs/SKILLS_AND_CAPABILITIES.md),
 then use the [setup matrix](../docs/CAPABILITY_SETUP_MATRIX.md) to choose the
 requirements for one route.
 
+Short task guides cover [tables and synthetic spectra](Workflow_Table.md),
+[FITS images](Workflow_FITS.md), and [mixed folders and PDF intake](Workflow_Mixed_Folder.md).
+Open **Read task guide** on Dashboard or **Task Guide** in the workflow bar to
+read the relevant bundled guide beside the app.
+
 ## 1. What the app does
 
 Scientific Workbench connects a macOS interface for files, folders, and prompts

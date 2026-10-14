@@ -32,30 +32,38 @@ struct AgentView: View {
   }
 
   private var chatTranscript: some View {
-    ScrollView {
-      LazyVStack(alignment: .leading, spacing: 14) {
-        AgentBoundaryStrip(store: store)
+    ScrollViewReader { reader in
+      ScrollView {
+        LazyVStack(alignment: .leading, spacing: 14) {
+          AgentBoundaryStrip(store: store)
 
-        if !store.setupChecklistIsReady {
-          SetupChecklistCard(store: store, compact: true)
-        }
+          if !store.setupChecklistIsReady {
+            SetupChecklistCard(store: store, compact: true)
+          }
 
-        ForEach(store.agentChatMessages) { message in
-          ChatBubble(message: message)
-        }
+          ForEach(store.agentChatMessages) { message in
+            ChatBubble(message: message)
+          }
 
-        if let plan = store.agentPlan {
-          EditablePlanCard(store: store, plan: plan)
-        }
+          if let plan = store.agentPlan {
+            EditablePlanCard(store: store, plan: plan)
+              .id("active-workflow-plan")
+          }
 
-        if let recovery = store.workflowRecoveryState {
-          WorkflowRecoveryCard(store: store, recovery: recovery)
+          if let recovery = store.workflowRecoveryState {
+            WorkflowRecoveryCard(store: store, recovery: recovery)
+          }
         }
+        .padding(.vertical, 22)
+        .padding(.horizontal, 36)
+        .frame(maxWidth: 1040, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
       }
-      .padding(.vertical, 22)
-      .padding(.horizontal, 36)
-      .frame(maxWidth: 1040, alignment: .leading)
-      .frame(maxWidth: .infinity, alignment: .center)
+      .task(id: store.workflowPlanRevealRequest) {
+        guard store.workflowPlanRevealRequest != nil, store.agentPlan != nil else { return }
+        await Task.yield()
+        reader.scrollTo("active-workflow-plan", anchor: .top)
+      }
     }
   }
 

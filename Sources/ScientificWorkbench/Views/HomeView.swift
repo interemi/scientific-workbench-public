@@ -128,6 +128,10 @@ struct HomeView: View {
               .accessibilityIdentifier("home.prepare-example.\(kind.id)")
               .disabled(store.hasActiveJob)
             }
+            Button("Read task guide") { store.openFirstRunGuide(for: kind) }
+              .font(.caption)
+              .accessibilityLabel("Read the \(kind.launcherTitle) task guide")
+              .accessibilityIdentifier("home.open-task-guide.\(kind.id)")
           }
           .padding(14)
           .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)

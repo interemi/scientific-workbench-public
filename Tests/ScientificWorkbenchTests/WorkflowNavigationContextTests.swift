@@ -5,6 +5,34 @@ import Testing
 extension ScientificWorkbenchTests {
   @Test
   @MainActor
+  func taskGuidesFollowTheActiveJobAndCoverAllInitialExamples() throws {
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Task-Guides-\(UUID())")!
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false)
+    let table = sampleCapability()
+    let fits = expertFITSCapability()
+    store.capabilities = [table, fits]
+    store.selectedCapabilityID = table.id
+    store.selectedSection = .capabilities
+    #expect(store.currentWorkflowGuideKind == .table)
+    let fitsJob = JobRecord(capability: fits, runDirectory: "/synthetic/fits")
+    store.jobs = [fitsJob]
+    store.selectedJobID = fitsJob.id
+    store.selectedSection = .results
+    #expect(store.currentWorkflowGuideKind == .fits)
+    let fitsGuide = try #require(store.firstRunGuideURL(for: .fits))
+    #expect(try String(contentsOf: fitsGuide, encoding: .utf8).contains("63 finite pixels"))
+    for kind in FirstRunExampleKind.allCases {
+      let url = try #require(store.firstRunGuideURL(for: kind))
+      #expect(FileManager.default.isReadableFile(atPath: url.path))
+    }
+    #expect(store.jobs.count == 1)
+    #expect(store.inputPaths.isEmpty)
+    #expect(!store.outputRootRiskApproved)
+    #expect(FirstRunExampleKind.guideKind(for: "unrecognized-route") == nil)
+  }
+
+  @Test
+  @MainActor
   func workflowJourneyBackEditAndExitPreserveActiveContextWithoutExecuting() throws {
     let defaults = UserDefaults(suiteName: "Scientific-Workbench-Journey-\(UUID())")!
     let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false)
@@ -38,6 +66,9 @@ extension ScientificWorkbenchTests {
     store.navigateBackInWorkflow()
     #expect(store.selectedSection == .jobs)
     #expect(store.navigateWorkflow(to: .plan))
+    let firstRevealRequest = try #require(store.workflowPlanRevealRequest)
+    #expect(store.navigateWorkflow(to: .plan))
+    #expect(store.workflowPlanRevealRequest != firstRevealRequest)
     #expect(store.navigateWorkflow(to: .inputs))
     #expect(store.selectedSection == .home)
     #expect(store.isRunningAgentWorkflow)

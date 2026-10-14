@@ -36,6 +36,7 @@ final class WorkbenchStore: ObservableObject {
   @Published private(set) var previousWorkflowDraft: WorkflowDraftBackup?
   @Published private(set) var workflowExecutionIdentity: WorkflowExecutionIdentity?
   @Published var workflowNavigationNotice: String?
+  @Published private(set) var workflowPlanRevealRequest: UUID?
   @Published var jobs: [JobRecord] = []
   @Published var recentJobFilter = RecentJobFilter()
   @Published var selectedJobID: UUID?
@@ -389,6 +390,9 @@ final class WorkbenchStore: ObservableObject {
   @discardableResult
   func navigateWorkflow(to stage: WorkflowJourneyStage) -> Bool {
     guard stage != .results || selectedJob != nil else { return false }
+    if stage == .plan, agentPlan != nil {
+      workflowPlanRevealRequest = UUID()
+    }
     if stage == .review, selectedCapability == nil || selectedCapability?.isMaintainerOnly == true {
       let planCapability = agentPlan?.steps.filter(\.isEnabled).compactMap { step in
         userCapabilities.first { $0.id == step.capabilityID }
@@ -425,6 +429,7 @@ final class WorkbenchStore: ObservableObject {
     agentPlanStepExecutions = [:]
     lastWorkflowSummaryPath = nil
     workflowExecutionIdentity = nil
+    workflowPlanRevealRequest = nil
     selectedCapabilityID = nil
     selectedJobID = nil
     capabilityArgumentDrafts = [:]
@@ -647,9 +652,30 @@ final class WorkbenchStore: ObservableObject {
   }
 
   var userGuideURL: URL? {
+    guideURL(named: "Scientific_Workbench_User_Guide.md")
+  }
+
+  func firstRunGuideURL(for kind: FirstRunExampleKind) -> URL? {
+    guideURL(named: kind.guideFilename)
+  }
+
+  var currentWorkflowGuideKind: FirstRunExampleKind? {
+    let capabilityID: String?
+    switch selectedSection ?? .agent {
+    case .jobs, .results:
+      capabilityID = selectedJob?.capabilityID
+    case .agent:
+      capabilityID = agentPlan?.steps.first(where: \.isEnabled)?.capabilityID ?? selectedCapabilityID
+    default:
+      capabilityID = selectedCapabilityID
+    }
+    return capabilityID.flatMap(FirstRunExampleKind.guideKind)
+  }
+
+  private func guideURL(named filename: String) -> URL? {
     if let bundledGuideURL = Bundle.main.resourceURL?
       .appendingPathComponent("Guides", isDirectory: true)
-      .appendingPathComponent("Scientific_Workbench_User_Guide.md"),
+      .appendingPathComponent(filename),
       FileManager.default.fileExists(atPath: bundledGuideURL.path) {
       return bundledGuideURL
     }
@@ -660,7 +686,7 @@ final class WorkbenchStore: ObservableObject {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .appendingPathComponent("Guides", isDirectory: true)
-      .appendingPathComponent("Scientific_Workbench_User_Guide.md")
+      .appendingPathComponent(filename)
     guard FileManager.default.fileExists(atPath: sourceGuideURL.path) else {
       return nil
     }
@@ -946,6 +972,14 @@ final class WorkbenchStore: ObservableObject {
       return
     }
     openMarkdownDocument(userGuideURL)
+  }
+
+  func openFirstRunGuide(for kind: FirstRunExampleKind) {
+    guard let url = firstRunGuideURL(for: kind) else {
+      agentStatusMessage = "Could not find the bundled \(kind.launcherTitle) workflow guide."
+      return
+    }
+    openMarkdownDocument(url)
   }
 
   @discardableResult

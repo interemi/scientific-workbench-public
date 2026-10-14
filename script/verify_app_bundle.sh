@@ -53,6 +53,9 @@ verify_clean_codesign() {
 [[ -x "$APP_BINARY" ]] || fail "missing executable at $APP_BINARY"
 [[ -f "$APP_ICON" ]] || fail "missing AppIcon.icns"
 [[ -f "$USER_GUIDE" ]] || fail "missing bundled user guide"
+for guide in Workflow_Table.md Workflow_FITS.md Workflow_Mixed_Folder.md; do
+  [[ -f "$APP_BUNDLE/Contents/Resources/Guides/$guide" ]] || fail "missing bundled task guide: $guide"
+done
 
 [[ "$(plist_value CFBundleExecutable)" == "$APP_EXECUTABLE_NAME" ]] || fail "unexpected CFBundleExecutable"
 [[ "$(plist_value CFBundleIdentifier)" == "$EXPECTED_BUNDLE_ID" ]] || fail "unexpected CFBundleIdentifier"

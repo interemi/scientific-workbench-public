@@ -41,6 +41,7 @@ struct WorkflowJourneyBar: View {
     .padding(.vertical, 10)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.bar)
+    .accessibilityElement(children: .contain)
     .accessibilityIdentifier("workflow.journey")
   }
 
@@ -67,6 +68,11 @@ struct WorkflowJourneyBar: View {
       Button("Exit to Dashboard") { store.navigateWorkflow(to: .inputs) }
         .help("Return to Dashboard with the draft preserved. Active work continues; use Cancel in Chat or Jobs to stop it.")
         .accessibilityIdentifier("workflow.exit-to-dashboard")
+      if let kind = store.currentWorkflowGuideKind {
+        Button("Task Guide", systemImage: "questionmark.circle") { store.openFirstRunGuide(for: kind) }
+          .help("Open the bundled guide for this task's inputs, review, output evidence, and limits.")
+          .accessibilityIdentifier("workflow.open-task-guide")
+      }
     }
     .font(.caption)
     .fixedSize()

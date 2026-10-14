@@ -75,6 +75,24 @@ enum FirstRunExampleKind: String, CaseIterable, Identifiable {
   var catalogMode: CapabilityCatalogMode {
     self == .fits ? .expert : .normal
   }
+
+  var guideFilename: String {
+    switch self {
+    case .table, .spectrum: return "Workflow_Table.md"
+    case .fits: return "Workflow_FITS.md"
+    case .document, .mixed: return "Workflow_Mixed_Folder.md"
+    }
+  }
+
+  static func guideKind(for capabilityID: String) -> FirstRunExampleKind? {
+    switch capabilityID {
+    case "profile_table": return .table
+    case "inspect_fits": return .fits
+    case "document_intake_workbench": return .document
+    case "cross_domain_data_workbench": return .mixed
+    default: return nil
+    }
+  }
 }
 
 struct PreparedFirstRunExample {

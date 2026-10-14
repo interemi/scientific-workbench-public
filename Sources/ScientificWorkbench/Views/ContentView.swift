@@ -50,6 +50,7 @@ struct ContentView: View {
             }
             .padding(12)
             .background(.regularMaterial)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("workflow.context-notice")
             Divider()
           }
