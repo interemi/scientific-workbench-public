@@ -343,11 +343,15 @@ extension ScientificWorkbenchTests {
   @Test
   @MainActor
   func configuredSecretsAreRedactedFromCloudPlanningHTTPBody() async throws {
+    let outputRoot = FileManager.default.temporaryDirectory
+      .appendingPathComponent("Scientific-Workbench-CloudPlanning-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: outputRoot) }
     let planJSON = #"{"title":"Safe plan","rationale":"Use the selected capability.","steps":[{"capability_id":"profile_table","summary":"Profile the table.","raw_arguments":"","uses_inputs":true,"uses_previous_output":false}]}"#
     let responseData = try JSONSerialization.data(withJSONObject: ["output_text": planJSON])
     let responseBody = try #require(String(data: responseData, encoding: .utf8))
     let recorder = RequestRecorder(responseBody: responseBody)
     let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
+    defaults.set(outputRoot.path, forKey: "outputRootPath")
     let store = WorkbenchStore(
       loadSecrets: false,
       defaults: defaults,
@@ -380,6 +384,9 @@ extension ScientificWorkbenchTests {
     #expect(bodyText.contains("[REDACTED]"))
     #expect(store.agentChatMessages.contains { $0.role == .user && $0.text == localDraft })
     #expect(store.agentPlan?.title == "Safe plan")
+    let stateURL = outputRoot.appendingPathComponent(".scientificworkbench/agent_state.json")
+    let persisted = try #require(try AgentStateStore().load(from: stateURL))
+    #expect(persisted.agentPlan?.id == store.agentPlan?.id)
   }
 
   @Test
