@@ -802,6 +802,13 @@ final class WorkbenchStore: ObservableObject {
     invalidateAIConnectionStatus(for: provider)
   }
 
+  private func replaceAgentPlan(_ plan: AgentPlan) {
+    agentPlan = plan
+    agentPlanStepExecutions = [:]
+    workflowExecutionIdentity = nil
+    lastWorkflowSummaryPath = nil
+  }
+
   func updateAgentPlanTitle(_ title: String) {
     guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else { return }
     agentPlan?.title = title
@@ -1070,8 +1077,7 @@ final class WorkbenchStore: ObservableObject {
       if !restoredInputs.isEmpty {
         inputPaths = restoredInputs
       }
-      agentPlan = importedPlan
-      agentPlanStepExecutions = [:]
+      replaceAgentPlan(importedPlan)
       agentMode = .workflow
       agentAutoRun = false
       selectedSection = .agent
@@ -2131,8 +2137,7 @@ final class WorkbenchStore: ObservableObject {
       )
     }
     let safePlan = launchAutomationPlanWithRestrictedStepsEnabledIfNeeded(redactedPlan(plan))
-    agentPlan = safePlan
-    agentPlanStepExecutions = [:]
+    replaceAgentPlan(safePlan)
     agentStatusMessage = "Planned \(safePlan.steps.count) step\(safePlan.steps.count == 1 ? "" : "s") using \(safePlan.source.title)."
     persistAgentState()
     isPlanningAgentWorkflow = false

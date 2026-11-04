@@ -5,6 +5,77 @@ import Testing
 extension ScientificWorkbenchTests {
   @Test
   @MainActor
+  func planningAnotherWorkflowClearsPreviousResultLinksButKeepsEvidence() async throws {
+    try await checkReplacementPlanDoesNotReusePreviousResult(importPlan: false)
+  }
+
+  @Test
+  @MainActor
+  func importingAnotherWorkflowClearsPreviousResultLinksButKeepsEvidence() async throws {
+    try await checkReplacementPlanDoesNotReusePreviousResult(importPlan: true)
+  }
+
+  @MainActor
+  private func checkReplacementPlanDoesNotReusePreviousResult(importPlan: Bool) async throws {
+    let root = try makeSuccessfulEnvironmentSkillFixture()
+    defer { try? FileManager.default.removeItem(at: root) }
+    let output = root.appendingPathComponent("output", isDirectory: true)
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Replacement-Plan-\(UUID())")!
+    defaults.set(root.path, forKey: "skillRootPath")
+    defaults.set(output.path, forKey: "outputRootPath")
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false)
+    let capability = environmentCapability()
+    store.capabilities = [capability]
+    store.agentPlan = AgentPlan(title: "Previous workflow", rationale: "Create retained evidence",
+      steps: [AgentPlanStep(capabilityID: capability.id, summary: "Check environment",
+        rawArguments: "", usesInputs: false, usesPreviousOutput: false)], source: .local)
+    #expect(await store.runAgentPlan().contains("1/1"))
+    let originalPlan = try #require(store.agentPlan)
+    let originalRun = try #require(store.workflowExecutionIdentity?.id)
+    let originalJob = try #require(store.jobs.first)
+    let summary = URL(fileURLWithPath: try #require(store.lastWorkflowSummaryPath))
+    let summaryBytes = try Data(contentsOf: summary)
+    #expect(store.hasAvailableWorkflowSummary)
+    #expect(store.workflowRunID(for: originalJob) == originalRun)
+
+    #expect(store.importAgentPlan(from: root.appendingPathComponent("missing.json").path) == nil)
+    #expect(store.agentPlan == originalPlan)
+    #expect(store.lastWorkflowSummaryPath == summary.path)
+    #expect(store.workflowRunID(for: originalJob) == originalRun)
+
+    let replacement: AgentPlan
+    if importPlan {
+      let plan = AgentPlan(title: "Replacement workflow", rationale: "Fresh review required",
+        steps: originalPlan.steps, source: .local)
+      let payload = ExportedAgentPlanPayload(version: ExportedAgentPlanPayload.currentVersion,
+        generatedAt: Date(), outputRootPath: output.path, inputPaths: [],
+        aiProvider: .ollama, aiModel: "unused", mode: .workflow, autoRun: false, plan: plan)
+      let path = root.appendingPathComponent("replacement.json")
+      let bytes = try JSONEncoder.scientificWorkbench.encode(payload)
+      try bytes.write(to: path)
+      replacement = try #require(store.importAgentPlan(from: path.path))
+      #expect(try Data(contentsOf: path) == bytes)
+    } else {
+      replacement = try #require(await store.planAgentWorkflow(prompt: "Check environment readiness"))
+    }
+
+    #expect(replacement.id != originalPlan.id)
+    #expect(store.lastWorkflowSummaryPath == nil)
+    #expect(!store.hasAvailableWorkflowSummary)
+    #expect(store.workflowExecutionIdentity == nil)
+    #expect(store.workflowRunID(for: originalJob) == nil)
+    #expect(store.agentPlanStepExecutions.isEmpty)
+    #expect(store.jobs.count == 1)
+    #expect(store.jobs.first?.id == originalJob.id)
+    #expect(try Data(contentsOf: summary) == summaryBytes)
+    #expect(FileManager.default.fileExists(atPath: originalJob.runDirectory + "/stdout.txt"))
+    let restored = WorkbenchStore(loadSecrets: false, defaults: defaults)
+    #expect(restored.agentPlan?.id == replacement.id)
+    #expect(restored.lastWorkflowSummaryPath == nil)
+  }
+
+  @Test
+  @MainActor
   func taskGuideSkipsDiagnosticStepsAndNeverUsesStaleSelectionForAPlan() {
     let defaults = UserDefaults(suiteName: "Scientific-Workbench-Plan-Task-Guide-\(UUID())")!
     let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false)
