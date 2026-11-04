@@ -156,6 +156,13 @@ and usability baseline.
 | P1.12 | Publish short, version-matched guides for the selected workflows. |
 | P1.14 | Publish real screenshots and a tour tied to an identified build. |
 
+P1.11 has a [dated local model-setup acceptance record](PHASE4_LOCAL_MODEL_ACCEPTANCE_2026-11-04.md)
+at `3a0e8ea`: a completed real download, a second active download cancelled
+through the app, preserved partial data, and a successful deterministic table
+run after the selected test server was stopped. A separate model store
+preserved the usual Ollama installation. Phase 4 quality/bundle checks and
+exact-candidate public CI remain pending.
+
 P1.13 has a [dated local recovery-action review](PHASE4_RECOVERY_LOCAL_REVIEW_2026-11-04.md)
 at `88588df`: nine explicitly simulated errors, eight real current-state
 rechecks, observed setup destinations, and a real local support export that
