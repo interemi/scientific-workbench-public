@@ -156,6 +156,12 @@ and usability baseline.
 | P1.12 | Publish short, version-matched guides for the selected workflows. |
 | P1.14 | Publish real screenshots and a tour tied to an identified build. |
 
+P1.15 has a [dated local workflow-context review](PHASE4_WORKFLOW_CONTEXT_LOCAL_REVIEW_2026-11-04.md)
+at `d271065`: four completed scripted attempts, one actual FITS cancellation,
+11 verified step-to-job links, and a fix for Summary opening an older workflow
+after a new plan. The final two attempts repeat one plan in the same session;
+they are not independent user sessions. Full Phase 4 integration remains pending.
+
 P1.12 and P1.14 now have [three illustrated local workflow tours](WORKFLOW_TOURS.md)
 from source `ce38859`, with short guides, real app captures, optional GIFs,
 expected-value checks, and media provenance. Four direct jobs and a review-only
