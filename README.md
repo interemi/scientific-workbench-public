@@ -29,6 +29,8 @@ not promises that the listed features have shipped.
    [workflow requirements](docs/WORKFLOW_REQUIREMENTS.md), and
    [troubleshooting](docs/TROUBLESHOOTING.md).
 4. Start with the [synthetic first-run examples](docs/SYNTHETIC_FIRST_RUN_EXAMPLES.md).
+   Follow the [three illustrated workflow tours](docs/WORKFLOW_TOURS.md) for
+   real screens, short guides, expected results, and evidence limits.
    **Dashboard** prepares a fresh local copy and selects its suggested capability.
    A direct **Run Capability** action starts immediately, so review its inputs
    and output folder first. For a Chat-generated plan, leave **Auto-run** off,

@@ -156,6 +156,13 @@ and usability baseline.
 | P1.12 | Publish short, version-matched guides for the selected workflows. |
 | P1.14 | Publish real screenshots and a tour tied to an identified build. |
 
+P1.12 and P1.14 now have [three illustrated local workflow tours](WORKFLOW_TOURS.md)
+from source `ce38859`, with short guides, real app captures, optional GIFs,
+expected-value checks, and media provenance. Four direct jobs and a review-only
+Chat plan were checked on the maintainer's Mac on 2026-11-04. Public integration,
+exact-candidate hosted checks, and the remaining Phase 4 acceptance work are
+still pending; these tours do not establish independent usability.
+
 P1.01 has a [dated local technical review](PHASE4_DASHBOARD_LOCAL_REVIEW_2026-10-04.md)
 at `63dee8a`. Public integration and exact-candidate hosted checks are still
 pending; this is not a measured novice-user success claim.

@@ -1,0 +1,357 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-11-04T05:45:18.917054+00:00",
+  "source_commit": "ce38859de7a3d9413501a0d25fc77e61a1454fd4",
+  "app_binary_sha256": "8d9ef00f70ce9aad478160bb5b5a2b2c7b5fe3e6d8f5ab59cec5db7ebb58fca9",
+  "platform": "macOS 27.0.1 arm64",
+  "swift": "Apple Swift 6.4",
+  "build_sdk": "macOS 26.5",
+  "build_system": "SwiftPM native with repository CLT test fallback",
+  "app_signing": "Ad hoc internal test bundle; no distributable release",
+  "python": "3.11.15, existing Core environment reused through a temporary alias",
+  "skills": "Unchanged full copy of the five skills bundled at source_commit",
+  "synthetic_inputs": [
+    {
+      "name": "ops.csv",
+      "sha256": "a6d564500a0c38060ddbb76016a00993f794c5a519122cb58796f74527f56e72"
+    },
+    {
+      "name": "synthetic_wcs_8x8.fits",
+      "sha256": "c40732799d2792ed9131899c2ad5a3b13317004a96e4d40a0d6aa959afc740de"
+    },
+    {
+      "name": "measurements.csv",
+      "sha256": "0801bbdf8ee590c0ec6138ece0f22502f7987a8b20928aa524eff8129da59876"
+    },
+    {
+      "name": "notes.md",
+      "sha256": "7458b9e16eaf119f6bc4f259f10187e5988c49c53cd5e9c40394ffe51daec98d"
+    },
+    {
+      "name": "observing_note.pdf",
+      "sha256": "a80cc3e7d5df9c5e9819774a1ac273f16064570ccc1743a0b332357daa42f126"
+    }
+  ],
+  "jobs": [
+    {
+      "job_id": "FD68C473-3F6F-45F4-A502-F1BC6DA21584",
+      "capability": "cross_domain_data_workbench",
+      "process_exit_code": 0,
+      "app_status": "PASS",
+      "original_modified": false,
+      "manifest_outputs_verified": [
+        {
+          "path": "artifacts/profiles/01_measurements.json",
+          "sha256": "9b6e7c78bd4c0cc4641bd968806493a981d62d2f7722b9c213062669bb781658"
+        },
+        {
+          "path": "artifacts/inventory.csv",
+          "sha256": "9b472fabea9840b095b19c22aa7e2af6318143b5f0d32995a82a398addbcc6be"
+        },
+        {
+          "path": "artifacts/report.md",
+          "sha256": "d06407cbdc2273b94950a74efe8e01694ba8c0f710bd87f0c6d23d6c887f51cf"
+        },
+        {
+          "path": "summary.json",
+          "sha256": "7af1bcecf74183b51b35bde3dff625c9942fa2b030cdb67f43b043d5f1d17998"
+        }
+      ],
+      "human_scientific_review": "INCOMPLETE"
+    },
+    {
+      "job_id": "EC049B1C-B38B-4F66-B51F-BF46D918BCFF",
+      "capability": "document_intake_workbench",
+      "process_exit_code": 0,
+      "app_status": "PASS",
+      "original_modified": false,
+      "manifest_outputs_verified": [
+        {
+          "path": "artifacts/semantics/01_notes.json",
+          "sha256": "aaf74578314508991c30173f2337125a4635913f2ed291b65288437425439dfb"
+        },
+        {
+          "path": "artifacts/semantics/02_observing_note.json",
+          "sha256": "f3c7ccb569099f9b3f3a846bdd405b687cd6932250aaedfe09cdc883d0fed12f"
+        },
+        {
+          "path": "artifacts/inventory.csv",
+          "sha256": "1cec184ad765a7798e199e648fe393c0e3a7be0c88d8a9a9edb26e4393d757e7"
+        },
+        {
+          "path": "artifacts/report.md",
+          "sha256": "a0b257b2ec27c596d004b0d88284b92af8c72240dd2944947b8da0ef4cd60a1a"
+        },
+        {
+          "path": "summary.json",
+          "sha256": "bc93721d90ee5ab2f8f8b5f708f1f07095b264d2f60c992a7e43139ab1eb1e6e"
+        }
+      ],
+      "human_scientific_review": "INCOMPLETE"
+    },
+    {
+      "job_id": "0134B5D1-4224-4C11-BDA7-F3036DAA1294",
+      "capability": "inspect_fits",
+      "process_exit_code": 0,
+      "app_status": "PASS",
+      "original_modified": false,
+      "manifest_outputs_verified": [
+        {
+          "path": "summary.json",
+          "sha256": "44f4e490ee6d73e948e6ed108c7da087ab7605a4d4df1b6c49e5074efd3239db"
+        },
+        {
+          "path": "previews/synthetic_wcs.png",
+          "sha256": "29211f9665105929b67d0d4182958416754d5e7df3fb0a7bebab7625cd9f1187"
+        }
+      ],
+      "human_scientific_review": "INCOMPLETE"
+    },
+    {
+      "job_id": "84626733-8E18-4CC5-8E66-4DA110D342DA",
+      "capability": "profile_table",
+      "process_exit_code": 0,
+      "app_status": "PASS",
+      "original_modified": false,
+      "manifest_outputs_verified": [
+        {
+          "path": "summary.json",
+          "sha256": "5edb63abb51ac773b79d21a69de399333d8aa0ac4f8c2c57c06f245293f11631"
+        }
+      ],
+      "human_scientific_review": "INCOMPLETE"
+    }
+  ],
+  "plan": {
+    "id": "601A59D9-39CF-414F-8FAC-C95A721819E3",
+    "source": "skillRouter",
+    "auto_run": false,
+    "recommended_steps_executed": false,
+    "rationale": "Translated into English in the actual plan editor before capture; original transcript retained privately.",
+    "task_guide_verified": "Bundled Workflow_Table.md opens despite the initial diagnostic step."
+  },
+  "transformations": [
+    "JPEG captures decoded without resizing, cropping, overlays, or repainting.",
+    "PNG stills preserve decoded RGB pixels exactly.",
+    "GIF sequences use 256-color quantization and a 3500 ms hold per selected frame."
+  ],
+  "scope": [
+    "Real app screens, selected moments rather than a continuous recording or timing benchmark.",
+    "Author-run local technical checks on one Mac; no independent usability or second-Mac manual test.",
+    "Four direct capability jobs; the separate Chat plan is review-only.",
+    "No fresh environment installation, model download, cloud planning, or external backend demonstrated.",
+    "Human scientific review remains incomplete."
+  ],
+  "assets": [
+    {
+      "file": "dashboard.png",
+      "sha256": "b09e3ef1daf92f29c6db2a9bc7b616e31407b54c2e575216ff51aeb133787e30",
+      "bytes": 570459,
+      "format": "PNG",
+      "width": 2240,
+      "height": 1504,
+      "frames": [
+        {
+          "capture": "00-dashboard",
+          "captured_at_utc": "2026-11-04T05:13:23.319Z",
+          "source_jpeg_sha256": "3bfdba93f696961eee90dab39e2f39a8e222a8e6a4adb60c8c3db0a78fc2b331"
+        }
+      ],
+      "verification": "Decoded RGB pixels equal the decoded source JPEG pixels."
+    },
+    {
+      "file": "table-results.png",
+      "sha256": "93cbdf9787774c5d13e04391ba1c17fa4323d2568b63590054524d6ff1013fbf",
+      "bytes": 793852,
+      "format": "PNG",
+      "width": 2240,
+      "height": 1504,
+      "frames": [
+        {
+          "capture": "table-03-results",
+          "captured_at_utc": "2026-11-04T05:14:41.158Z",
+          "source_jpeg_sha256": "cd8cd2594e380180350432e2d13774370d2f44aea428a0342190102e63cf951d"
+        }
+      ],
+      "verification": "Decoded RGB pixels equal the decoded source JPEG pixels."
+    },
+    {
+      "file": "fits-results.png",
+      "sha256": "47a6f0c75868a42df55a25f6c3f656c89cbf41f0aca1facb36f436230653fd6b",
+      "bytes": 686069,
+      "format": "PNG",
+      "width": 2240,
+      "height": 1504,
+      "frames": [
+        {
+          "capture": "fits-04-results",
+          "captured_at_utc": "2026-11-04T05:16:22.041Z",
+          "source_jpeg_sha256": "e54be1c0f66baa523104c66a6a6cecd9f00b24873f76f14265c4269aaa83a6cf"
+        }
+      ],
+      "verification": "Decoded RGB pixels equal the decoded source JPEG pixels."
+    },
+    {
+      "file": "mixed-documents-results.png",
+      "sha256": "9ed0c8aac41c5599f10aaa1a18ae386859ca021be7f5fca90ca6c17019590498",
+      "bytes": 847258,
+      "format": "PNG",
+      "width": 2240,
+      "height": 1504,
+      "frames": [
+        {
+          "capture": "mixed-03-documents-results",
+          "captured_at_utc": "2026-11-04T05:17:55.691Z",
+          "source_jpeg_sha256": "13efc03fa8c5499fb39c04f2e6cfed63a5a9a7ea47999a7df4bcb5663fb50f28"
+        }
+      ],
+      "verification": "Decoded RGB pixels equal the decoded source JPEG pixels."
+    },
+    {
+      "file": "mixed-data-results.png",
+      "sha256": "78db7427d2b197e8fe6043dc2566d7abe5acd8e63a2e0ad065ea679418217261",
+      "bytes": 824399,
+      "format": "PNG",
+      "width": 2240,
+      "height": 1504,
+      "frames": [
+        {
+          "capture": "mixed-06-data-results",
+          "captured_at_utc": "2026-11-04T05:21:45.657Z",
+          "source_jpeg_sha256": "75140404d200ce88b0b4cfe77a2d4f1f77463619100f6f3c08145e26928707b1"
+        }
+      ],
+      "verification": "Decoded RGB pixels equal the decoded source JPEG pixels."
+    },
+    {
+      "file": "workflow-plan.png",
+      "sha256": "4336e53bce2630e347bcc0f7e2946f600438fec8697ad89e37d52e0a2a960f1c",
+      "bytes": 663034,
+      "format": "PNG",
+      "width": 2240,
+      "height": 1504,
+      "frames": [
+        {
+          "capture": "plan-01-review",
+          "captured_at_utc": "2026-11-04T05:23:02.037Z",
+          "source_jpeg_sha256": "63e700ac75b92e850275e1d53e4bc2a752d17f341976ac9eb51afc8193819c80"
+        }
+      ],
+      "verification": "Decoded RGB pixels equal the decoded source JPEG pixels."
+    },
+    {
+      "file": "table-tour.gif",
+      "sha256": "a06580b47fabcc5f75bb3abc58c2b9da5dcfc51f163ab23b9cf4f4c105a5baf7",
+      "bytes": 1639754,
+      "format": "GIF",
+      "width": 2240,
+      "height": 1504,
+      "frame_duration_ms": 3500,
+      "loop": true,
+      "frames": [
+        {
+          "capture": "00-dashboard",
+          "captured_at_utc": "2026-11-04T05:13:23.319Z",
+          "source_jpeg_sha256": "3bfdba93f696961eee90dab39e2f39a8e222a8e6a4adb60c8c3db0a78fc2b331"
+        },
+        {
+          "capture": "table-01-review",
+          "captured_at_utc": "2026-11-04T05:14:03.318Z",
+          "source_jpeg_sha256": "8a069f3d0cb07052b5453e8faa7b4f24f0f0deb96fab2ea4a3f88e03a52dbc97"
+        },
+        {
+          "capture": "table-02-job",
+          "captured_at_utc": "2026-11-04T05:14:26.384Z",
+          "source_jpeg_sha256": "12e5270a6ded34d9fceea2da575cde051fa6505f3d930164b59289a7d0433754"
+        },
+        {
+          "capture": "table-03-results",
+          "captured_at_utc": "2026-11-04T05:14:41.158Z",
+          "source_jpeg_sha256": "cd8cd2594e380180350432e2d13774370d2f44aea428a0342190102e63cf951d"
+        }
+      ],
+      "verification": "Each decoded GIF frame equals its 256-color quantized source capture."
+    },
+    {
+      "file": "fits-tour.gif",
+      "sha256": "702fcc0bce70930836334daca340069dc2ab00469ee1806fe6c45302e6b41e23",
+      "bytes": 2136706,
+      "format": "GIF",
+      "width": 2240,
+      "height": 1504,
+      "frame_duration_ms": 3500,
+      "loop": true,
+      "frames": [
+        {
+          "capture": "fits-01-review",
+          "captured_at_utc": "2026-11-04T05:15:12.176Z",
+          "source_jpeg_sha256": "4ff59322ff5ecd5d9cc0b1b5c12ec59cd5edfa66fcbdcd047a18b10d291ad12c"
+        },
+        {
+          "capture": "fits-02-confirmed",
+          "captured_at_utc": "2026-11-04T05:15:34.993Z",
+          "source_jpeg_sha256": "5544e2a6781987d6891f00ba2b1053cde5edc224c740f7e0c764fed6660d0749"
+        },
+        {
+          "capture": "fits-03-job",
+          "captured_at_utc": "2026-11-04T05:15:35.783Z",
+          "source_jpeg_sha256": "d7ec55b37531a5913196f4f2dc3889c0baf8098f36b0725697d421a2b15af817"
+        },
+        {
+          "capture": "fits-04-results",
+          "captured_at_utc": "2026-11-04T05:16:22.041Z",
+          "source_jpeg_sha256": "e54be1c0f66baa523104c66a6a6cecd9f00b24873f76f14265c4269aaa83a6cf"
+        },
+        {
+          "capture": "fits-05-summary-details",
+          "captured_at_utc": "2026-11-04T05:16:47.906Z",
+          "source_jpeg_sha256": "9909e0f3fd8c8e77d183a37c25f3a3456d6a2e370439bf58dcfd17ed1b42d2ae"
+        }
+      ],
+      "verification": "Each decoded GIF frame equals its 256-color quantized source capture."
+    },
+    {
+      "file": "mixed-folder-tour.gif",
+      "sha256": "03e7bb7eb2e0f95943a5be1adc654c4fa1254a62e081d2770376bb4ac23a4591",
+      "bytes": 2684066,
+      "format": "GIF",
+      "width": 2240,
+      "height": 1504,
+      "frame_duration_ms": 3500,
+      "loop": true,
+      "frames": [
+        {
+          "capture": "mixed-01-documents-review",
+          "captured_at_utc": "2026-11-04T05:17:33.460Z",
+          "source_jpeg_sha256": "39225cd304837bd80a90f71d6b48cae8056206883a43b1b9d9149cd755d2d03b"
+        },
+        {
+          "capture": "mixed-02-documents-job",
+          "captured_at_utc": "2026-11-04T05:17:34.316Z",
+          "source_jpeg_sha256": "f6634f975499a92a8ff6a1d66e5545a9053ffa79f4fcf6cade8eaae6123e629c"
+        },
+        {
+          "capture": "mixed-03-documents-results",
+          "captured_at_utc": "2026-11-04T05:17:55.691Z",
+          "source_jpeg_sha256": "13efc03fa8c5499fb39c04f2e6cfed63a5a9a7ea47999a7df4bcb5663fb50f28"
+        },
+        {
+          "capture": "mixed-04-data-review",
+          "captured_at_utc": "2026-11-04T05:21:15.551Z",
+          "source_jpeg_sha256": "3696a192335c453a6dd45f65daf3609c021daf12b9e2b632b1da72f46c745e72"
+        },
+        {
+          "capture": "mixed-05-data-job",
+          "captured_at_utc": "2026-11-04T05:21:21.625Z",
+          "source_jpeg_sha256": "d53afe3e374c54d4dc78c8145a991c0fc46c693185208e820469dba680c52f39"
+        },
+        {
+          "capture": "mixed-06-data-results",
+          "captured_at_utc": "2026-11-04T05:21:45.657Z",
+          "source_jpeg_sha256": "75140404d200ce88b0b4cfe77a2d4f1f77463619100f6f3c08145e26928707b1"
+        }
+      ],
+      "verification": "Each decoded GIF frame equals its 256-color quantized source capture."
+    }
+  ]
+}
