@@ -5,6 +5,36 @@ import Testing
 extension ScientificWorkbenchTests {
   @Test
   @MainActor
+  func taskGuideSkipsDiagnosticStepsAndNeverUsesStaleSelectionForAPlan() {
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Plan-Task-Guide-\(UUID())")!
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false)
+    let table = sampleCapability()
+    let fits = expertFITSCapability()
+    store.capabilities = [table, fits]
+    store.selectedCapabilityID = fits.id
+    store.selectedSection = .agent
+    let diagnostic = AgentPlanStep(capabilityID: "datanalysis_env.status", summary: "Check environment",
+      rawArguments: "", usesInputs: false, usesPreviousOutput: false)
+    var disabledFITS = AgentPlanStep(capabilityID: fits.id, summary: "Inspect FITS",
+      rawArguments: "", usesInputs: true, usesPreviousOutput: false)
+    disabledFITS.isEnabled = false
+    let profile = AgentPlanStep(capabilityID: table.id, summary: "Profile the table",
+      rawArguments: "", usesInputs: true, usesPreviousOutput: false)
+    store.agentPlan = AgentPlan(title: "Table workflow", rationale: "Check, then inspect",
+      steps: [diagnostic, disabledFITS, profile], source: .skillRouter)
+
+    #expect(store.currentWorkflowGuideKind == .table)
+    store.agentPlan?.steps[2].isEnabled = false
+    #expect(store.currentWorkflowGuideKind == nil)
+    store.agentPlan = nil
+    #expect(store.currentWorkflowGuideKind == .fits)
+    #expect(store.jobs.isEmpty)
+    #expect(store.inputPaths.isEmpty)
+    #expect(!store.outputRootRiskApproved)
+  }
+
+  @Test
+  @MainActor
   func taskGuidesFollowTheActiveJobAndCoverAllInitialExamples() throws {
     let defaults = UserDefaults(suiteName: "Scientific-Workbench-Task-Guides-\(UUID())")!
     let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false)

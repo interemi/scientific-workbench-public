@@ -665,7 +665,12 @@ final class WorkbenchStore: ObservableObject {
     case .jobs, .results:
       capabilityID = selectedJob?.capabilityID
     case .agent:
-      capabilityID = agentPlan?.steps.first(where: \.isEnabled)?.capabilityID ?? selectedCapabilityID
+      if let plan = agentPlan {
+        return plan.steps.lazy.filter(\.isEnabled).compactMap { step in
+          FirstRunExampleKind.guideKind(for: step.capabilityID)
+        }.first
+      }
+      capabilityID = selectedCapabilityID
     default:
       capabilityID = selectedCapabilityID
     }
