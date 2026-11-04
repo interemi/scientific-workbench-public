@@ -156,6 +156,13 @@ and usability baseline.
 | P1.12 | Publish short, version-matched guides for the selected workflows. |
 | P1.14 | Publish real screenshots and a tour tied to an identified build. |
 
+P1.13 has a [dated local recovery-action review](PHASE4_RECOVERY_LOCAL_REVIEW_2026-11-04.md)
+at `88588df`: nine explicitly simulated errors, eight real current-state
+rechecks, observed setup destinations, and a real local support export that
+redacts a configured synthetic credential while retaining original logs.
+It does not establish real remote-service repair or independent usability;
+full Phase 4 integration remains pending.
+
 P1.15 has a [dated local workflow-context review](PHASE4_WORKFLOW_CONTEXT_LOCAL_REVIEW_2026-11-04.md)
 at `d271065`: four completed scripted attempts, one actual FITS cancellation,
 11 verified step-to-job links, and a fix for Summary opening an older workflow
