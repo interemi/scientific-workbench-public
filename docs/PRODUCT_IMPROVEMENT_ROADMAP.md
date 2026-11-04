@@ -140,6 +140,13 @@ and usability baseline.
 
 ## Phase 4 — Complete the first interface journey
 
+The [2026-11-04 local integration checkpoint](PHASE4_CHECKPOINT_2026-11-04.md)
+records a complete 16-step quality-gate pass at `08497a7`, including 380 Swift
+tests and packaged-app checks. It also records two corrected gate expectations
+and a test-output isolation defect, followed by a full rerun with normal
+application state unchanged. Exact-candidate hosted CI and public integration
+remain pending. Earlier individual reviews below retain their dated scope.
+
 | ID | Work |
 | --- | --- |
 | P1.01 | Make Dashboard a launcher for the chosen tasks and a way to resume a run. |
