@@ -73,6 +73,10 @@ required_settings_text = [
     'Button("Open Ollama")',
     'Button(store.isCheckingOllamaSetup ? "Checking..." : "Check")',
     'Button(store.isPullingOllamaModel ? "Downloading..." : "Download Selected Model")',
+    'Text("Review model download")',
+    'Button("Download Model")',
+    'Button("Cancel Download", role: .cancel)',
+    'ProgressView("Downloading model; percentage unavailable")',
     'Button("Test Local AI")',
     'Picker("Provider"',
     'Picker("Cloud attachment context"',
@@ -98,7 +102,7 @@ required_copy = [
     "Maximum time for each capability process.",
     "No API key required. Uses a local Ollama server.",
     "OpenAI, Grok/xAI, and Gemini remain optional cloud providers",
-    "After installation, open Ollama once, download the model here, then run Test Local AI.",
+    "Local AI is optional; deterministic planning and Core workflows need no model.",
     "Ollama and the deterministic local planner are not affected.",
 ]
 missing_copy = [needle for needle in required_copy if needle not in settings]
