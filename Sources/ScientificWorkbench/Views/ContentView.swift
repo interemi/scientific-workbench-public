@@ -254,7 +254,7 @@ struct StatusBadge: View {
       .padding(.horizontal, 8)
       .padding(.vertical, 4)
       .background(color.opacity(0.14), in: Capsule())
-      .foregroundStyle(color)
+      .foregroundStyle(Color.primary)
   }
 
   private var color: Color {
