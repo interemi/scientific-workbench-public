@@ -130,10 +130,10 @@ passed on macOS 15 arm64 and Intel, and the separate
 passed at the exact PR head. The [author-run M104 walkthrough and accessibility
 record](P0_04_P1_10_LOCAL_ACCEPTANCE_2026-10-04.md) closes P0.04's local
 scripted criterion with synthetic inputs, error and recovery, cancellation,
-restart, and unchanged-input checks. P1.10 remains open because spoken
-VoiceOver announcements and numerical contrast have not been assessed. This
-phase has a dated internal usability baseline, but its accessibility review
-is not complete.
+restart, and unchanged-input checks. The November 6 status badge review
+records measured contrast and verifies the correction in both appearances.
+P1.10 remains open for spoken VoiceOver announcements and contrast coverage
+beyond the reviewed badges. [Status badge review](P1_10_STATUS_BADGE_CONTRAST_2026-11-06.md)
 
 Exit: reproducible examples, reviewed expected values, and a dated performance
 and usability baseline.
