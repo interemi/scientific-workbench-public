@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import ImageIO
 import PDFKit
 
 enum ArtifactPreviewKind: String, Equatable {
@@ -13,26 +14,51 @@ enum ArtifactPreviewKind: String, Equatable {
   case unavailable
 }
 
-struct ArtifactPreviewPayload: Equatable {
+enum ArtifactPreviewImage: Sendable {
+  case raster(CGImage)
+  case pdfThumbnail(Data)
+}
+
+struct ArtifactPreviewPayload: Sendable {
   var kind: ArtifactPreviewKind
   var title: String
   var text: String?
-  var imageData: Data?
+  var image: ArtifactPreviewImage?
   var note: String?
+
+  static let outsideRun = ArtifactPreviewPayload(
+    kind: .unavailable,
+    title: "Preview unavailable",
+    note: "The artifact is missing or resolves outside its recorded run folder."
+  )
 }
 
 struct ArtifactPreviewService {
+  private static let rasterLoader = RasterPreviewLoader()
+  private static let rasterExtensions: Set<String> = ["png", "jpg", "jpeg", "tif", "tiff"]
+  private let maximumRasterFileBytes = 256 * 1024 * 1024
+  private let maximumRasterDimension = 16_384
+  private let maximumRasterPixels = 100_000_000
+  private let maximumThumbnailDimension = 1_600
   private let maximumBytes = 80_000
   private let maximumLines = 80
+
+  static func isRaster(_ artifact: Artifact) -> Bool {
+    rasterExtensions.contains(artifact.url.pathExtension.lowercased())
+  }
+
+  func loadRaster(_ artifact: Artifact, in job: JobRecord) async -> ArtifactPreviewPayload? {
+    await Self.rasterLoader.load(artifact, in: job)
+  }
 
   func load(
     artifact: Artifact,
     redact: (String) -> String
   ) -> ArtifactPreviewPayload {
-    let ext = artifact.url.pathExtension.lowercased()
-    switch ext {
-    case "png", "jpg", "jpeg", "tif", "tiff":
-      return imagePreview(artifact)
+    if Self.isRaster(artifact) {
+      return imagePreview(artifact.url.standardizedFileURL.resolvingSymlinksInPath())
+    }
+    switch artifact.url.pathExtension.lowercased() {
     case "pdf":
       return pdfPreview(artifact)
     case "csv", "tsv", "ecsv":
@@ -60,16 +86,40 @@ struct ArtifactPreviewService {
     }
   }
 
-  private func imagePreview(_ artifact: Artifact) -> ArtifactPreviewPayload {
-    guard let data = try? Data(contentsOf: artifact.url, options: [.mappedIfSafe]),
-          NSImage(data: data) != nil else {
-      return ArtifactPreviewPayload(
-        kind: .unavailable,
-        title: "Image preview unavailable",
-        note: "The image could not be decoded."
-      )
+  fileprivate func imagePreview(_ url: URL) -> ArtifactPreviewPayload {
+    let unreadable = ArtifactPreviewPayload(
+      kind: .unavailable, title: "Image preview unavailable",
+      note: "The image could not be decoded."
+    )
+    let tooLarge = ArtifactPreviewPayload(
+      kind: .unavailable, title: "Image preview unavailable",
+      note: "The image exceeds the in-app preview size limit. Reveal the original artifact to inspect it."
+    )
+    guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize else { return unreadable }
+    guard size <= maximumRasterFileBytes else { return tooLarge }
+    let readOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, readOptions),
+          let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, readOptions) as? [CFString: Any],
+          let width = properties[kCGImagePropertyPixelWidth] as? Int,
+          let height = properties[kCGImagePropertyPixelHeight] as? Int,
+          width > 0, height > 0 else { return unreadable }
+    guard max(width, height) <= maximumRasterDimension,
+          width <= maximumRasterPixels / height else { return tooLarge }
+
+    let thumbnailOptions = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceCreateThumbnailWithTransform: true,
+      kCGImageSourceThumbnailMaxPixelSize: min(max(width, height), maximumThumbnailDimension),
+      kCGImageSourceShouldCacheImmediately: true,
+    ] as CFDictionary
+    guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions),
+          max(thumbnail.width, thumbnail.height) <= maximumThumbnailDimension else {
+      return unreadable
     }
-    return ArtifactPreviewPayload(kind: .image, title: "Image preview", imageData: data)
+    let note = max(width, height) > maximumThumbnailDimension
+      ? "Display preview reduced to \(thumbnail.width) × \(thumbnail.height) pixels. Use the original artifact for measurements."
+      : nil
+    return ArtifactPreviewPayload(kind: .image, title: "Image preview", image: .raster(thumbnail), note: note)
   }
 
   private func pdfPreview(_ artifact: Artifact) -> ArtifactPreviewPayload {
@@ -87,7 +137,7 @@ struct ArtifactPreviewService {
     return ArtifactPreviewPayload(
       kind: .pdf,
       title: "PDF preview",
-      imageData: thumbnail.tiffRepresentation,
+      image: thumbnail.tiffRepresentation.map { .pdfThumbnail($0) },
       note: document.pageCount > 1 ? "Showing page 1 of \(document.pageCount)." : "Showing page 1."
     )
   }
@@ -173,5 +223,19 @@ struct ArtifactPreviewService {
       text: redact(lines.joined(separator: "\n")),
       note: cells.count > 12 ? "Only source text is shown. Review the full notebook before opening it externally." : nil
     )
+  }
+}
+
+// A canceled caller can finish an in-flight ImageIO call, but queued work
+// checks cancellation before opening its file and never publishes that result.
+private actor RasterPreviewLoader {
+  func load(_ artifact: Artifact, in job: JobRecord) -> ArtifactPreviewPayload? {
+    guard !Task.isCancelled else { return nil }
+    guard let url = ArtifactInspectionService().inspect(artifact, in: job).resolvedPreviewURL else {
+      return .outsideRun
+    }
+    guard !Task.isCancelled else { return nil }
+    let result = ArtifactPreviewService().imagePreview(url)
+    return Task.isCancelled ? nil : result
   }
 }

@@ -240,6 +240,12 @@ verifies PERF.04 for the configured Core launch and defines one local
 startup target for PERF.17. Other main-thread paths, workloads and
 performance targets remain open.
 
+The [raster preview measurement](PHASE5_RASTER_PREVIEWS_2026-11-06.md)
+records PERF.06 for supported image previews and generated FITS
+quicklooks. It documents the input limits, the PNG/TIFF memory
+reduction and the longer decode times. Raster decoding also advances
+PERF.02.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.
 

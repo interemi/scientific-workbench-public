@@ -15,6 +15,7 @@ struct ArtifactInspection: Sendable {
   let modifiedAt: Date?
   let recordedByteCount: Int64?
   let recordedSHA256: String?
+  let resolvedPreviewURL: URL?
 
   var canPreview: Bool { isInsideRun && isReadableFile }
 }
@@ -45,7 +46,8 @@ struct ArtifactInspectionService {
       currentByteCount: readable ? values?.fileSize.map(Int64.init) : nil,
       modifiedAt: readable ? values?.contentModificationDate : nil,
       recordedByteCount: recorded?.size,
-      recordedSHA256: recorded?.sha256
+      recordedSHA256: recorded?.sha256,
+      resolvedPreviewURL: readable ? file : nil
     )
   }
 

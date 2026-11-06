@@ -298,12 +298,18 @@ struct ResultsSummaryView: View {
 }
 
 struct ArtifactPreview: View {
+  private struct RequestID: Equatable {
+    let job: UUID
+    let artifact: UUID
+  }
+
   @ObservedObject var store: WorkbenchStore
   let job: JobRecord
   let artifact: Artifact
-  @State private var payload: ArtifactPreviewPayload?
+  @State private var loadedPreview: (id: RequestID, payload: ArtifactPreviewPayload)?
   private let previewService = ArtifactPreviewService()
   private let inspectionService = ArtifactInspectionService()
+  private var requestID: RequestID { RequestID(job: job.id, artifact: artifact.id) }
 
   var body: some View {
     let inspection = inspectionService.inspect(artifact, in: job)
@@ -337,26 +343,32 @@ struct ArtifactPreview: View {
       preview
     }
     .padding(24)
-    .task(id: artifact.id) {
-      let currentInspection = inspectionService.inspect(artifact, in: job)
-      payload = currentInspection.canPreview
-        ? previewService.load(artifact: artifact, redact: store.redactedPreviewText)
-        : ArtifactPreviewPayload(
-          kind: .unavailable,
-          title: "Preview unavailable",
-          note: "The artifact is missing or resolves outside its recorded run folder."
-        )
+    .task(id: requestID) {
+      guard !Task.isCancelled else { return }
+      let id = requestID
+      loadedPreview = nil
+      let result: ArtifactPreviewPayload?
+      if ArtifactPreviewService.isRaster(artifact) {
+        result = await previewService.loadRaster(artifact, in: job)
+      } else if inspectionService.inspect(artifact, in: job).canPreview {
+        result = previewService.load(artifact: artifact, redact: store.redactedPreviewText)
+      } else {
+        result = .outsideRun
+      }
+      guard !Task.isCancelled, let result else { return }
+      loadedPreview = (id, result)
     }
   }
 
   @ViewBuilder
   private var preview: some View {
-    if let payload {
+    if let loadedPreview, loadedPreview.id == requestID {
+      let payload = loadedPreview.payload
       VStack(alignment: .leading, spacing: 10) {
         Text(payload.title)
           .font(.headline)
 
-        if let imageData = payload.imageData, let image = NSImage(data: imageData) {
+        if let image = displayImage(payload.image) {
           Image(nsImage: image)
             .resizable()
             .scaledToFit()
@@ -396,6 +408,14 @@ struct ArtifactPreview: View {
     } else {
       ProgressView("Loading preview...")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+  }
+
+  private func displayImage(_ preview: ArtifactPreviewImage?) -> NSImage? {
+    switch preview {
+    case .raster(let image): NSImage(cgImage: image, size: .zero)
+    case .pdfThumbnail(let data): NSImage(data: data)
+    case nil: nil
     }
   }
 }

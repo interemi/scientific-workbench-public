@@ -1,8 +1,10 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import ImageIO
 @testable import ScientificWorkbench
 import Testing
+import UniformTypeIdentifiers
 
 extension ScientificWorkbenchTests {
   @Test
@@ -316,6 +318,100 @@ extension ScientificWorkbenchTests {
     #expect(log.kind == .log)
     #expect(log.text?.contains("[REDACTED]") == true)
     #expect(log.text?.contains("secret-value-123") == false)
+  }
+
+  @Test
+  func rasterPreviewDownsamplesAReorientedJPEGWithoutWritingIt() throws {
+    let root = try makeScenarioFixture(name: "raster-orientation", files: [:])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let url = root.appendingPathComponent("rotated.jpg")
+    try writeRasterFixture(to: url, width: 2_000, height: 1_000, type: .jpeg, orientation: 6)
+    let original = try Data(contentsOf: url)
+    let artifact = Artifact(path: url.path, relativePath: url.lastPathComponent, byteCount: Int64(original.count))
+    let preview = ArtifactPreviewService().load(artifact: artifact, redact: { $0 })
+
+    #expect(preview.kind == .image)
+    guard case .raster(let thumbnail) = preview.image else {
+      Issue.record("Expected a decoded raster thumbnail")
+      return
+    }
+    #expect(thumbnail.width == 800)
+    #expect(thumbnail.height == 1_600)
+    func redDominates(atY y: Int) throws -> Bool {
+      let sample = try #require(thumbnail.cropping(to: CGRect(x: thumbnail.width / 2, y: y, width: 1, height: 1)))
+      let context = try #require(CGContext(
+        data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      ))
+      context.draw(sample, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+      let channels = try #require(context.data).assumingMemoryBound(to: UInt8.self)
+      return channels[0] > channels[2]
+    }
+    #expect(try redDominates(atY: thumbnail.height / 4))
+    #expect(try !redDominates(atY: thumbnail.height * 3 / 4))
+    #expect(preview.note?.contains("original artifact for measurements") == true)
+    #expect(try Data(contentsOf: url) == original)
+  }
+
+  @Test
+  func rasterPreviewRejectsOversizedAndCorruptImages() throws {
+    let root = try makeScenarioFixture(name: "raster-preview-limits", files: ["corrupt.png": "not a PNG"])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let wide = root.appendingPathComponent("wide.png")
+    try writeRasterFixture(to: wide, width: 16_385, height: 1, type: .png)
+    let oversized = root.appendingPathComponent("oversized.png")
+    try Data().write(to: oversized)
+    let handle = try FileHandle(forWritingTo: oversized)
+    try handle.truncate(atOffset: 256 * 1024 * 1024 + 1)
+    try handle.close()
+
+    for url in [wide, oversized, root.appendingPathComponent("corrupt.png")] {
+      let artifact = Artifact(path: url.path, relativePath: url.lastPathComponent, byteCount: 1)
+      let preview = ArtifactPreviewService().load(artifact: artifact, redact: { $0 })
+      #expect(preview.kind == .unavailable)
+      #expect(preview.image == nil)
+      let expectedMessage = url.lastPathComponent == "corrupt.png" ? "could not be decoded" : "size limit"
+      #expect(preview.note?.contains(expectedMessage) == true)
+    }
+  }
+
+  @Test
+  func rasterPreviewDropsCancelledRequestsAndRejectsFilesOutsideTheRun() async throws {
+    let root = try makeScenarioFixture(name: "raster-preview-scope", files: ["outside.png": "outside"])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let run = root.appendingPathComponent("run", isDirectory: true)
+    try FileManager.default.createDirectory(at: run, withIntermediateDirectories: true)
+    let job = JobRecord(capability: sampleCapability(), runDirectory: run.path)
+    let url = root.appendingPathComponent("outside.png")
+    let artifact = Artifact(path: url.path, relativePath: url.lastPathComponent, byteCount: 7)
+    let service = ArtifactPreviewService()
+    let outside = await service.loadRaster(artifact, in: job)
+    #expect(outside?.kind == .unavailable)
+    #expect(outside?.note?.contains("outside its recorded run folder") == true)
+
+    let cancelled = Task {
+      while !Task.isCancelled { await Task.yield() }
+      return await service.loadRaster(artifact, in: job)
+    }
+    cancelled.cancel()
+    #expect(await cancelled.value == nil)
+  }
+
+  private func writeRasterFixture(
+    to url: URL, width: Int, height: Int, type: UTType, orientation: Int = 1
+  ) throws {
+    let context = try #require(CGContext(
+      data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+    ))
+    context.setFillColor(red: 0.25, green: 0.5, blue: 0.75, alpha: 1)
+    context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    context.setFillColor(red: 0.85, green: 0.25, blue: 0.1, alpha: 1)
+    context.fill(CGRect(x: 0, y: 0, width: width / 2, height: height))
+    let image = try #require(context.makeImage())
+    let destination = try #require(CGImageDestinationCreateWithURL(url as CFURL, type.identifier as CFString, 1, nil))
+    CGImageDestinationAddImage(destination, image, [kCGImagePropertyOrientation: orientation] as CFDictionary)
+    try #require(CGImageDestinationFinalize(destination))
   }
 
   @Test
