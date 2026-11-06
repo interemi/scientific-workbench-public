@@ -1,16 +1,53 @@
 import SwiftUI
 
-struct CapabilityCatalogView: View {
-  @ObservedObject var store: WorkbenchStore
-  let entries: [CapabilityEntry]
-  let title: String
-  let subtitle: String
-  let isMaintenance: Bool
+struct CapabilityCatalogView: View, Equatable {
+  private struct Presentation: Equatable, Sendable {
+    let selection: String?
+    let query: String
+    let filters: CapabilityDiscoveryFilters?
+    let registryError: String?
+    let registryNotice: String?
+
+    @MainActor init(store: WorkbenchStore, isMaintenance: Bool) {
+      selection = isMaintenance ? store.selectedMaintenanceCapabilityID : store.selectedCapabilityID
+      query = isMaintenance ? store.maintenanceSearchText : store.searchText
+      filters = isMaintenance ? nil : store.capabilityDiscoveryFilters
+      registryError = store.registryError
+      registryNotice = store.registryNotice
+    }
+  }
+
+  private let store: WorkbenchStore
+  private let entries: [CapabilityEntry]
+  private let title: String
+  private let subtitle: String
+  private let isMaintenance: Bool
+  private let presentation: Presentation
   @State private var accessConfirmed = false
 
+  init(store: WorkbenchStore, entries: [CapabilityEntry], title: String, subtitle: String, isMaintenance: Bool) {
+    self.store = store
+    self.entries = entries
+    self.title = title
+    self.subtitle = subtitle
+    self.isMaintenance = isMaintenance
+    presentation = Presentation(store: store, isMaintenance: isMaintenance)
+  }
+
+  nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.store === rhs.store
+      && lhs.isMaintenance == rhs.isMaintenance
+      && lhs.entries == rhs.entries
+      && lhs.title == rhs.title
+      && lhs.subtitle == rhs.subtitle
+      && lhs.presentation == rhs.presentation
+  }
+
   var body: some View {
+    let visibleEntries = filteredEntries(for: presentation)
+    let selectedEntry = visibleEntries.first { $0.id == presentation.selection } ?? visibleEntries.first
     HStack(spacing: 0) {
-      capabilityList
+      capabilityList(visibleEntries)
         .frame(width: 390)
 
       Divider()
@@ -18,7 +55,7 @@ struct CapabilityCatalogView: View {
       CapabilityDetailPanel(
         store: store,
         capability: selectedEntry,
-        rawArguments: argumentDraft,
+        rawArguments: argumentDraft(for: selectedEntry?.id),
         accessConfirmed: $accessConfirmed,
         isMaintenance: isMaintenance
       )
@@ -27,10 +64,10 @@ struct CapabilityCatalogView: View {
     .onChange(of: entries.map(\.id)) { _, _ in
       selectVisibleEntryIfNeeded()
     }
-    .onChange(of: filteredEntries.map(\.id)) { _, _ in
+    .onChange(of: visibleEntries.map(\.id)) { _, _ in
       selectVisibleEntryIfNeeded()
     }
-    .onChange(of: catalogSelection.wrappedValue) {
+    .onChange(of: presentation.selection) {
       accessConfirmed = false
       revealExternallySelectedEntryIfNeeded()
     }
@@ -41,12 +78,15 @@ struct CapabilityCatalogView: View {
   }
 
   private var catalogSelection: Binding<String?> {
-    isMaintenance ? $store.selectedMaintenanceCapabilityID : $store.selectedCapabilityID
+    isMaintenance ? binding(\.selectedMaintenanceCapabilityID) : binding(\.selectedCapabilityID)
   }
 
-  private var argumentDraft: Binding<String> {
-    let capabilityID = selectedEntry?.id
-    return Binding(
+  private func binding<Value>(_ keyPath: ReferenceWritableKeyPath<WorkbenchStore, Value>) -> Binding<Value> {
+    Binding(get: { store[keyPath: keyPath] }, set: { store[keyPath: keyPath] = $0 })
+  }
+
+  private func argumentDraft(for capabilityID: String?) -> Binding<String> {
+    Binding(
       get: { capabilityID.map { store.capabilityArgumentDraft(for: $0) } ?? "" },
       set: { arguments in
         if let capabilityID {
@@ -56,7 +96,7 @@ struct CapabilityCatalogView: View {
     )
   }
 
-  private var capabilityList: some View {
+  private func capabilityList(_ visibleEntries: [CapabilityEntry]) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       VStack(alignment: .leading, spacing: 6) {
         Text(title)
@@ -73,23 +113,23 @@ struct CapabilityCatalogView: View {
 
       TextField(
         isMaintenance ? "Search maintenance gates" : "Find a task, e.g. inspect FITS or profile CSV",
-        text: isMaintenance ? $store.maintenanceSearchText : $store.searchText
+        text: isMaintenance ? binding(\.maintenanceSearchText) : binding(\.searchText)
       )
         .textFieldStyle(.roundedBorder)
         .padding(.horizontal, 16)
         .accessibilityIdentifier("catalog.search")
 
       if !isMaintenance {
-        discoveryControls
+        discoveryControls(visibleCount: visibleEntries.count)
       }
 
-      if let error = store.registryError {
+      if let error = presentation.registryError {
         Text(error)
           .foregroundStyle(.red)
           .padding(.horizontal, 16)
       }
 
-      if let notice = store.registryNotice {
+      if let notice = presentation.registryNotice {
         Label(notice, systemImage: "puzzlepiece.extension")
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -97,7 +137,7 @@ struct CapabilityCatalogView: View {
       }
 
       List(selection: catalogSelection) {
-        if filteredEntries.isEmpty {
+        if visibleEntries.isEmpty {
           ContentUnavailableView(
             "No matching capabilities",
             systemImage: "line.3.horizontal.decrease.circle",
@@ -105,7 +145,7 @@ struct CapabilityCatalogView: View {
           )
           .accessibilityIdentifier("catalog.empty-results")
         } else if isMaintenance {
-          ForEach(filteredEntries.groupedByBlock(), id: \.0) { block, blockEntries in
+          ForEach(visibleEntries.groupedByBlock(), id: \.0) { block, blockEntries in
             Section(block) {
               ForEach(blockEntries) { entry in
                 CapabilityRow(entry: entry)
@@ -115,7 +155,7 @@ struct CapabilityCatalogView: View {
           }
         } else {
           ForEach(CapabilityTask.allCases) { task in
-            let taskEntries = filteredEntries
+            let taskEntries = visibleEntries
               .filter { CapabilityDiscovery.forEntry($0).task == task }
               .sorted {
                 if $0.isGoldenPath != $1.isGoldenPath {
@@ -142,8 +182,9 @@ struct CapabilityCatalogView: View {
     .background(.bar)
   }
 
-  private var discoveryControls: some View {
-    VStack(alignment: .leading, spacing: 4) {
+  private func discoveryControls(visibleCount: Int) -> some View {
+    let filters = binding(\.capabilityDiscoveryFilters)
+    return VStack(alignment: .leading, spacing: 4) {
       HStack {
         Text("Find by task and requirements")
           .font(.caption)
@@ -157,7 +198,7 @@ struct CapabilityCatalogView: View {
         .accessibilityIdentifier("catalog.clear-filters")
       }
 
-      Picker("Task", selection: $store.capabilityDiscoveryFilters.task) {
+      Picker("Task", selection: filters.task) {
         Text("All tasks").tag(Optional<CapabilityTask>.none)
         ForEach(CapabilityTask.allCases) { task in
           Text(task.title).tag(Optional(task))
@@ -165,7 +206,7 @@ struct CapabilityCatalogView: View {
       }
       .accessibilityIdentifier("catalog.filter.task")
 
-      Picker("Format", selection: $store.capabilityDiscoveryFilters.format) {
+      Picker("Format", selection: filters.format) {
         Text("All formats").tag(Optional<CapabilityInputFormat>.none)
         ForEach(CapabilityInputFormat.allCases) { format in
           Text(format.title).tag(Optional(format))
@@ -173,7 +214,7 @@ struct CapabilityCatalogView: View {
       }
       .accessibilityIdentifier("catalog.filter.format")
 
-      Picker("Python profile", selection: $store.capabilityDiscoveryFilters.profile) {
+      Picker("Python profile", selection: filters.profile) {
         Text("All profiles").tag(Optional<CapabilityProfileFilter>.none)
         ForEach(CapabilityProfileFilter.allCases) { profile in
           Text(profile.title).tag(Optional(profile))
@@ -181,7 +222,7 @@ struct CapabilityCatalogView: View {
       }
       .accessibilityIdentifier("catalog.filter.profile")
 
-      Picker("App readiness", selection: $store.capabilityDiscoveryFilters.readiness) {
+      Picker("App readiness", selection: filters.readiness) {
         Text("All readiness levels").tag(Optional<CapabilityReadinessFilter>.none)
         ForEach(CapabilityReadinessFilter.allCases) { readiness in
           Text(readiness.title).tag(Optional(readiness))
@@ -189,7 +230,7 @@ struct CapabilityCatalogView: View {
       }
       .accessibilityIdentifier("catalog.filter.readiness")
 
-      Picker("Owning skill", selection: $store.capabilityDiscoveryFilters.skill) {
+      Picker("Owning skill", selection: filters.skill) {
         Text("All skills").tag(Optional<SkillRootRole>.none)
         ForEach(SkillRootRole.allCases.filter { $0 != .maintainer }, id: \.self) { skill in
           Text(skill.defaultDirectoryName).tag(Optional(skill))
@@ -197,7 +238,7 @@ struct CapabilityCatalogView: View {
       }
       .accessibilityIdentifier("catalog.filter.skill")
 
-      Picker("Workflow level", selection: $store.capabilityDiscoveryFilters.level) {
+      Picker("Workflow level", selection: filters.level) {
         Text("All levels").tag(Optional<CapabilityCatalogMode>.none)
         ForEach(CapabilityCatalogMode.allCases) { level in
           Text(level.title).tag(Optional(level))
@@ -205,7 +246,7 @@ struct CapabilityCatalogView: View {
       }
       .accessibilityIdentifier("catalog.filter.level")
 
-      Text("\(filteredEntries.count) of \(entries.count) routes · Full includes Core. Catalog readiness is not a live backend check; review Settings before running.")
+      Text("\(visibleCount) of \(entries.count) routes · Full includes Core. Catalog readiness is not a live backend check; review Settings before running.")
         .font(.caption)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -215,28 +256,23 @@ struct CapabilityCatalogView: View {
     .padding(.horizontal, 16)
   }
 
-  private var filteredEntries: [CapabilityEntry] {
-    if isMaintenance {
-      let query = store.maintenanceSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !query.isEmpty else { return entries }
-      return entries.filter {
-        [$0.id, $0.label, $0.shortDescription]
-          .joined(separator: " ").localizedCaseInsensitiveContains(query)
-      }
+  private func filteredEntries(for presentation: Presentation) -> [CapabilityEntry] {
+    if let filters = presentation.filters {
+      return entries.filter { filters.matches($0, query: presentation.query) }
     }
-    return entries.filter { store.capabilityDiscoveryFilters.matches($0, query: store.searchText) }
-  }
-
-  private var selectedEntry: CapabilityEntry? {
-    if let selected = filteredEntries.first(where: { $0.id == catalogSelection.wrappedValue }) {
-      return selected
+    let query = presentation.query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !query.isEmpty else { return entries }
+    return entries.filter {
+      [$0.id, $0.label, $0.shortDescription]
+        .joined(separator: " ").localizedCaseInsensitiveContains(query)
     }
-    return filteredEntries.first
   }
 
   private func selectVisibleEntryIfNeeded() {
-    if !filteredEntries.contains(where: { $0.id == catalogSelection.wrappedValue }) {
-      catalogSelection.wrappedValue = filteredEntries.first?.id
+    let current = Presentation(store: store, isMaintenance: isMaintenance)
+    let visibleEntries = filteredEntries(for: current)
+    if !visibleEntries.contains(where: { $0.id == current.selection }) {
+      catalogSelection.wrappedValue = visibleEntries.first?.id
     }
   }
 
@@ -244,9 +280,11 @@ struct CapabilityCatalogView: View {
     guard !isMaintenance,
           let id = store.selectedCapabilityID,
           entries.contains(where: { $0.id == id }),
-          !filteredEntries.contains(where: { $0.id == id }) else { return }
+          !filteredEntries(for: Presentation(store: store, isMaintenance: false))
+            .contains(where: { $0.id == id }) else { return }
     store.capabilityDiscoveryFilters = CapabilityDiscoveryFilters()
-    if !filteredEntries.contains(where: { $0.id == id }) {
+    if !filteredEntries(for: Presentation(store: store, isMaintenance: false))
+      .contains(where: { $0.id == id }) {
       store.searchText = ""
     }
   }

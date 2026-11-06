@@ -10,6 +10,7 @@ struct ContentView: View {
 
       HStack(spacing: 0) {
         SidebarView(store: store)
+          .equatable()
           .frame(width: 260)
 
         Divider()
@@ -85,6 +86,7 @@ struct ContentView: View {
         subtitle: "\(store.userCapabilities.count) user-facing capabilities loaded from the installed skill.",
         isMaintenance: false
       )
+      .equatable()
     case .jobs:
       JobsView(store: store)
     case .results:
@@ -97,6 +99,7 @@ struct ContentView: View {
         subtitle: "\(store.maintainerCapabilities.count) maintainer-only gates kept separate from daily work.",
         isMaintenance: true
       )
+      .equatable()
     case .settings:
       SettingsView(store: store)
     }

@@ -195,7 +195,7 @@ struct CapabilityDiscovery {
   ]
 }
 
-struct CapabilityDiscoveryFilters {
+struct CapabilityDiscoveryFilters: Equatable, Sendable {
   var task: CapabilityTask?
   var format: CapabilityInputFormat?
   var profile: CapabilityProfileFilter?

@@ -251,6 +251,12 @@ records PERF.05 and the environment-refresh portion of PERF.13. It
 compares subprocess counts, session expiry, path invalidation and
 explicit recheck behavior.
 
+The [navigation and catalog comparison](PHASE5_VIEW_INVALIDATION_2026-11-06.md)
+records partial PERF.03 and PERF.10 results. The sidebar and catalog
+list no longer reevaluated in the measured unrelated updates, and the
+catalog reuses its filter result within a body evaluation. Broader
+invalidation and search measurements remain open.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.
 
