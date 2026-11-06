@@ -159,7 +159,14 @@ actor ProcessRunner {
     }
   }
 
-  func run(_ command: ProcessCommand) async throws -> ProcessResult {
+  func run(
+    _ command: ProcessCommand,
+    onInterrupted: (@Sendable (InterruptedProcessOutput) async -> Void)? = nil,
+    cancellationRequested: (@Sendable () async -> Bool)? = nil
+  ) async throws -> ProcessResult {
+    if await cancellationRequested?() == true {
+      throw ProcessRunnerError.cancelled
+    }
     let startedAt = Date()
     let tempRoot = FileManager.default.temporaryDirectory
       .appendingPathComponent("Scientific-Workbench-\(UUID().uuidString)", isDirectory: true)
@@ -212,6 +219,11 @@ actor ProcessRunner {
         if groupIsAlive {
           await stop(process)
         }
+        await reportInterruptedOutput(
+          stdoutURL: stdoutURL,
+          stderrURL: stderrURL,
+          to: onInterrupted
+        )
         throw ProcessRunnerError.outputLimitExceeded(
           stream: stream,
           limitBytes: maximumTemporaryOutputBytesPerStream
@@ -221,16 +233,31 @@ actor ProcessRunner {
 
       if Task.isCancelled {
         await stop(process)
+        await reportInterruptedOutput(
+          stdoutURL: stdoutURL,
+          stderrURL: stderrURL,
+          to: onInterrupted
+        )
         throw ProcessRunnerError.cancelled
       }
       if let deadline, Date() >= deadline {
         await stop(process)
+        await reportInterruptedOutput(
+          stdoutURL: stdoutURL,
+          stderrURL: stderrURL,
+          to: onInterrupted
+        )
         throw ProcessRunnerError.timedOut(timeoutSeconds)
       }
       do {
         try await Task.sleep(nanoseconds: 100_000_000)
       } catch is CancellationError {
         await stop(process)
+        await reportInterruptedOutput(
+          stdoutURL: stdoutURL,
+          stderrURL: stderrURL,
+          to: onInterrupted
+        )
         throw ProcessRunnerError.cancelled
       }
     }
@@ -255,6 +282,24 @@ actor ProcessRunner {
       stdoutWasTruncated: stdout.wasTruncated,
       stderrWasTruncated: stderr.wasTruncated
     )
+  }
+
+  private func reportInterruptedOutput(
+    stdoutURL: URL,
+    stderrURL: URL,
+    to callback: (@Sendable (InterruptedProcessOutput) async -> Void)?
+  ) async {
+    guard let callback else { return }
+    await callback(InterruptedProcessOutput(
+      stdout: Self.boundedOutput(
+        at: stdoutURL,
+        maximumBytes: maximumCapturedOutputBytes
+      ).text,
+      stderr: Self.boundedOutput(
+        at: stderrURL,
+        maximumBytes: maximumCapturedOutputBytes
+      ).text
+    ))
   }
 
   private func stop(_ process: ProcessGroupProcess) async {
@@ -471,6 +516,11 @@ private struct BoundedProcessOutput {
   let text: String
   let totalBytes: Int
   let wasTruncated: Bool
+}
+
+struct InterruptedProcessOutput: Sendable {
+  let stdout: String
+  let stderr: String
 }
 
 enum ProcessRunnerError: LocalizedError, Equatable {

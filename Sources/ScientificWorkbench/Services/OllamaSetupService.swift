@@ -77,11 +77,12 @@ struct OllamaSetupService: Sendable {
     return (pathCandidates + commonCandidates).first(where: fileExists)
   }
 
-  func pullModel(_ model: String) async throws -> OllamaCommandResult {
+  func pullModel(_ model: String, baseURL: String? = nil) async throws -> OllamaCommandResult {
+    let request = try OllamaModelDownloadRequest(model: model, baseURL: baseURL)
     guard let cliPath = locateCLI() else {
       throw OllamaSetupError.cliMissing
     }
-    return try await run(executable: cliPath, arguments: ["pull", model])
+    return try await run(executable: cliPath, arguments: ["pull", request.model], baseURL: request.baseURL)
   }
 
   private func fetchInstalledModels(baseURL: String?) async throws -> [String] {
@@ -110,7 +111,7 @@ struct OllamaSetupService: Sendable {
     }
   }
 
-  private func run(executable: String, arguments: [String]) async throws -> OllamaCommandResult {
+  private func run(executable: String, arguments: [String], baseURL: String) async throws -> OllamaCommandResult {
     var command = ProcessCommand(
       executable: executable,
       arguments: arguments,
@@ -120,6 +121,7 @@ struct OllamaSetupService: Sendable {
       ? pullTimeoutSeconds
       : Self.defaultPullTimeoutSeconds
     command.environmentPolicy = .strict
+    command.environmentOverrides = ["OLLAMA_HOST": baseURL]
     command.redirectStandardInputToNull = true
 
     let result: ProcessResult
@@ -144,16 +146,21 @@ struct OllamaSetupService: Sendable {
     models: [String],
     model: String
   ) -> String {
-    guard cliPath != nil else {
-      return "Install Ollama first, then come back here to download the compact local model."
-    }
     guard serverReachable else {
-      return "Ollama CLI is installed. Open Ollama so the local server starts, then check again."
+      guard cliPath != nil else {
+        return "Ollama CLI was not found, and the configured local endpoint could not be verified. Check the endpoint. Install Ollama if needed, then check again."
+      }
+      return "Ollama CLI is installed, but the configured local endpoint could not be verified. Check the endpoint and start Ollama if needed, then check again."
     }
     guard models.contains(model) else {
+      guard cliPath != nil else {
+        return "The local server is running, but \(model) is missing and the Ollama CLI is needed to download it here."
+      }
       return "Ollama is running. Download \(model) to enable local AI chat and planning."
     }
-    return "Ollama is ready with \(model). Local AI can be tested now."
+    return cliPath == nil
+      ? "The local server has \(model). Test Local AI; in-app downloads still need the Ollama CLI."
+      : "Ollama is ready with \(model). Local AI can be tested now."
   }
 }
 
@@ -167,6 +174,7 @@ private struct OllamaTagsResponse: Decodable {
 
 enum OllamaSetupError: LocalizedError {
   case cliMissing
+  case invalidModel
   case invalidBaseURL(String)
   case unsafeEndpoint(String)
   case serverUnavailable
@@ -177,6 +185,8 @@ enum OllamaSetupError: LocalizedError {
     switch self {
     case .cliMissing:
       return "Ollama CLI was not found. Install Ollama first."
+    case .invalidModel:
+      return "Enter a model name or tag without spaces or command options."
     case .invalidBaseURL(let url):
       return "Ollama base URL is invalid: \(url)"
     case .unsafeEndpoint(let url):

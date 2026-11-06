@@ -15,6 +15,7 @@ settings_surface_paths = [
     root / "Sources/ScientificWorkbench/Views/CapabilityTimeoutControl.swift",
     root / "Sources/ScientificWorkbench/Views/OllamaSetupView.swift",
     root / "Sources/ScientificWorkbench/Views/ProviderConnectionRow.swift",
+    root / "Sources/ScientificWorkbench/Views/EnvironmentDiagnosisView.swift",
 ]
 settings = "\n".join(
     path.read_text(encoding="utf-8")
@@ -27,6 +28,7 @@ tests = "\n".join(
     path.read_text(encoding="utf-8")
     for path in sorted(tests_root.glob("*.swift"))
 )
+guide = (root / "Guides/Scientific_Workbench_User_Guide.md").read_text(encoding="utf-8")
 all_text = "\n".join([settings, store, ollama_models, tests])
 
 def fail(message: str) -> None:
@@ -42,6 +44,7 @@ required_settings_text = [
     'Section("AI Connections")',
     'Section("Codex Bridge")',
     'Section("Environment Details")',
+    'Section("Environment Diagnosis")',
     'TextField("Mother skill root"',
     'TextField("Output root"',
     'TextField("Python executable"',
@@ -54,6 +57,9 @@ required_settings_text = [
     'Button("Save Settings")',
     'Button("Reload Registry")',
     'Button("Refresh Environment")',
+    'Button("Prepare a new environment")',
+    'Button("Copy preview command")',
+    'Button("Copy install command")',
     'Button("Export Configuration")',
     'Button("Import Configuration")',
     'Button("Open User Guide")',
@@ -67,6 +73,10 @@ required_settings_text = [
     'Button("Open Ollama")',
     'Button(store.isCheckingOllamaSetup ? "Checking..." : "Check")',
     'Button(store.isPullingOllamaModel ? "Downloading..." : "Download Selected Model")',
+    'Text("Review model download")',
+    'Button("Download Model")',
+    'Button("Cancel Download", role: .cancel)',
+    'ProgressView("Downloading model; percentage unavailable")',
     'Button("Test Local AI")',
     'Picker("Provider"',
     'Picker("Cloud attachment context"',
@@ -92,12 +102,38 @@ required_copy = [
     "Maximum time for each capability process.",
     "No API key required. Uses a local Ollama server.",
     "OpenAI, Grok/xAI, and Gemini remain optional cloud providers",
-    "After installation, open Ollama once, download the model here, then run Test Local AI.",
+    "Local AI is optional; deterministic planning and Core workflows need no model.",
     "Ollama and the deterministic local planner are not affected.",
 ]
 missing_copy = [needle for needle in required_copy if needle not in settings]
 if missing_copy:
     fail("missing safety/setup copy: " + ", ".join(missing_copy))
+
+def locked_requirement_count(name: str) -> int:
+    lock = root / "distribution/locks" / name
+    return sum(
+        bool(line.strip()) and not line.lstrip().startswith("#")
+        for line in lock.read_text(encoding="utf-8").splitlines()
+    )
+
+core_count = locked_requirement_count("core-macos-arm64-py311.txt")
+full_count = locked_requirement_count("full-macos-arm64-py311.txt")
+build_count = locked_requirement_count("full-build-py311.txt")
+for count, phrase in [
+    (core_count, "locked Python runtime requirements"),
+    (full_count, "locked Python runtime requirements plus"),
+    (build_count, "build tools"),
+]:
+    if f"{count} {phrase}" not in settings:
+        fail(f"Settings profile guidance drifted from lock count: {count} {phrase}")
+if f"{core_count} reviewed Python runtime requirements" not in guide:
+    fail("bundled guide Core count drifted from its lock")
+if f"{full_count} runtime requirements and {build_count}" not in guide:
+    fail("bundled guide Full count drifted from its locks")
+if 'store.openOptionalCapability("env_doctor")' not in settings:
+    fail("profile readiness action no longer opens env_doctor")
+if 'installation.log' not in settings or 'installation.log' not in guide:
+    fail("new-environment repair must retain and document a local installation log")
 
 if 'Text("Danger full access")' in settings:
     fail("Scientific Workbench must not expose unrestricted Codex filesystem access")

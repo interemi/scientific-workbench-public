@@ -110,10 +110,17 @@ needed for the reviewed workflow and record its version.
 4. Run `datanalysis_env.status` and `env_doctor`.
 5. Run the workflow-specific preflight for any optional or platform-bound tool.
 6. Use a synthetic fixture and inspect the inputs and output folder. A direct
-   **Run Capability** action starts immediately; for a Chat-generated plan, use
-   **Dry Run** to inspect commands before running it.
+   **Run Capability** action starts immediately. For a Chat-generated plan,
+   leave **Auto-run** off and review each enabled step's inputs, new output
+   folder pattern, path safety, launcher, network caveat, consent, dependencies,
+   estimate, and status. Use **Dry Run** to inspect a command preview with
+   provisional run-folder paths; it executes no command and creates no run
+   folders. **Auto-run** deliberately skips this manual review after planning.
 7. Execute the smallest useful case and review **Jobs**, **Results**, the
-   manifest, and the unchanged-input evidence.
+   manifest, and the unchanged-input evidence. **Jobs** names the current
+   app-level stage and last recorded state change; it does not infer an
+   internal percentage from an external tool. Open **Results** from the
+   selected job to inspect its retained artifacts.
 
 An optional backend that is absent should normally produce a controlled block.
 Do not relabel it as a pass, weaken the gate, or install unrelated dependencies

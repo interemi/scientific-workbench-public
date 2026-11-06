@@ -490,6 +490,8 @@ struct FilesystemSafetyPolicyTests {
     #expect(path.hasPrefix("/runs/"))
     #expect(path.contains("profile_table"))
     #expect(path.hasSuffix("12345678-abcd-ef00-1234-56789abcdef0"))
+    #expect(factory.previewPath(root: "/runs", capabilityID: "profile/table") ==
+      "/runs/<timestamp>_profile_table_<unique-id>")
   }
 
   private func makeFilesystemFixture(name: String, files: [String: String]) throws -> URL {

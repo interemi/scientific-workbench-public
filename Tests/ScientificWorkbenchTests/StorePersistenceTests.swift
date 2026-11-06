@@ -290,6 +290,61 @@ extension ScientificWorkbenchTests {
 
   @Test
   @MainActor
+  func changingOllamaEndpointInvalidatesPreviouslyCheckedAvailability() {
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults)
+    store.ollamaSetupStatus = OllamaSetupStatus(
+      cliPath: "/isolated/ollama",
+      serverReachable: true,
+      installedModels: [store.model(for: .ollama)],
+      targetModel: store.model(for: .ollama),
+      message: "Previous endpoint was ready.",
+      checkedAt: Date()
+    )
+    store.aiConnectionStatuses[.ollama] = AIConnectionStatus(
+      state: .connected,
+      message: "Previous endpoint was connected.",
+      checkedAt: Date()
+    )
+
+    store.setBaseURL("http://127.0.0.1:11435", for: .ollama)
+
+    #expect(store.ollamaSetupStatus.presentationState() == .unchecked)
+    #expect(store.connectionStatus(for: .ollama).state == .unknown)
+  }
+
+  @Test
+  @MainActor
+  func changingOllamaModelInvalidatesPreviousModelReadiness() {
+    let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults)
+    let previousModel = store.model(for: .ollama)
+    store.ollamaSetupStatus = OllamaSetupStatus(
+      cliPath: "/isolated/ollama",
+      serverReachable: true,
+      installedModels: [previousModel],
+      targetModel: previousModel,
+      message: "Ollama is ready with \(previousModel).",
+      checkedAt: Date()
+    )
+    store.aiConnectionStatuses[.ollama] = AIConnectionStatus(
+      state: .connected,
+      message: "Connected using \(previousModel).",
+      checkedAt: Date()
+    )
+
+    store.setModel("uninstalled-test-model", for: .ollama)
+
+    #expect(store.ollamaSetupStatus.targetModel == "uninstalled-test-model")
+    #expect(store.ollamaSetupStatus.presentationState() == .unchecked)
+    #expect(store.ollamaSetupStatus.checkedAt == nil)
+    #expect(store.ollamaSetupStatus.installedModels.isEmpty)
+    #expect(!store.ollamaSetupStatus.message.contains(previousModel))
+    #expect(store.connectionStatus(for: .ollama).state == .unknown)
+  }
+
+  @Test
+  @MainActor
   func testLocalAIConnectionDoesNotCreateOrMutateWorkflowState() async throws {
     let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
     let recorder = RequestRecorder(responseBody: #"{"message":{"content":"OK"}}"#)
@@ -995,6 +1050,15 @@ extension ScientificWorkbenchTests {
     #expect(reloadedStore.canResumeAgentPlan == false)
     #expect(reloadedStore.jobs.count == 3)
     #expect(reloadedStore.jobs.filter { $0.capabilityID == envCapability.id }.count == 2)
+    let summaryPath = try #require(reloadedStore.lastWorkflowSummaryPath)
+    let summary = try String(contentsOfFile: summaryPath, encoding: .utf8)
+    let finalExecution = try #require(reloadedStore.agentPlanStepExecutions[finalStep.id])
+    #expect(summary.contains("Step ID: `\(finalStep.id.uuidString)`\n   - Job ID: `\(finalExecution.jobID.uuidString)`"))
+    #expect(summary.contains("Plan ID: `\(try #require(reloadedStore.agentPlan?.id).uuidString)`"))
+    let resumedRunID = try #require(reloadedStore.workflowExecutionIdentity?.id)
+    #expect(summary.contains("Workflow Run ID: `\(resumedRunID.uuidString)`"))
+    #expect(reloadedStore.jobs.filter { $0.status == .succeeded }
+      .allSatisfy { reloadedStore.workflowRunID(for: $0) == resumedRunID })
   }
 
   @Test
@@ -1027,6 +1091,8 @@ extension ScientificWorkbenchTests {
       checkedAt: Date()
     )
 
+    #expect(!store.setupChecklistIsReady)
+    store.environmentDiagnosis = verifiedCoreDiagnosis()
     #expect(store.setupChecklistIsReady)
     #expect(store.setupChecklistItems.filter(\.isRequired).allSatisfy { $0.state == .ready })
     #expect(store.setupRecoveryState == nil)
@@ -1053,6 +1119,7 @@ extension ScientificWorkbenchTests {
       warnings: [],
       refreshedAt: Date()
     )
+    store.environmentDiagnosis = verifiedCoreDiagnosis()
     store.ollamaSetupStatus = .unknown(model: store.model(for: .ollama))
 
     let localAI = try #require(store.setupChecklistItems.first { $0.id == "local_ai" })
@@ -1245,4 +1312,17 @@ extension ScientificWorkbenchTests {
     #expect(store.registryNotice?.contains("scientific-data-astro") == true)
   }
 
+  private func verifiedCoreDiagnosis() -> EnvironmentDiagnosis {
+    EnvironmentDiagnosis(
+      status: "warning",
+      selectedPython: "/usr/bin/python3",
+      pythonVersion: "3.11.15",
+      coreReady: true,
+      fullReady: false,
+      missingCoreModules: [],
+      missingOptionalGroups: [],
+      message: nil,
+      checkedAt: Date()
+    )
+  }
 }

@@ -29,10 +29,13 @@ not promises that the listed features have shipped.
    [workflow requirements](docs/WORKFLOW_REQUIREMENTS.md), and
    [troubleshooting](docs/TROUBLESHOOTING.md).
 4. Start with the [synthetic first-run examples](docs/SYNTHETIC_FIRST_RUN_EXAMPLES.md).
+   Follow the [three illustrated workflow tours](docs/WORKFLOW_TOURS.md) for
+   real screens, short guides, expected results, and evidence limits.
    **Dashboard** prepares a fresh local copy and selects its suggested capability.
    A direct **Run Capability** action starts immediately, so review its inputs
-   and output folder first. For a Chat-generated plan, use **Dry Run** to
-   inspect its commands before **Run Enabled**.
+   and output folder first. For a Chat-generated plan, leave **Auto-run** off,
+   inspect each enabled step's execution scope, then use **Dry Run** to inspect
+   its commands before **Run Enabled**.
 
 The 55 catalogued routes have different readiness levels: 17 `app_ready`, 19
 `app_ready_partial`, 7 `blocked_optional`, 10 `cli_only`, and 2
@@ -64,6 +67,7 @@ remain unverified.
 | `docs/TROUBLESHOOTING.md` | Reproducible diagnosis and safe recovery |
 | `docs/PUBLIC_READINESS.md` | Dated source validation and use limits |
 | `docs/PUBLIC_SOURCE_HANDOFF.md` | Reviewed source export and publication handoff |
+| `docs/GITHUB_RELEASE_PLAN.md` | Planned source pre-release process and separate app-bundle requirements |
 
 Names without spaces are retained only for technical identifiers. The skills
 are siblings under `skills/`; the app runs each capability from its owning
@@ -117,6 +121,11 @@ outside this distribution.
 Jobs and Results display [separate evidence stages](docs/EVIDENCE_STAGES.md)
 for process exit, tool outcome, artifact integrity, automatic QA, and human
 scientific review. A technical PASS does not approve a scientific conclusion.
+Jobs also shows the **Run → Job → Result** path, the latest recorded state
+change, a workflow step when known, cancellation, recovery actions, and direct
+links to Results, retained artifacts, and the run folder. External scientific
+tools do not provide a reliable internal percentage; the app says so while they
+run. Cancelling keeps the separate run folder and captured partial logs.
 
 Some skill-internal `.cache` directories contain required deferred code and
 documentation. They are part of the backend manifest and must be retained.

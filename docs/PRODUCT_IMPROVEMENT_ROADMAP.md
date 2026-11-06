@@ -130,15 +130,25 @@ passed on macOS 15 arm64 and Intel, and the separate
 passed at the exact PR head. The [author-run M104 walkthrough and accessibility
 record](P0_04_P1_10_LOCAL_ACCEPTANCE_2026-10-04.md) closes P0.04's local
 scripted criterion with synthetic inputs, error and recovery, cancellation,
-restart, and unchanged-input checks. P1.10 remains open because spoken
-VoiceOver announcements and numerical contrast have not been assessed. This
-phase has a dated internal usability baseline, but its accessibility review
-is not complete.
+restart, and unchanged-input checks. The November 6 status badge review
+records measured contrast and verifies the correction in both appearances.
+P1.10 remains open for spoken VoiceOver announcements and contrast coverage
+beyond the reviewed badges. [Status badge review](P1_10_STATUS_BADGE_CONTRAST_2026-11-06.md)
 
 Exit: reproducible examples, reviewed expected values, and a dated performance
 and usability baseline.
 
 ## Phase 4 — Complete the first interface journey
+
+The [2026-11-04 local integration checkpoint](PHASE4_CHECKPOINT_2026-11-04.md)
+records a complete 16-step quality-gate pass at `08497a7`, including 380 Swift
+tests and packaged-app checks. It also records two corrected gate expectations
+and a test-output isolation defect, followed by a full rerun with normal
+application state unchanged. Current public delivery and hosted checks are
+tracked in [PR #28](https://github.com/interemi/scientific-workbench-public/pull/28)
+and [milestone 4](https://github.com/interemi/scientific-workbench-public/milestone/4).
+Earlier individual reviews below retain their dated scope; use that delivery
+record for the current integration status.
 
 | ID | Work |
 | --- | --- |
@@ -155,6 +165,49 @@ and usability baseline.
 | P1.11 | Improve local Ollama setup while preserving a model-free deterministic route. |
 | P1.12 | Publish short, version-matched guides for the selected workflows. |
 | P1.14 | Publish real screenshots and a tour tied to an identified build. |
+
+P1.11 has a [dated local model-setup acceptance record](PHASE4_LOCAL_MODEL_ACCEPTANCE_2026-11-04.md)
+at `3a0e8ea`: a completed real download, a second active download cancelled
+through the app, preserved partial data, and a successful deterministic table
+run after the selected test server was stopped. A separate model store
+preserved the usual Ollama installation. The phase checkpoint records the
+later quality/bundle checks; PR #28 tracks public validation and integration.
+
+P1.13 has a [dated local recovery-action review](PHASE4_RECOVERY_LOCAL_REVIEW_2026-11-04.md)
+at `88588df`: nine explicitly simulated errors, eight real current-state
+rechecks, observed setup destinations, and a real local support export that
+redacts a configured synthetic credential while retaining original logs.
+It does not establish real remote-service repair or independent usability.
+Public delivery is tracked in PR #28.
+
+P1.15 has a [dated local workflow-context review](PHASE4_WORKFLOW_CONTEXT_LOCAL_REVIEW_2026-11-04.md)
+at `d271065`: four completed scripted attempts, one actual FITS cancellation,
+11 verified step-to-job links, and a fix for Summary opening an older workflow
+after a new plan. The final two attempts repeat one plan in the same session;
+they are not independent user sessions. Public delivery is tracked in PR #28.
+
+P1.12 and P1.14 now have [three illustrated local workflow tours](WORKFLOW_TOURS.md)
+from source `ce38859`, with short guides, real app captures, optional GIFs,
+expected-value checks, and media provenance. Four direct jobs and a review-only
+Chat plan were checked on the maintainer's Mac on 2026-11-04. The later phase
+checkpoint and PR #28 record acceptance and delivery progress; these tours do
+not establish independent usability.
+
+P1.01 has a [dated local technical review](PHASE4_DASHBOARD_LOCAL_REVIEW_2026-10-04.md)
+at `63dee8a`. This is not a measured novice-user success claim; current delivery
+is tracked in PR #28.
+P1.03 has a [dated local technical review](PHASE4_PROFILE_GUIDANCE_LOCAL_REVIEW_2026-10-04.md)
+at `6255679`. Its profile choice, lock counts, and diagnostic routing are
+locally checked. Independent comprehension is not established; current public
+delivery is tracked in PR #28.
+P1.04 has a [dated local technical review](PHASE4_ENVIRONMENT_DIAGNOSIS_LOCAL_REVIEW_2026-10-04.md)
+at `c06ce46`. It distinguishes selected-interpreter discovery from Core/Full
+package readiness and previews repair into a new destination without changing
+an existing environment. Current public delivery is tracked in PR #28.
+P1.05 has a [dated local technical review](PHASE4_CAPABILITY_DISCOVERY_LOCAL_REVIEW_2026-10-05.md)
+at `53aa13a`. It covers 55 reviewed route labels, task searches, six facets,
+separate Maintenance search, and CLI/Expert context. Independent usability
+remains unverified; current public delivery is tracked in PR #28.
 
 Exit: the three scripted first-use paths can choose, prepare, run or cancel,
 and inspect a workflow without losing the connection between its plan, job,

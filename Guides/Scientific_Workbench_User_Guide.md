@@ -8,6 +8,11 @@ capability, see [skills and capabilities](../docs/SKILLS_AND_CAPABILITIES.md),
 then use the [setup matrix](../docs/CAPABILITY_SETUP_MATRIX.md) to choose the
 requirements for one route.
 
+Short task guides cover [tables and synthetic spectra](Workflow_Table.md),
+[FITS images](Workflow_FITS.md), and [mixed folders and PDF intake](Workflow_Mixed_Folder.md).
+Open **Read task guide** on Dashboard or **Task Guide** in the workflow bar to
+read the relevant bundled guide beside the app.
+
 ## 1. What the app does
 
 Scientific Workbench connects a macOS interface for files, folders, and prompts
@@ -48,9 +53,24 @@ policy; restricted steps require fresh review and explicit enablement.
 
 ## 3. First launch
 
+The workflow navigation bar connects **Inputs**, **Preflight & Scope**, **Plan**,
+**Run & Logs**, **Results**, and the latest **Summary**. **Current view** describes
+the screen you opened; it does not certify that preflight, consent, or scientific
+review passed. Review the selected capability's requirements and execution scope,
+then the plan's steps and permissions before running. Some guided capabilities
+run directly after this review without an AI plan.
+
+Use **Back** to open the preceding workflow view and **Edit Plan** to return to
+Chat. **Exit to Dashboard** keeps the draft, inputs, job selection, and results.
+An active process continues until you cancel it in Chat or Jobs. **New Workflow**
+archives and clears the current draft after active operations finish. Results
+requires a selected job; Summary requires a retained summary file. Job filters
+are preserved during this session. Opening a specific job clears filters only
+when they would hide that job.
+
 Open Settings and inspect the Setup Checklist:
 
-- **Scientific environment:** Python and `datanalysis_env.py` respond.
+- **Scientific environment:** the selected Python passes the Core package check.
 - **Capabilities loaded:** the app can see the available tools.
 - **Output folder:** an output directory exists.
 - **Local AI:** if you want chat or AI planning, Ollama is running and the
@@ -61,6 +81,13 @@ authentication; OAuth is not implemented. Connection status is evidence for
 the current session and resets on restart. Leave Ollama selected to avoid paid
 provider APIs.
 
+For Ollama, **Download Selected Model** opens a review of the model, local
+endpoint, approximate file size, and network/storage scope. **Download Model**
+starts that reviewed request; changing the model or endpoint requires another
+review. The app shows an indeterminate progress indicator and cancellation.
+Check and test again after the client stops. See the [local AI setup guide](../docs/LOCAL_AI_SETUP.md)
+for model resource limits, already-installed models, and safe recovery.
+
 ### Choose Core or Full
 
 Start with **Core** for the five synthetic examples and common table, FITS,
@@ -69,11 +96,21 @@ reviewed locked Core setup currently targets native Apple Silicon, Python
 3.11, and macOS 14 or later. Ollama and cloud accounts are optional for these
 deterministic workflows.
 
+The Core lock contains 32 reviewed Python runtime requirements. One fresh
+installation on the development Mac occupied about 455 MiB. This is installed
+filesystem use, not download size or a minimum free-space guarantee.
+
 **Full** adds Python packages for advanced routes such as notebooks and
 presentations. Its reviewed locked setup currently targets Apple Silicon,
 Python 3.11, and macOS 15 or later. A working Core environment does not prove
 that Full is installed or ready. Intel uses an unpinned compatibility route;
 check the exact-commit validation before relying on it.
+
+Full includes Core. Its lock contains 200 runtime requirements and 3
+installation/build tools; the fresh local installation occupied about 1.43 GiB.
+Both sizes were measured once on 2026-10-03, so they will vary by machine and
+environment. Install Full into a separate **new** environment when the chosen
+workflow needs it; do not upgrade a preserved Core environment in place.
 
 Neither profile installs external applications or Ollama models. TeX,
 LibreOffice, IRAF, astronomy backends, and other optional tools need separate
@@ -82,7 +119,67 @@ requirements and preflight rather than assuming a profile supplies every
 backend. The source repository's `INSTALL.md`, `docs/WORKFLOW_REQUIREMENTS.md`,
 and `docs/OPTIONAL_BACKENDS.md` give the exact commands and limits.
 
+In **Settings → Installation Profiles**, select **Check Core and Full
+readiness** to open `env_doctor` in Capabilities. Select **Run Capability** only
+when you want a new diagnostic job: it reports Core/Full package readiness and
+missing optional backends without changing installed environments or original
+inputs. The report is written to a new run folder. Inspect the
+job's recommendations, then use `INSTALL.md` to create a new environment if
+packages are missing. Select its Python path in Settings and refresh the
+environment. A green environment discovery badge alone does not prove that
+Full or any separate application is ready.
+
+**Settings → Environment Diagnosis** runs a read-only Core/Full package check
+when the app refreshes the environment. It shows the selected interpreter,
+Python version, Core blockers, and missing optional Full groups. A successful
+environment search alone does not mark Core ready. Select **Prepare a new
+environment** to see a fresh destination and two commands: a preview that
+installs nothing, then an explicit `--install` command to run yourself from the
+source repository root. The app never silently changes a Conda environment.
+The installer rejects an existing destination and keeps
+`scientific-workbench-setup/installation.log` inside the new environment,
+including a useful failure line if setup stops. The displayed disk/time figures
+are single measurements on the development Mac, not a promise for your Mac or
+network. After a successful install, select its Python path in Settings and
+choose **Recheck Environment**. External apps remain separate prerequisites.
+
 ## 4. Normal workflow
+
+### Start another workflow safely
+
+Use **New Workflow** in the title bar or **File → New Workflow** (`Command-N`).
+It returns to Dashboard with an empty input selection, no active plan, and
+Auto-run off. It does not start a job or delete inputs, jobs, logs, or results.
+If you have a draft, the app must first save a redacted checkpoint in
+`<output root>/Workflow Drafts/`; if that save fails, the draft stays in place.
+The action is unavailable while a workflow or input-review operation is active.
+
+Use **Restore Previous Draft** in the notice or **Workbench → Restore Previous
+Workflow Draft** to restore the preceding draft during this session. Any current
+draft is archived before it is replaced. Review the restored inputs and plan;
+missing inputs clear its execution checkpoints, restricted routes need fresh
+review, and Auto-run remains off. Restoration does not restore cloud consent or
+output-folder approval. It requires the same output folder as the saved draft.
+After quitting, the archive remains on disk for inspection, but this session's
+one-step restore action is no longer available. The archive contains private
+paths and conversation text; redaction is not anonymization. Do not upload it
+without reviewing it.
+
+### Find a capability directly
+
+To find a direct tool, open **Capabilities** and search by the work you want
+to do, such as **inspect FITS**, **profile CSV**, or **match sky catalogs**.
+The task, format, Python profile, app-readiness, owning-skill, and workflow-level
+filters narrow all 55 routes. **Clear filters** restores the full list.
+Each row shows its level, catalog readiness, and starting Python profile.
+These labels do not check whether an external program is installed or whether
+your particular input is suitable. Read the selected route's notice and
+[setup matrix](../docs/CAPABILITY_SETUP_MATRIX.md), then check **Settings →
+Environment Diagnosis** before running. Expert routes require a review
+confirmation; CLI and legacy routes retain their distinct level and
+documentation. **Maintenance** contains the separate maintainer gates.
+
+### Plan a workflow in Chat
 
 1. Open Chat.
 2. Attach files/folders with Files/Folder or drag them into the composer.

@@ -19,12 +19,41 @@ struct ContentView: View {
             title: (store.selectedSection ?? .agent).title,
             showInspector: $showInspector,
             inspectorIsAvailable: proxy.size.width >= 1260,
+            canStartWorkflow: store.canChangeWorkflowContext,
+            newWorkflow: { store.beginNewWorkflow() },
             refresh: {
               Task { await store.refreshEnvironment() }
             }
           )
 
           Divider()
+
+          if let stage = WorkflowJourneyStage.forSection(store.selectedSection) {
+            WorkflowJourneyBar(store: store, currentStage: stage)
+            Divider()
+          }
+
+          if let notice = store.workflowNavigationNotice {
+            HStack {
+              Text(notice)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+              Spacer()
+              if store.previousWorkflowDraft != nil {
+                Button("Restore Previous Draft") { store.restorePreviousWorkflowDraft() }
+                  .disabled(!store.canChangeWorkflowContext)
+                  .accessibilityIdentifier("workflow.restore-previous-draft")
+              }
+              Button("Dismiss", systemImage: "xmark") { store.workflowNavigationNotice = nil }
+                .labelStyle(.iconOnly)
+                .accessibilityLabel("Dismiss workflow notice")
+            }
+            .padding(12)
+            .background(.regularMaterial)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("workflow.context-notice")
+            Divider()
+          }
 
           detail
             .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
@@ -78,6 +107,8 @@ private struct WorkbenchTitleBar: View {
   let title: String
   @Binding var showInspector: Bool
   let inspectorIsAvailable: Bool
+  let canStartWorkflow: Bool
+  let newWorkflow: () -> Void
   let refresh: () -> Void
 
   var body: some View {
@@ -88,6 +119,11 @@ private struct WorkbenchTitleBar: View {
         .lineLimit(1)
 
       Spacer()
+
+      Button("New Workflow", systemImage: "plus") { newWorkflow() }
+        .disabled(!canStartWorkflow)
+        .accessibilityHint("Archives the current draft before choosing a new task. Keeps originals, jobs, logs, and results.")
+        .accessibilityIdentifier("toolbar.new-workflow")
 
       Button {
         refresh()
@@ -161,7 +197,8 @@ struct InspectorView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
           }
-        } else if let selected = store.selectedCapability {
+        } else if let selected = store.selectedSection == .maintenance
+          ? store.selectedMaintenanceCapability : store.selectedCapability {
           Divider()
           VStack(alignment: .leading, spacing: 8) {
             Text("Selected Capability")
@@ -217,7 +254,7 @@ struct StatusBadge: View {
       .padding(.horizontal, 8)
       .padding(.vertical, 4)
       .background(color.opacity(0.14), in: Capsule())
-      .foregroundStyle(color)
+      .foregroundStyle(Color.primary)
   }
 
   private var color: Color {

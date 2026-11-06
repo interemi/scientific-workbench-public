@@ -2,6 +2,7 @@ import Foundation
 
 struct SetupChecklistContext {
   var environmentStatus: EnvironmentStatus
+  var environmentDiagnosis: EnvironmentDiagnosis
   var outputRootPath: String
   var userCapabilityCount: Int
   var ollamaModel: String
@@ -15,6 +16,7 @@ struct SetupChecklistContext {
 struct SetupChecklistService {
   func items(context: SetupChecklistContext) -> [SetupChecklistItem] {
     let environmentReady = context.environmentStatus.status == "ok"
+      && context.environmentDiagnosis.coreReady == true
     let outputRootExists = FileManager.default.fileExists(atPath: context.outputRootPath)
     let localAIReady = context.ollamaConnectionStatus.state == .connected ||
       (context.ollamaSetupStatus.serverReachable && context.ollamaSetupStatus.modelInstalled)
@@ -31,8 +33,10 @@ struct SetupChecklistService {
         id: "environment",
         title: "Scientific environment",
         detail: environmentReady
-          ? "Python and the datanalysis wrapper are ready."
-          : "Refresh the environment or check the Python path in Settings.",
+          ? "The selected Python passed Core package checks. Full and external tools have separate requirements."
+          : context.environmentDiagnosis.coreReady == false
+            ? "Core is blocked. Review missing packages in Environment Diagnosis; repair only into a new environment."
+            : "Refresh Environment to check the selected Python and Core packages.",
         state: environmentReady ? .ready : .action,
         systemImage: "checkmark.seal",
         isRequired: true
@@ -123,7 +127,8 @@ struct SetupChecklistService {
     case "environment":
       return [
         "Open Settings and verify Mother skill root and Python executable.",
-        "Run Refresh Environment; if it still fails, inspect Environment Details.",
+        "Run Refresh Environment; inspect the prioritized findings in Environment Diagnosis.",
+        "If Core packages are missing, follow INSTALL.md to create a separate new environment; do not modify the existing one.",
         "Export a Support Bundle if the Python/datanalysis error is unclear."
       ]
     case "capabilities":

@@ -28,8 +28,8 @@ public issue.
 | `WARNING` | The run completed but reported a limitation or condition requiring review. | Read warnings and `next_actions`; do not silently promote it to an unconditional pass. |
 | `BLOCKED_CONTROLADO` / `BLOCKED` | A known prerequisite, confirmation, dependency, or safe boundary prevented execution. | Follow the recovery advice or use the documented alternative. |
 | `FAIL`, legacy `ERROR`, or `ROTO` | The capability or contract failed. A zero process exit code does not override this structured failure. | Inspect the structured error, stdout/stderr, and manifest before retrying. |
-| `QUEUED` / `RUNNING` | The job has not reached a terminal state. | Wait, inspect progress, or request cancellation. |
-| `CANCELLED` | The user, timeout handling, or relaunch recovery stopped the job. | Verify no child process remains, then decide whether to retry or run remaining steps. |
+| `QUEUED` / `RUNNING` | The job has not reached a terminal state. | Open **Jobs** for its current app-level stage and last recorded change. External tools may not report finer progress; request cancellation if needed. |
+| `CANCELLED` | The user or relaunch recovery stopped the job. | Inspect retained partial files and captured logs, verify no child process remains, then decide whether to retry or run remaining steps. |
 | `TIMED_OUT` | The configured process deadline expired and the owned process group was terminated. | Reduce inputs, split the workflow, or increase the reviewed timeout within the allowed range. |
 | Provider `UNKNOWN` | No connection probe applies to the current session/configuration. | Test the current credential/model/endpoint if a provider is needed. |
 | Provider `TESTING` | A probe is in flight. | Wait. Changing the credential, model, or endpoint invalidates its result. |
@@ -49,6 +49,64 @@ For any failed workflow, inspect these in order:
 This order keeps the app-owned structured evidence ahead of guesses from an AI
 provider or a manually edited command.
 
+New workflow summaries include the plan ID, each enabled step ID, and its linked
+job ID. Use the job ID in **Jobs** to locate its captured command, logs, run
+folder, and artifacts. Repeated uses of a capability have separate step and job
+IDs. If an exact association is unavailable, the summary reports **No linked
+job** instead of inferring a result from another job with the same capability.
+The plan ID identifies a plan, not a unique execution; rerunning that plan creates
+new jobs and a separate summary. Each workflow execution or resume attempt now
+has its own **Workflow Run ID**, shown in the plan, linked jobs, Results, and its
+summary. The summary connects that ID to each job's logs and indexed artifacts.
+Resuming also links the successful jobs reused by that attempt. The current-run
+UI association lasts for this session; after relaunch, consult the retained
+summary. Direct capability jobs and older summaries do not invent a workflow
+run ID. Existing summaries are retained unchanged.
+
+Plan edits and importing or submitting another plan are blocked while the
+workflow runs. Cancel it first or wait for it to stop, then edit and review the
+remaining steps. Cancellation and navigation stay available.
+
+During the current session, changing screens preserves each capability's advanced
+argument draft, catalog filters, and each job's selected result artifact. These
+navigation choices are not restored after quitting. Maintenance keeps its own
+capability selection, so visiting it does not replace the selected user task.
+Switching capability still
+requires a fresh confirmation for restricted routes; keeping a draft does not
+authorize or start a run.
+
+Workflow execution captures its input selection and output root at the start.
+Later selection changes apply to future work; they do not replace `{inputN}` or
+`{outputRoot}` placeholders, job destinations, or the declared inputs of the
+workflow already running. Safety checks still apply to the captured context;
+changing it does not carry an old output-folder approval to a different path.
+Inspect each job's request and the workflow summary for the inputs and exact
+run folders actually used; legacy capabilities can have a separate run root.
+
+For a recognized job failure, **Jobs** also shows a likely-cause card. It uses
+the structured error kind when available, with a limited fallback to the job
+message and stderr. Its action opens the relevant setup screen or capability;
+it does not retry, install a dependency, delete an occupied output, or change
+the failed run. **Recheck Current Files**, **Recheck Python**, **Recheck
+Backends**, **Recheck Named Dependencies**, **Recheck Network Path**, and
+**Recheck Local AI** report the current state for applicable
+jobs; a successful recheck does not retroactively turn the historical job
+into a pass. The file check cannot reconstruct an exact occupied target or
+required disk space when the job did not record them. STILTS and APT failures
+open their dedicated astronomy setup. Other optional-backend failures and
+network/model errors without identifiable AI-provider evidence open the
+capability for its setup and preflight, rather than an unrelated settings
+section. The named-dependency check matches modules actually inspected by the
+Python diagnostic to names in the error. It reports whether they were located;
+it does not test importing them or executing external tools. An unrecognized
+dependency stays unverified. The network-path check observes macOS's current
+network state without sending a server request; it does not test endpoint
+availability, credentials, or models. For cloud-AI evidence, the connection test in Settings checks
+the provider you choose **now**; the job record does not separately retain its
+historical provider. Inspect the original error before testing or retrying.
+Use **Support Bundle** to export redacted diagnostic logs, and review that
+bundle before sharing it.
+
 ## Common problems
 
 ### The capability catalog does not load
@@ -62,13 +120,28 @@ provider or a manually edited command.
 
 ### The wrong Python interpreter is used
 
-- Read the exact Python path in **Settings** and the Environment inspector.
+- Read the exact discovered Python path and Core/Full findings in **Settings →
+  Environment Diagnosis**. The editable Python preference can differ from the
+  interpreter that `datanalysis_env.py` discovers.
 - Run `<selected-python> scripts/datanalysis_env.py status` from the owning skill
   root when diagnosing the backend directly.
 - System Python may lack packages even when the dedicated `datanalysis`
   environment is healthy.
 - Create a new environment instead of updating an evidence-bearing one in
   place.
+
+### Core packages are missing or Full is incomplete
+
+- Treat missing Core packages as a block. Missing Full groups are optional for
+  Core routes, but block any selected route that requires them.
+- In **Environment Diagnosis**, prepare a new Core or Full destination. Run its
+  preview command from the source checkout before considering `--install`.
+- If installation stops, keep the new directory and inspect
+  `scientific-workbench-setup/installation.log` and `installation-plan.json`
+  there. Choose another new destination for a retry; do not run the installer
+  against the failed directory or an existing Conda environment.
+- After success, select the new `datanalysis/bin/python` in Settings, refresh,
+  and confirm that the displayed interpreter and requested profile match.
 
 ### The output folder is rejected
 
@@ -81,7 +154,11 @@ provider or a manually edited command.
 ### Ollama is unavailable
 
 - Open Ollama and confirm the configured loopback endpoint and model.
-- Pull the selected model in **Local AI Setup**.
+- Review the selected model's download in **Local AI Setup**, then confirm it.
+  The request uses the reviewed endpoint. Changing the endpoint or model requires
+  a new review; a successful setup recheck must not erase a failed download's
+  CLI error. See [local AI setup](LOCAL_AI_SETUP.md) for resource and cancellation
+  limits.
 - Scientific Workbench rejects remote and non-HTTP(S) Ollama endpoints by
   design; use `localhost`, `127.0.0.0/8`, or `::1`.
 - A missing local model should not trigger a cloud request automatically.
@@ -129,6 +206,10 @@ provider or a manually edited command.
 
 - Wait for the terminal job state; cancellation first requests graceful
   termination and then escalates for the owned process group.
+- Open the selected job's **Run → Job → Result** card. The last recorded change
+  is an app state transition, not a heartbeat from the external tool. After the
+  job stops, inspect its run folder, captured stdout/stderr, partial files, and
+  recovery advice before retrying. A retry creates a new run folder.
 - Check Activity Monitor only after the app reports the outcome.
 - Record any surviving child PID and command in a support bundle; do not kill
   unrelated processes.

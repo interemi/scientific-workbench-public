@@ -6,7 +6,6 @@ struct CapabilityCatalogView: View {
   let title: String
   let subtitle: String
   let isMaintenance: Bool
-  @State private var rawArguments = ""
   @State private var accessConfirmed = false
 
   var body: some View {
@@ -19,36 +18,42 @@ struct CapabilityCatalogView: View {
       CapabilityDetailPanel(
         store: store,
         capability: selectedEntry,
-        rawArguments: $rawArguments,
+        rawArguments: argumentDraft,
         accessConfirmed: $accessConfirmed,
         isMaintenance: isMaintenance
       )
       .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
     }
     .onChange(of: entries.map(\.id)) { _, _ in
-      let visibleIDs = modeEntries.map(\.id)
-      if store.selectedCapabilityID == nil || !visibleIDs.contains(store.selectedCapabilityID ?? "") {
-        store.selectedCapabilityID = modeEntries.first?.id
-      }
+      selectVisibleEntryIfNeeded()
     }
-    .onChange(of: store.selectedCapabilityID) {
-      rawArguments = ""
+    .onChange(of: filteredEntries.map(\.id)) { _, _ in
+      selectVisibleEntryIfNeeded()
+    }
+    .onChange(of: catalogSelection.wrappedValue) {
       accessConfirmed = false
-    }
-    .onChange(of: store.capabilityCatalogMode) {
-      guard !isMaintenance else { return }
-      if !modeEntries.contains(where: { $0.id == store.selectedCapabilityID }) {
-        store.searchText = ""
-        store.selectedCapabilityID = modeEntries.first?.id
-        rawArguments = ""
-        accessConfirmed = false
-      }
+      revealExternallySelectedEntryIfNeeded()
     }
     .onAppear {
-      if !modeEntries.contains(where: { $0.id == store.selectedCapabilityID }) {
-        store.selectedCapabilityID = modeEntries.first?.id
-      }
+      revealExternallySelectedEntryIfNeeded()
+      selectVisibleEntryIfNeeded()
     }
+  }
+
+  private var catalogSelection: Binding<String?> {
+    isMaintenance ? $store.selectedMaintenanceCapabilityID : $store.selectedCapabilityID
+  }
+
+  private var argumentDraft: Binding<String> {
+    let capabilityID = selectedEntry?.id
+    return Binding(
+      get: { capabilityID.map { store.capabilityArgumentDraft(for: $0) } ?? "" },
+      set: { arguments in
+        if let capabilityID {
+          store.setCapabilityArgumentDraft(arguments, for: capabilityID)
+        }
+      }
+    )
   }
 
   private var capabilityList: some View {
@@ -66,35 +71,17 @@ struct CapabilityCatalogView: View {
       .padding(.horizontal, 16)
       .padding(.top, 18)
 
-      if !isMaintenance {
-        Picker("Workflow mode", selection: $store.capabilityCatalogMode) {
-          ForEach(CapabilityCatalogMode.allCases) { mode in
-            Label(mode.title, systemImage: mode.iconName)
-              .tag(mode)
-          }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .padding(.horizontal, 16)
-        .help("Choose which workflow class is visible")
-
-        HStack {
-          Text(store.capabilityCatalogMode.detail)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
-          Spacer()
-          Text("\(modeEntries.count)")
-            .font(.caption)
-            .monospacedDigit()
-            .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 16)
-      }
-
-      TextField("Search \(title.lowercased())", text: $store.searchText)
+      TextField(
+        isMaintenance ? "Search maintenance gates" : "Find a task, e.g. inspect FITS or profile CSV",
+        text: isMaintenance ? $store.maintenanceSearchText : $store.searchText
+      )
         .textFieldStyle(.roundedBorder)
         .padding(.horizontal, 16)
+        .accessibilityIdentifier("catalog.search")
+
+      if !isMaintenance {
+        discoveryControls
+      }
 
       if let error = store.registryError {
         Text(error)
@@ -109,12 +96,42 @@ struct CapabilityCatalogView: View {
           .padding(.horizontal, 16)
       }
 
-      List(selection: $store.selectedCapabilityID) {
-        ForEach(filteredEntries.groupedByBlock(), id: \.0) { block, blockEntries in
-          Section(block) {
-            ForEach(blockEntries) { entry in
-              CapabilityRow(entry: entry)
-                .tag(Optional(entry.id))
+      List(selection: catalogSelection) {
+        if filteredEntries.isEmpty {
+          ContentUnavailableView(
+            "No matching capabilities",
+            systemImage: "line.3.horizontal.decrease.circle",
+            description: Text("Change the task or requirement filters, or clear the search.")
+          )
+          .accessibilityIdentifier("catalog.empty-results")
+        } else if isMaintenance {
+          ForEach(filteredEntries.groupedByBlock(), id: \.0) { block, blockEntries in
+            Section(block) {
+              ForEach(blockEntries) { entry in
+                CapabilityRow(entry: entry)
+                  .tag(Optional(entry.id))
+              }
+            }
+          }
+        } else {
+          ForEach(CapabilityTask.allCases) { task in
+            let taskEntries = filteredEntries
+              .filter { CapabilityDiscovery.forEntry($0).task == task }
+              .sorted {
+                if $0.isGoldenPath != $1.isGoldenPath {
+                  return $0.isGoldenPath
+                }
+                return CapabilityDiscovery.forEntry($0).title.localizedStandardCompare(
+                  CapabilityDiscovery.forEntry($1).title
+                ) == .orderedAscending
+              }
+            if !taskEntries.isEmpty {
+              Section(task.title) {
+                ForEach(taskEntries) { entry in
+                  CapabilityRow(entry: entry)
+                    .tag(Optional(entry.id))
+                }
+              }
             }
           }
         }
@@ -125,26 +142,113 @@ struct CapabilityCatalogView: View {
     .background(.bar)
   }
 
-  private var filteredEntries: [CapabilityEntry] {
-    let query = store.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !query.isEmpty else { return modeEntries }
-    return modeEntries.filter { entry in
-      [entry.id, entry.label, entry.visibleBlock, entry.kind, entry.supportLevel, entry.shortDescription]
-        .joined(separator: " ")
-        .localizedCaseInsensitiveContains(query)
+  private var discoveryControls: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack {
+        Text("Find by task and requirements")
+          .font(.caption)
+          .fontWeight(.semibold)
+        Spacer()
+        Button("Clear filters") {
+          store.capabilityDiscoveryFilters = CapabilityDiscoveryFilters()
+          store.searchText = ""
+        }
+        .font(.caption)
+        .accessibilityIdentifier("catalog.clear-filters")
+      }
+
+      Picker("Task", selection: $store.capabilityDiscoveryFilters.task) {
+        Text("All tasks").tag(Optional<CapabilityTask>.none)
+        ForEach(CapabilityTask.allCases) { task in
+          Text(task.title).tag(Optional(task))
+        }
+      }
+      .accessibilityIdentifier("catalog.filter.task")
+
+      Picker("Format", selection: $store.capabilityDiscoveryFilters.format) {
+        Text("All formats").tag(Optional<CapabilityInputFormat>.none)
+        ForEach(CapabilityInputFormat.allCases) { format in
+          Text(format.title).tag(Optional(format))
+        }
+      }
+      .accessibilityIdentifier("catalog.filter.format")
+
+      Picker("Python profile", selection: $store.capabilityDiscoveryFilters.profile) {
+        Text("All profiles").tag(Optional<CapabilityProfileFilter>.none)
+        ForEach(CapabilityProfileFilter.allCases) { profile in
+          Text(profile.title).tag(Optional(profile))
+        }
+      }
+      .accessibilityIdentifier("catalog.filter.profile")
+
+      Picker("App readiness", selection: $store.capabilityDiscoveryFilters.readiness) {
+        Text("All readiness levels").tag(Optional<CapabilityReadinessFilter>.none)
+        ForEach(CapabilityReadinessFilter.allCases) { readiness in
+          Text(readiness.title).tag(Optional(readiness))
+        }
+      }
+      .accessibilityIdentifier("catalog.filter.readiness")
+
+      Picker("Owning skill", selection: $store.capabilityDiscoveryFilters.skill) {
+        Text("All skills").tag(Optional<SkillRootRole>.none)
+        ForEach(SkillRootRole.allCases.filter { $0 != .maintainer }, id: \.self) { skill in
+          Text(skill.defaultDirectoryName).tag(Optional(skill))
+        }
+      }
+      .accessibilityIdentifier("catalog.filter.skill")
+
+      Picker("Workflow level", selection: $store.capabilityDiscoveryFilters.level) {
+        Text("All levels").tag(Optional<CapabilityCatalogMode>.none)
+        ForEach(CapabilityCatalogMode.allCases) { level in
+          Text(level.title).tag(Optional(level))
+        }
+      }
+      .accessibilityIdentifier("catalog.filter.level")
+
+      Text("\(filteredEntries.count) of \(entries.count) routes · Full includes Core. Catalog readiness is not a live backend check; review Settings before running.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
+    .pickerStyle(.menu)
+    .controlSize(.small)
+    .padding(.horizontal, 16)
+  }
+
+  private var filteredEntries: [CapabilityEntry] {
+    if isMaintenance {
+      let query = store.maintenanceSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !query.isEmpty else { return entries }
+      return entries.filter {
+        [$0.id, $0.label, $0.shortDescription]
+          .joined(separator: " ").localizedCaseInsensitiveContains(query)
+      }
+    }
+    return entries.filter { store.capabilityDiscoveryFilters.matches($0, query: store.searchText) }
   }
 
   private var selectedEntry: CapabilityEntry? {
-    if let selected = store.selectedCapability, modeEntries.contains(selected) {
+    if let selected = filteredEntries.first(where: { $0.id == catalogSelection.wrappedValue }) {
       return selected
     }
-    return modeEntries.first
+    return filteredEntries.first
   }
 
-  private var modeEntries: [CapabilityEntry] {
-    guard !isMaintenance else { return entries }
-    return entries.filter { $0.isVisible(in: store.capabilityCatalogMode) }
+  private func selectVisibleEntryIfNeeded() {
+    if !filteredEntries.contains(where: { $0.id == catalogSelection.wrappedValue }) {
+      catalogSelection.wrappedValue = filteredEntries.first?.id
+    }
+  }
+
+  private func revealExternallySelectedEntryIfNeeded() {
+    guard !isMaintenance,
+          let id = store.selectedCapabilityID,
+          entries.contains(where: { $0.id == id }),
+          !filteredEntries.contains(where: { $0.id == id }) else { return }
+    store.capabilityDiscoveryFilters = CapabilityDiscoveryFilters()
+    if !filteredEntries.contains(where: { $0.id == id }) {
+      store.searchText = ""
+    }
   }
 }
 
@@ -152,14 +256,17 @@ struct CapabilityRow: View {
   let entry: CapabilityEntry
 
   var body: some View {
+    let discovery = CapabilityDiscovery.forEntry(entry)
     HStack(spacing: 10) {
       Image(systemName: entry.blockIconName)
         .foregroundStyle(.secondary)
         .frame(width: 16)
       VStack(alignment: .leading, spacing: 2) {
-        Text(entry.label)
+        Text(entry.isMaintainerOnly ? entry.label : discovery.title)
           .lineLimit(1)
-        Text("\(entry.appReadiness.title) · \(entry.supportLevel)")
+        Text(entry.isMaintainerOnly
+          ? entry.supportLevel
+          : "\(entry.workflowMode.title) · \(entry.appReadiness.title) · \(discovery.profile.title)")
           .font(.caption)
           .foregroundStyle(.secondary)
           .lineLimit(1)
@@ -171,6 +278,8 @@ struct CapabilityRow: View {
           .help("Requires datanalysis")
       }
     }
+    .accessibilityLabel("\(discovery.title), \(entry.workflowMode.title), \(entry.appReadiness.title), \(discovery.profile.title)")
+    .accessibilityIdentifier("catalog.capability.\(entry.id)")
   }
 }
 
@@ -180,6 +289,8 @@ struct CapabilityDetailPanel: View {
   @Binding var rawArguments: String
   @Binding var accessConfirmed: Bool
   let isMaintenance: Bool
+  @State private var pendingExampleKind: FirstRunExampleKind?
+  @State private var isReplacingInputSelection = false
 
   var body: some View {
     Group {
@@ -188,7 +299,8 @@ struct CapabilityDetailPanel: View {
           VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 8) {
               HStack {
-                Text(capability.label)
+                Text(capability.isMaintainerOnly
+                  ? capability.label : CapabilityDiscovery.forEntry(capability).title)
                   .font(.title2)
                   .fontWeight(.semibold)
                 Spacer()
@@ -200,6 +312,16 @@ struct CapabilityDetailPanel: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
+              if !isMaintenance {
+                Text("\(capability.workflowMode.title) · \(capability.appReadiness.title) · \(CapabilityDiscovery.forEntry(capability).profile.title)")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                if capability.appReadiness == .cliOnly || capability.appReadiness == .notApplicableToApp {
+                  Text("CLI route: review docs/CAPABILITY_SETUP_MATRIX.md and the owning skill's --help before using advanced parameters.")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+                }
+              }
             }
 
             metadataGrid(capability)
@@ -260,6 +382,22 @@ struct CapabilityDetailPanel: View {
       } else {
         ContentUnavailableView("No Capability Selected", systemImage: "square.grid.2x2")
       }
+    }
+    .confirmationDialog(
+      "Replace the current input selection?",
+      isPresented: $isReplacingInputSelection
+    ) {
+      Button("Prepare Synthetic Example") {
+        if let pendingExampleKind {
+          prepareSyntheticExample(pendingExampleKind)
+        }
+        pendingExampleKind = nil
+      }
+      Button("Cancel", role: .cancel) {
+        pendingExampleKind = nil
+      }
+    } message: {
+      Text("The selected files will be removed from this session's input list. They will not be changed or deleted on disk.")
     }
   }
 
@@ -398,7 +536,11 @@ struct CapabilityDetailPanel: View {
           await store.run(capability: capability, rawArguments: rawArguments)
         }
       } label: {
-        Label("Run Capability", systemImage: "play.fill")
+        Label(
+          capability.appReadiness == .cliOnly || capability.appReadiness == .notApplicableToApp
+            ? "Run CLI Route" : "Run Capability",
+          systemImage: "play.fill"
+        )
       }
       .buttonStyle(.borderedProminent)
       .disabled(!canRun(capability))
@@ -412,10 +554,24 @@ struct CapabilityDetailPanel: View {
         .disabled(store.isCancellationRequested)
       }
 
-      Button("Use Example Args") {
-        rawArguments = exampleArguments(for: capability)
+      if let kind = syntheticExampleKind(for: capability) {
+        Button("Prepare Synthetic Example") {
+          if !store.inputPaths.isEmpty,
+             store.inputPaths != store.preparedFirstRunExample?.inputPaths {
+            pendingExampleKind = kind
+            isReplacingInputSelection = true
+          } else {
+            prepareSyntheticExample(kind)
+          }
+        }
+        .disabled(store.canCancelActiveRun)
+        .accessibilityIdentifier("capability.prepare-example")
       }
-      .disabled(exampleArguments(for: capability).isEmpty)
+      if let error = store.firstRunExampleError {
+        Label(error, systemImage: "exclamationmark.triangle")
+          .font(.caption)
+          .foregroundStyle(.orange)
+      }
     }
   }
 
@@ -449,20 +605,18 @@ struct CapabilityDetailPanel: View {
     }
   }
 
-  private func exampleArguments(for capability: CapabilityEntry) -> String {
-    let exampleRoot = capability.resolvedSkillRoot(fallback: store.skillRootPath)
+  private func syntheticExampleKind(for capability: CapabilityEntry) -> FirstRunExampleKind? {
     switch capability.id {
-    case "profile_table":
-      return "\"\(exampleRoot)/examples/tabular/ops.csv\" --summary-json summary.json"
-    case "inspect_fits":
-      return "\"\(exampleRoot)/examples/science/legacy_spectroscopy_mini/mini_template.fits\" --summary-json summary.json"
-    case "document_intake_workbench":
-      return "--output-dir artifacts \"\(exampleRoot)/examples/documents\" --summary-json summary.json"
-    case "portable_smoke_test":
-      return "--output-dir artifacts --examples-dir \"\(exampleRoot)/examples\" --profile core --summary-json summary.json"
-    default:
-      return ""
+    case "profile_table": return .table
+    case "inspect_fits": return .fits
+    case "document_intake_workbench": return .document
+    default: return nil
     }
+  }
+
+  private func prepareSyntheticExample(_ kind: FirstRunExampleKind) {
+    rawArguments = ""
+    store.prepareFirstRunExample(kind)
   }
 }
 

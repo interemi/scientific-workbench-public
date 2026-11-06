@@ -543,14 +543,29 @@ if expected_workflow_status not in workflow_summary:
         f"{case_name}: global workflow status did not preserve the controlled block; "
         f"missing {expected_workflow_status!r}"
     )
-for required_line in (
-    "1. `datanalysis_env.status` - Succeeded",
-    "2. `stilts_workbench` - Blocked",
-    "3. `profile_table` - Not run",
-    "4. `cross_domain_data_workbench` - Not run",
-):
-    if required_line not in workflow_summary:
-        raise SystemExit(f"{case_name}: blocked workflow summary missing {required_line!r}")
+if "## Enabled Steps\n" not in workflow_summary or "\n## Jobs\n" not in workflow_summary:
+    raise SystemExit(f"{case_name}: blocked workflow summary is missing step or job sections")
+enabled_summary = workflow_summary.split("## Enabled Steps\n", 1)[1].split("\n## Jobs\n", 1)[0]
+expected_step_statuses = (
+    "Succeeded",
+    "Blocked",
+    "No linked job (not run or association unavailable)",
+    "No linked job (not run or association unavailable)",
+)
+for index, (step, status) in enumerate(zip(steps, expected_step_statuses), start=1):
+    capability_id = step["capability_id"]
+    linked_job = jobs_by_id.get(capability_id)
+    expected_job_id = linked_job["id"] if linked_job else "Unavailable"
+    required_block = (
+        f"{index}. `{capability_id}` - {status}\n"
+        f"   - Step ID: `{step['id']}`\n"
+        f"   - Job ID: `{expected_job_id}`"
+    )
+    if required_block not in enabled_summary:
+        raise SystemExit(
+            f"{case_name}: blocked workflow summary has missing or incorrect step/job evidence; "
+            f"expected {required_block!r}"
+        )
 
 print(
     f"ok {case_name}: app planned {later_planned}, stopped after STILTS exit 2, "

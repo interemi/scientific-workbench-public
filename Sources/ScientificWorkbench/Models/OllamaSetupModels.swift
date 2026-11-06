@@ -22,8 +22,8 @@ struct OllamaModelProfile: Identifiable, CaseIterable, Hashable, Sendable {
     title: "Compact",
     model: "qwen3:1.7b",
     diskEstimate: "about 1.4 GB",
-    memoryGuidance: "Fastest and lightest on this Mac.",
-    bestFor: "short chat, quick routing, and low battery/RAM pressure",
+    memoryGuidance: "Runtime RAM exceeds model file size and depends on context and other apps.",
+    bestFor: "trying a smaller model for short chat and routing",
     isRecommended: false
   )
 
@@ -32,8 +32,8 @@ struct OllamaModelProfile: Identifiable, CaseIterable, Hashable, Sendable {
     title: "Balanced",
     model: "qwen3:4b-instruct",
     diskEstimate: "about 2.5 GB",
-    memoryGuidance: "Comfortable on 16 GB RAM while improving Spanish, planning, and code-like reasoning.",
-    bestFor: "the default Scientific Workbench experience",
+    memoryGuidance: "Runtime RAM exceeds model file size and depends on context and other apps; fit on this Mac is not guaranteed.",
+    bestFor: "the default starting point for local chat and workflow planning",
     isRecommended: true
   )
 
@@ -41,9 +41,9 @@ struct OllamaModelProfile: Identifiable, CaseIterable, Hashable, Sendable {
     id: "stronger",
     title: "Stronger",
     model: "qwen3:8b",
-    diskEstimate: "about 5 GB",
-    memoryGuidance: "Better reasoning, but slower and heavier; close other heavy apps first.",
-    bestFor: "harder planning and longer scientific explanations",
+    diskEstimate: "about 5.2 GB",
+    memoryGuidance: "Allow more RAM and disk than the smaller profiles; measure runtime use before relying on it.",
+    bestFor: "evaluating a larger model for planning and explanations",
     isRecommended: false
   )
 
@@ -77,19 +77,88 @@ struct OllamaSetupStatus: Codable, Hashable, Sendable {
     installedModels.contains(targetModel)
   }
 
+  func presentationState(
+    isDownloading: Bool = false,
+    isCancellationRequested: Bool = false
+  ) -> OllamaPresentationState {
+    if isDownloading {
+      return isCancellationRequested ? .cancellingDownload : .downloadingModel
+    }
+    guard checkedAt != nil else { return .unchecked }
+    if !serverReachable {
+      return cliPath == nil ? .install : .startServer
+    }
+    if modelInstalled { return .ready }
+    return cliPath == nil ? .downloadRequiresCLI : .downloadModel
+  }
+
   var badgeTitle: String {
-    if cliPath == nil { return "install" }
-    if !serverReachable { return "open" }
-    if !modelInstalled { return "pull" }
-    return "ok"
+    presentationState().badgeTitle
   }
 
   var detailLines: [String] {
-    [
+    guard checkedAt != nil else { return ["Local AI setup has not been checked."] }
+    return [
       "CLI: \(cliPath ?? "not found")",
       "Server: \(serverReachable ? "running" : "not reachable")",
       "Model: \(modelInstalled ? "\(targetModel) installed" : "\(targetModel) not installed")"
     ]
+  }
+}
+
+enum OllamaPresentationState: Equatable, Sendable {
+  case unchecked
+  case install
+  case startServer
+  case downloadRequiresCLI
+  case downloadModel
+  case downloadingModel
+  case cancellingDownload
+  case ready
+
+  var badgeTitle: String {
+    switch self {
+    case .unchecked: return "check"
+    case .install, .downloadRequiresCLI: return "install"
+    case .startServer: return "open"
+    case .downloadModel: return "pull"
+    case .downloadingModel, .cancellingDownload: return "running"
+    case .ready: return "ok"
+    }
+  }
+
+  func title(model: String) -> String {
+    switch self {
+    case .unchecked: return "Ollama not checked"
+    case .install: return "Ollama CLI missing; endpoint check failed"
+    case .startServer: return "Ollama endpoint check failed"
+    case .downloadRequiresCLI: return "Model missing; Ollama CLI unavailable"
+    case .downloadModel: return "Ollama model missing"
+    case .downloadingModel: return "Downloading \(model)"
+    case .cancellingDownload: return "Stopping model download"
+    case .ready: return "Ollama model found at last check"
+    }
+  }
+
+  func guidance(model: String) -> String {
+    switch self {
+    case .unchecked:
+      return "Check local AI setup. Deterministic planning and Core workflows remain available without Ollama."
+    case .install:
+      return "The configured local endpoint could not be verified and the Ollama CLI was not found. Check the endpoint or install Ollama, then check again. Core workflows remain available."
+    case .startServer:
+      return "The configured local endpoint could not be verified. Check its address and start Ollama if needed, then check again. Core workflows remain available."
+    case .downloadRequiresCLI:
+      return "The local server is reachable, but \(model) is missing and the Ollama CLI is needed for in-app downloads. Install the CLI or use deterministic planning."
+    case .downloadModel:
+      return "Download \(model) for local AI chat and planning, or continue with deterministic planning and Core workflows."
+    case .downloadingModel:
+      return "Downloading \(model). A progress percentage is unavailable; you can cancel the download. Core workflows remain available."
+    case .cancellingDownload:
+      return "Stopping the download client. Ollama may retain partial data; check again after the client stops before retrying."
+    case .ready:
+      return "The model was available at the last check. Test Local AI to verify the current connection before using AI chat."
+    }
   }
 }
 

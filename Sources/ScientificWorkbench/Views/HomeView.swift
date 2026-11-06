@@ -6,17 +6,28 @@ struct HomeView: View {
   @State private var isDropTargeted = false
   @State private var pendingExampleKind: FirstRunExampleKind?
   @State private var isReplacingInputSelection = false
+  @State private var showMoreExamples = false
+  @State private var showWorkbenchDetails = false
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         header
-        SetupChecklistCard(store: store, compact: false)
-        firstRunExamples
+        if !store.setupChecklistIsReady {
+          SetupChecklistCard(store: store, compact: false)
+        }
+        resumeRun
+        taskLauncher
+        moreExamples
         dropZone
         inputList
-        readinessGrid
-        recentJobs
+        DisclosureGroup("Workbench details", isExpanded: $showWorkbenchDetails) {
+          VStack(alignment: .leading, spacing: 18) {
+            readinessGrid
+            recentJobs
+          }
+          .padding(.top, 12)
+        }
       }
       .padding(.vertical, 28)
       .padding(.horizontal, 36)
@@ -52,33 +63,79 @@ struct HomeView: View {
     }
   }
 
-  private var firstRunExamples: some View {
+  @ViewBuilder
+  private var resumeRun: some View {
+    if let job = store.jobs.first {
+      VStack(alignment: .leading, spacing: 12) {
+        Label("Continue your work", systemImage: "arrow.uturn.forward.circle")
+          .font(.title3)
+          .fontWeight(.semibold)
+        HStack(alignment: .top) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text(job.capabilityLabel)
+              .fontWeight(.medium)
+            Text("Last run: \(DateFormatters.timestamp.string(from: job.createdAt)). Review its status, evidence, and next steps before running anything again.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          Spacer(minLength: 12)
+          StatusBadge(status: job.displaySeverity)
+        }
+        Button {
+          store.openJob(job)
+        } label: {
+          Label(job.status == .running || job.status == .queued ? "View active run" : "Open latest run", systemImage: "arrow.right")
+        }
+        .buttonStyle(.borderedProminent)
+        .accessibilityIdentifier("home.open-latest-run")
+      }
+      .padding(18)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+  }
+
+  private var taskLauncher: some View {
     VStack(alignment: .leading, spacing: 14) {
-      Text("Try a synthetic example")
+      Text("Start a task")
         .font(.title3)
         .fontWeight(.semibold)
-      Text("Create a fresh local copy, review the expected result, then run its suggested capability. These examples require no Ollama model, cloud account, or optional backend.")
+      Text("Choose the work you want to do. Open the task to review your own inputs, or prepare a safe synthetic example first. Nothing runs until you confirm it.")
         .font(.callout)
         .foregroundStyle(.secondary)
 
-      ForEach(FirstRunExampleKind.allCases) { kind in
-        HStack(alignment: .top, spacing: 12) {
-          VStack(alignment: .leading, spacing: 4) {
-            Text(kind.title)
-              .fontWeight(.medium)
-            Text(kind.detail)
+      LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 12)], spacing: 12) {
+        ForEach([FirstRunExampleKind.table, .fits, .mixed]) { kind in
+          VStack(alignment: .leading, spacing: 10) {
+            Text(kind.launcherTitle)
+              .font(.headline)
+            Text(kind.launcherDetail)
               .font(.caption)
               .foregroundStyle(.secondary)
-            Text("Expect: \(kind.expectedResult)")
+            Spacer(minLength: 0)
+            HStack {
+              Button("Open task") {
+                store.openFirstRunTask(kind)
+              }
+              .buttonStyle(.borderedProminent)
+              .accessibilityLabel("Open \(kind.launcherTitle) task")
+              .accessibilityIdentifier("home.open-task.\(kind.id)")
+
+              Button("Try example") {
+                requestExample(kind)
+              }
+              .accessibilityLabel("Prepare \(kind.title) example")
+              .accessibilityIdentifier("home.prepare-example.\(kind.id)")
+              .disabled(store.hasActiveJob)
+            }
+            Button("Read task guide") { store.openFirstRunGuide(for: kind) }
               .font(.caption)
+              .accessibilityLabel("Read the \(kind.launcherTitle) task guide")
+              .accessibilityIdentifier("home.open-task-guide.\(kind.id)")
           }
-          Spacer(minLength: 12)
-          Button("Prepare") {
-            requestExample(kind)
-          }
-          .accessibilityLabel("Prepare \(kind.title) example")
-          .accessibilityIdentifier("home.prepare-example.\(kind.id)")
-          .disabled(store.hasActiveJob)
+          .padding(14)
+          .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
+          .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
       }
 
@@ -106,6 +163,33 @@ struct HomeView: View {
     .padding(18)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private var moreExamples: some View {
+    DisclosureGroup("More synthetic examples", isExpanded: $showMoreExamples) {
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Examples create new local copies and preserve earlier example folders. They need no cloud account or optional backend.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        ForEach([FirstRunExampleKind.spectrum, .document]) { kind in
+          HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+              Text(kind.title).fontWeight(.medium)
+              Text(kind.detail).font(.caption).foregroundStyle(.secondary)
+              Text("Expect: \(kind.expectedResult)").font(.caption)
+            }
+            Spacer(minLength: 12)
+            Button("Prepare") {
+              requestExample(kind)
+            }
+            .accessibilityLabel("Prepare \(kind.title) example")
+            .accessibilityIdentifier("home.prepare-example.\(kind.id)")
+            .disabled(store.hasActiveJob)
+          }
+        }
+      }
+      .padding(.top, 12)
+    }
   }
 
   private func requestExample(_ kind: FirstRunExampleKind) {
@@ -229,15 +313,20 @@ struct HomeView: View {
           .foregroundStyle(.secondary)
       } else {
         ForEach(store.jobs.prefix(5)) { job in
-          HStack {
-            StatusBadge(status: job.displaySeverity)
-            Text(job.capabilityLabel)
-              .lineLimit(1)
-            Spacer()
-            Text(DateFormatters.timestamp.string(from: job.createdAt))
-              .font(.caption)
-              .foregroundStyle(.secondary)
+          Button {
+            store.openJob(job)
+          } label: {
+            HStack {
+              StatusBadge(status: job.displaySeverity)
+              Text(job.capabilityLabel)
+                .lineLimit(1)
+              Spacer()
+              Text(DateFormatters.timestamp.string(from: job.createdAt))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
           }
+          .buttonStyle(.plain)
           .padding(8)
           .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         }

@@ -40,6 +40,50 @@ struct SkillEnvironmentService {
     }
   }
 
+  func diagnose(
+    skillRoot: String,
+    pythonExecutable: String,
+    selectedPython: String?
+  ) async -> EnvironmentDiagnosis {
+    let envScript = URL(fileURLWithPath: skillRoot)
+      .appendingPathComponent("scripts/datanalysis_env.py")
+      .path
+    let command = ProcessCommand(
+      executable: pythonExecutable.isEmpty ? DefaultPaths.systemPython : pythonExecutable,
+      arguments: [envScript, "doctor"],
+      workingDirectory: skillRoot,
+      timeoutSeconds: 30,
+      environmentOverrides: SkillPythonEnvironment.overrides(forSkillRoot: skillRoot),
+      redirectStandardInputToNull: true
+    )
+
+    do {
+      let result = try await runner.run(command)
+      guard result.exitCode == 0 else {
+        let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        return .unavailable(
+          reason.isEmpty
+            ? "The environment diagnostic exited with code \(result.exitCode). Review the skill root and Python path."
+            : reason,
+          selectedPython: selectedPython
+        )
+      }
+      if let diagnosis = EnvironmentDiagnosis.parse(
+        result.stdout,
+        selectedPython: selectedPython
+      ) {
+        return diagnosis
+      }
+      let reason = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+      return .unavailable(
+        reason.isEmpty ? "The environment diagnostic returned no readable report." : reason,
+        selectedPython: selectedPython
+      )
+    } catch {
+      return .unavailable(error.localizedDescription, selectedPython: selectedPython)
+    }
+  }
+
   private func extractString(_ key: String, from jsonText: String) -> String? {
     guard let payload = JSONOutputExtractor.lastObject(
       in: jsonText,

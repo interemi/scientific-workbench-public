@@ -9,13 +9,36 @@ private struct PendingCloudAgentSubmission {
   var request: CloudConsentRequest
 }
 
+private actor InterruptedProcessOutputCapture {
+  private var output: InterruptedProcessOutput?
+
+  func record(_ output: InterruptedProcessOutput) {
+    self.output = output
+  }
+
+  func snapshot() -> InterruptedProcessOutput? {
+    output
+  }
+}
+
 @MainActor
 final class WorkbenchStore: ObservableObject {
   @Published var selectedSection: AppSection? = .agent
+  @Published var settingsRecoverySection: SettingsRecoverySection?
   @Published var capabilities: [CapabilityEntry] = []
   @Published var selectedCapabilityID: String?
+  @Published var selectedMaintenanceCapabilityID: String?
   @Published var capabilityCatalogMode: CapabilityCatalogMode = .normal
+  @Published var capabilityDiscoveryFilters = CapabilityDiscoveryFilters()
+  @Published var maintenanceSearchText = ""
+  @Published private(set) var capabilityArgumentDrafts: [String: String] = [:]
+  @Published private var selectedResultArtifactPaths: [UUID: String] = [:]
+  @Published private(set) var previousWorkflowDraft: WorkflowDraftBackup?
+  @Published private(set) var workflowExecutionIdentity: WorkflowExecutionIdentity?
+  @Published var workflowNavigationNotice: String?
+  @Published private(set) var workflowPlanRevealRequest: UUID?
   @Published var jobs: [JobRecord] = []
+  @Published var recentJobFilter = RecentJobFilter()
   @Published var selectedJobID: UUID?
   @Published var inputPaths: [String] = [] {
     didSet {
@@ -53,6 +76,8 @@ final class WorkbenchStore: ObservableObject {
   @Published var persistenceRecoveryNotice: String?
   @Published var lastPersistenceRecoveryArchivePath: String?
   @Published var environmentStatus: EnvironmentStatus
+  @Published var environmentDiagnosis: EnvironmentDiagnosis = .unknown
+  @Published var isCheckingEnvironment = false
   @Published var agentPrompt = ""
   @Published var agentPlan: AgentPlan?
   @Published var agentPlanStepExecutions: [AgentPlanStep.ID: AgentPlanStepExecution] = [:]
@@ -140,11 +165,12 @@ final class WorkbenchStore: ObservableObject {
   private let runBundleService = JobRunBundleService()
   private let envelopeParser = ToolEnvelopeParser()
   private let environmentService = SkillEnvironmentService()
+  private var environmentRefreshID: UUID?
   private let agentPlanner: AgentPlanner
   private let agentRoutingService = AgentRoutingService()
   private let cloudAIClient: CloudAIClient
   private let aiConnectionService: AIConnectionService
-  private let ollamaSetupService = OllamaSetupService()
+  private let ollamaSetupService: OllamaSetupService
   private let configurationService = ConfigurationExportImportService()
   private let supportBundleService = SupportBundleService()
   private let launchTranscriptService = LaunchTranscriptService()
@@ -176,6 +202,7 @@ final class WorkbenchStore: ObservableObject {
   private var rememberedCloudConsentScopes: Set<CloudConsentSessionScope> = []
   private var outputRootRiskApprovalFingerprint: String?
   private var ollamaPullTask: Task<OllamaCommandResult, Error>?
+  private var ollamaSetupCheckID: UUID?
   private var codexBridgeTask: Task<String, Error>?
 
   init(
@@ -185,10 +212,12 @@ final class WorkbenchStore: ObservableObject {
     cloudAIClient: CloudAIClient = CloudAIClient(),
     credentialStore: any CloudCredentialStoring = KeychainCredentialStore(),
     filesystemSafetyPolicy: FilesystemSafetyPolicy = FilesystemSafetyPolicy(),
-    firstRunExampleLibraryRoot: URL? = nil
+    firstRunExampleLibraryRoot: URL? = nil,
+    ollamaSetupService: OllamaSetupService = OllamaSetupService()
   ) {
     self.defaults = defaults
     self.cloudAIClient = cloudAIClient
+    self.ollamaSetupService = ollamaSetupService
     self.credentialStore = credentialStore
     self.aiConnectionService = AIConnectionService(client: cloudAIClient)
     self.filesystemSafetyPolicy = filesystemSafetyPolicy
@@ -274,9 +303,49 @@ final class WorkbenchStore: ObservableObject {
     return capabilities.first { $0.id == selectedCapabilityID }
   }
 
+  var selectedMaintenanceCapability: CapabilityEntry? {
+    guard let selectedMaintenanceCapabilityID else { return nil }
+    return maintainerCapabilities.first { $0.id == selectedMaintenanceCapabilityID }
+  }
+
   var selectedJob: JobRecord? {
     guard let selectedJobID else { return jobs.first }
     return jobs.first { $0.id == selectedJobID }
+  }
+
+  func capabilityArgumentDraft(for capabilityID: String) -> String {
+    capabilityArgumentDrafts[capabilityID] ?? ""
+  }
+
+  func setCapabilityArgumentDraft(_ arguments: String, for capabilityID: String) {
+    capabilityArgumentDrafts[capabilityID] = arguments.isEmpty ? nil : arguments
+  }
+
+  func selectedResultArtifactID(for job: JobRecord) -> UUID? {
+    guard let path = selectedResultArtifactPaths[job.id] else { return nil }
+    return job.artifacts.first { $0.path == path }?.id
+  }
+
+  func selectResultArtifact(_ artifactID: UUID?, for job: JobRecord) {
+    selectedResultArtifactPaths[job.id] = job.artifacts.first { $0.id == artifactID }?.path
+  }
+
+  func selectPreferredResultArtifact(for job: JobRecord) {
+    guard selectedResultArtifactID(for: job) == nil else { return }
+    let preferredTypes = job.previewArtifactTypes
+      + ["preview_png", "preview_pdf", "app_preview", "report_md", "table_csv", "table_ecsv"]
+    let preferred = preferredTypes.lazy.compactMap { type in
+      job.artifacts.first { $0.artifactType == type }
+    }.first ?? job.artifacts.first(where: { $0.primary == true }) ?? job.artifacts.first
+    selectedResultArtifactPaths[job.id] = preferred?.path
+  }
+
+  func workflowRunID(for job: JobRecord) -> UUID? {
+    guard let identity = workflowExecutionIdentity, identity.jobIDs.contains(job.id),
+          jobs.contains(where: {
+            $0.id == job.id && $0.capabilityID == job.capabilityID && $0.runDirectory == job.runDirectory
+          }) else { return nil }
+    return identity.id
   }
 
   var latestAPTJob: JobRecord? {
@@ -305,6 +374,160 @@ final class WorkbenchStore: ObservableObject {
 
   var canCancelActiveRun: Bool {
     isRunningAgentWorkflow || hasActiveJob || isPullingOllamaModel || isRunningCodexBridge
+  }
+
+  var canChangeWorkflowContext: Bool {
+    !canCancelActiveRun && !isPlanningAgentWorkflow && !isReviewingRadialVelocityInput
+      && !isReviewingPhotometricCalibration && !isReviewingDocumentStyles
+      && !isCheckingKeynote && !isExportingKeynote
+  }
+
+  var hasAvailableWorkflowSummary: Bool {
+    guard let lastWorkflowSummaryPath else { return false }
+    return FileManager.default.fileExists(atPath: lastWorkflowSummaryPath)
+  }
+
+  @discardableResult
+  func navigateWorkflow(to stage: WorkflowJourneyStage) -> Bool {
+    guard stage != .results || selectedJob != nil else { return false }
+    if stage == .plan, agentPlan != nil {
+      workflowPlanRevealRequest = UUID()
+    }
+    if stage == .review, selectedCapability == nil || selectedCapability?.isMaintainerOnly == true {
+      let planCapability = agentPlan?.steps.filter(\.isEnabled).compactMap { step in
+        userCapabilities.first { $0.id == step.capabilityID }
+      }.first
+      if let capability = planCapability ?? userCapabilities.first {
+        selectedCapabilityID = capability.id
+        capabilityCatalogMode = capability.catalogMode ?? .normal
+      }
+    }
+    selectedSection = stage.section
+    return true
+  }
+
+  func navigateBackInWorkflow() {
+    guard let previous = WorkflowJourneyStage.forSection(selectedSection)?.previous else { return }
+    navigateWorkflow(to: previous)
+  }
+
+  @discardableResult
+  func beginNewWorkflow() -> Bool {
+    guard canChangeWorkflowContext else {
+      workflowNavigationNotice = "Finish or cancel the active operation before starting a new workflow."
+      return false
+    }
+    if hasWorkflowDraft {
+      guard let backup = archiveCurrentWorkflowDraft() else { return false }
+      previousWorkflowDraft = backup
+    }
+    cancelPendingCloudRequest()
+    rememberedCloudConsentScopes.removeAll()
+    inputPaths = []
+    agentPrompt = ""
+    agentPlan = nil
+    agentPlanStepExecutions = [:]
+    lastWorkflowSummaryPath = nil
+    workflowExecutionIdentity = nil
+    workflowPlanRevealRequest = nil
+    selectedCapabilityID = nil
+    selectedJobID = nil
+    capabilityArgumentDrafts = [:]
+    capabilityDiscoveryFilters = CapabilityDiscoveryFilters()
+    searchText = ""
+    preparedFirstRunExample = nil
+    firstRunExampleError = nil
+    agentAutoRun = false
+    outputRootRiskApproved = false
+    resetWorkflowReviews()
+    agentChatMessages = [AgentChatMessage(role: .assistant,
+      text: "Choose a task in Dashboard, attach your inputs, and review setup and the plan before running. Your originals and previous jobs are retained.")]
+    agentStatusMessage = "New workflow: choose a task and attach inputs. Auto-run is off."
+    workflowNavigationNotice = previousWorkflowDraft == nil
+      ? "New workflow ready. Choose a task or open Chat; no job has been started."
+      : "New workflow ready. The previous draft is archived in Workflow Drafts and can be restored in this session."
+    selectedSection = .home
+    persistAgentState()
+    return true
+  }
+
+  @discardableResult
+  func restorePreviousWorkflowDraft() -> Bool {
+    guard canChangeWorkflowContext, let backup = previousWorkflowDraft else { return false }
+    let checkpoint = backup.checkpoint
+    guard FilesystemPath.canonicalURL(checkpoint.outputRootPath)
+      == FilesystemPath.canonicalURL(outputRootPath) else {
+      workflowNavigationNotice = "Return to the previous draft's output folder before restoring it. No context was changed."
+      return false
+    }
+    var currentBackup: WorkflowDraftBackup?
+    if hasWorkflowDraft {
+      guard let archived = archiveCurrentWorkflowDraft() else { return false }
+      currentBackup = archived
+    }
+    cancelPendingCloudRequest()
+    rememberedCloudConsentScopes.removeAll()
+    let restoredInputs = checkpoint.inputPaths.filter { FileManager.default.fileExists(atPath: $0) }
+    inputPaths = restoredInputs
+    agentPrompt = checkpoint.prompt
+    agentPlan = checkpoint.plan.map { sanitizedAgentPlanForCurrentRegistry($0).plan }
+    let eligibleStepIDs = Set(agentPlan?.steps.filter(\.isEnabled).map(\.id) ?? [])
+    agentPlanStepExecutions = restoredInputs == checkpoint.inputPaths
+      ? Dictionary(uniqueKeysWithValues: checkpoint.stepExecutions.filter {
+        eligibleStepIDs.contains($0.stepID)
+      }.map { ($0.stepID, $0) }) : [:]
+    lastWorkflowSummaryPath = checkpoint.summaryPath
+    workflowExecutionIdentity = nil
+    selectedCapabilityID = capabilities.first { $0.id == checkpoint.selectedCapabilityID && !$0.isMaintainerOnly }?.id
+    selectedJobID = jobs.first { $0.id == checkpoint.selectedJobID }?.id
+    capabilityArgumentDrafts = checkpoint.argumentDrafts
+    agentChatMessages = checkpoint.messages
+    agentAutoRun = false
+    outputRootRiskApproved = false
+    resetWorkflowReviews()
+    previousWorkflowDraft = currentBackup
+    let missingCount = checkpoint.inputPaths.count - restoredInputs.count
+    agentStatusMessage = missingCount == 0
+      ? "Previous draft restored. Review inputs, setup, and the plan before running; auto-run is off."
+      : "Draft restored with \(missingCount) missing input path(s). Reattach them and review the plan; execution checkpoints were cleared."
+    workflowNavigationNotice = agentStatusMessage
+    selectedSection = .agent
+    persistAgentState()
+    return true
+  }
+
+  private var hasWorkflowDraft: Bool {
+    !inputPaths.isEmpty || agentPlan != nil || !agentPrompt.isEmpty
+      || !capabilityArgumentDrafts.isEmpty || selectedJobID != nil
+      || lastWorkflowSummaryPath != nil || agentChatMessages.contains { $0.role == .user }
+  }
+
+  private func archiveCurrentWorkflowDraft() -> WorkflowDraftBackup? {
+    guard ensureOutputRootWriteApproved(inputPaths: inputPaths) else {
+      workflowNavigationNotice = "Choose and approve a safe output folder before archiving this draft. No context was cleared."
+      return nil
+    }
+    let checkpoint = WorkflowDraftCheckpoint(outputRootPath: outputRootPath,
+      inputPaths: inputPaths, prompt: agentPrompt, plan: agentPlan,
+      stepExecutions: Array(agentPlanStepExecutions.values), summaryPath: lastWorkflowSummaryPath,
+      selectedCapabilityID: selectedCapabilityID, selectedJobID: selectedJobID,
+      argumentDrafts: capabilityArgumentDrafts, messages: agentChatMessages)
+    do {
+      let url = try WorkflowDraftArchiveService().write(checkpoint: checkpoint, redact: redactSecrets)
+      return WorkflowDraftBackup(checkpoint: checkpoint, archivePath: url.path)
+    } catch {
+      workflowNavigationNotice = "Could not archive the draft: \(redactSecrets(error.localizedDescription)). No context was cleared."
+      return nil
+    }
+  }
+
+  private func resetWorkflowReviews() {
+    resetDocumentWorkflow()
+    resetKeynoteWorkflow()
+    radialVelocityReview = nil
+    radialVelocityReviewError = nil
+    photometricCalibrationReview = nil
+    photometricCalibrationError = nil
   }
 
   var selectedAIModel: String {
@@ -409,6 +632,7 @@ final class WorkbenchStore: ObservableObject {
   private var setupChecklistContext: SetupChecklistContext {
     SetupChecklistContext(
       environmentStatus: environmentStatus,
+      environmentDiagnosis: environmentDiagnosis,
       outputRootPath: outputRootPath,
       userCapabilityCount: userCapabilities.count,
       ollamaModel: model(for: .ollama),
@@ -428,9 +652,35 @@ final class WorkbenchStore: ObservableObject {
   }
 
   var userGuideURL: URL? {
+    guideURL(named: "Scientific_Workbench_User_Guide.md")
+  }
+
+  func firstRunGuideURL(for kind: FirstRunExampleKind) -> URL? {
+    guideURL(named: kind.guideFilename)
+  }
+
+  var currentWorkflowGuideKind: FirstRunExampleKind? {
+    let capabilityID: String?
+    switch selectedSection ?? .agent {
+    case .jobs, .results:
+      capabilityID = selectedJob?.capabilityID
+    case .agent:
+      if let plan = agentPlan {
+        return plan.steps.lazy.filter(\.isEnabled).compactMap { step in
+          FirstRunExampleKind.guideKind(for: step.capabilityID)
+        }.first
+      }
+      capabilityID = selectedCapabilityID
+    default:
+      capabilityID = selectedCapabilityID
+    }
+    return capabilityID.flatMap(FirstRunExampleKind.guideKind)
+  }
+
+  private func guideURL(named filename: String) -> URL? {
     if let bundledGuideURL = Bundle.main.resourceURL?
       .appendingPathComponent("Guides", isDirectory: true)
-      .appendingPathComponent("Scientific_Workbench_User_Guide.md"),
+      .appendingPathComponent(filename),
       FileManager.default.fileExists(atPath: bundledGuideURL.path) {
       return bundledGuideURL
     }
@@ -441,7 +691,7 @@ final class WorkbenchStore: ObservableObject {
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .appendingPathComponent("Guides", isDirectory: true)
-      .appendingPathComponent("Scientific_Workbench_User_Guide.md")
+      .appendingPathComponent(filename)
     guard FileManager.default.fileExists(atPath: sourceGuideURL.path) else {
       return nil
     }
@@ -507,9 +757,9 @@ final class WorkbenchStore: ObservableObject {
     switch provider {
     case .ollama:
       ollamaModel = model
-      var status = ollamaSetupStatus
-      status.targetModel = self.model(for: .ollama)
-      ollamaSetupStatus = status
+      ollamaSetupCheckID = nil
+      isCheckingOllamaSetup = false
+      ollamaSetupStatus = .unknown(model: self.model(for: .ollama))
     case .openAI: openAIModel = model
     case .grok: grokModel = model
     case .gemini: geminiModel = model
@@ -543,23 +793,36 @@ final class WorkbenchStore: ObservableObject {
     switch provider {
     case .ollama:
       ollamaBaseURL = baseURL
+      ollamaSetupCheckID = nil
+      isCheckingOllamaSetup = false
+      ollamaSetupStatus = .unknown(model: model(for: .ollama))
     case .openAI, .grok, .gemini:
       break
     }
     invalidateAIConnectionStatus(for: provider)
   }
 
+  private func replaceAgentPlan(_ plan: AgentPlan) {
+    agentPlan = plan
+    agentPlanStepExecutions = [:]
+    workflowExecutionIdentity = nil
+    lastWorkflowSummaryPath = nil
+  }
+
   func updateAgentPlanTitle(_ title: String) {
+    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else { return }
     agentPlan?.title = title
     persistAgentState()
   }
 
   func updateAgentPlanRationale(_ rationale: String) {
+    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else { return }
     agentPlan?.rationale = rationale
     persistAgentState()
   }
 
   func updateAgentPlanStep(_ stepID: AgentPlanStep.ID, mutate: (inout AgentPlanStep) -> Void) {
+    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else { return }
     guard var plan = agentPlan,
           let index = plan.steps.firstIndex(where: { $0.id == stepID }) else { return }
     mutate(&plan.steps[index])
@@ -723,6 +986,14 @@ final class WorkbenchStore: ObservableObject {
     openMarkdownDocument(userGuideURL)
   }
 
+  func openFirstRunGuide(for kind: FirstRunExampleKind) {
+    guard let url = firstRunGuideURL(for: kind) else {
+      agentStatusMessage = "Could not find the bundled \(kind.launcherTitle) workflow guide."
+      return
+    }
+    openMarkdownDocument(url)
+  }
+
   @discardableResult
   func exportSupportBundle(revealInFinder: Bool = true) -> String? {
     guard ensureOutputRootWriteApproved(inputPaths: inputPaths) else { return nil }
@@ -784,6 +1055,10 @@ final class WorkbenchStore: ObservableObject {
 
   @discardableResult
   func importAgentPlan(from path: String) -> AgentPlan? {
+    guard canChangeWorkflowContext else {
+      agentStatusMessage = "Finish or cancel the active operation before importing a plan."
+      return nil
+    }
     do {
       let data = try Data(contentsOf: URL(fileURLWithPath: path))
       let payload = try JSONDecoder.scientificWorkbench.decode(ExportedAgentPlanPayload.self, from: data)
@@ -802,8 +1077,7 @@ final class WorkbenchStore: ObservableObject {
       if !restoredInputs.isEmpty {
         inputPaths = restoredInputs
       }
-      agentPlan = importedPlan
-      agentPlanStepExecutions = [:]
+      replaceAgentPlan(importedPlan)
       agentMode = .workflow
       agentAutoRun = false
       selectedSection = .agent
@@ -909,13 +1183,20 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func refreshOllamaSetup() async {
+    let checkID = UUID()
+    let endpoint = baseURL(for: .ollama)
+    let checkedModel = model(for: .ollama)
+    ollamaSetupCheckID = checkID
     isCheckingOllamaSetup = true
     let status = await ollamaSetupService.status(
-      baseURL: baseURL(for: .ollama),
-      model: model(for: .ollama)
+      baseURL: endpoint,
+      model: checkedModel
     )
-    ollamaSetupStatus = status
+    guard ollamaSetupCheckID == checkID else { return }
+    ollamaSetupCheckID = nil
     isCheckingOllamaSetup = false
+    guard endpoint == baseURL(for: .ollama), checkedModel == model(for: .ollama) else { return }
+    ollamaSetupStatus = status
   }
 
   func openOllamaDownloadPage() {
@@ -931,16 +1212,30 @@ final class WorkbenchStore: ObservableObject {
     }
   }
 
-  func pullSelectedOllamaModel() async {
+  func prepareOllamaModelDownload() -> OllamaModelDownloadRequest? {
+    do {
+      return try OllamaModelDownloadRequest(model: model(for: .ollama), baseURL: baseURL(for: .ollama))
+    } catch {
+      ollamaSetupStatus.message = "Cannot prepare model download: \(error.localizedDescription)"
+      return nil
+    }
+  }
+
+  func confirmOllamaModelDownload(_ request: OllamaModelDownloadRequest) async {
+    guard let current = prepareOllamaModelDownload(),
+          current.model == request.model, current.baseURL == request.baseURL else {
+      ollamaSetupStatus.message = "The model or endpoint changed. Review the download again; nothing was downloaded."
+      return
+    }
     guard !isPullingOllamaModel else { return }
-    guard !hasActiveJob, !isRunningAgentWorkflow, !isRunningCodexBridge else {
+    guard canChangeWorkflowContext else {
       ollamaSetupStatus.message = "Wait for the active Scientific Workbench operation to finish or cancel it before downloading a model."
       return
     }
     isCancellationRequested = false
     isPullingOllamaModel = true
-    let model = model(for: .ollama)
-    let task = Task { try await ollamaSetupService.pullModel(model) }
+    let model = request.model
+    let task = Task { try await ollamaSetupService.pullModel(model, baseURL: request.baseURL) }
     ollamaPullTask = task
     defer {
       ollamaPullTask = nil
@@ -949,22 +1244,15 @@ final class WorkbenchStore: ObservableObject {
     }
     do {
       let result = try await task.value
-      ollamaSetupStatus.message = result.succeeded
-        ? "\(model) downloaded. Checking local AI setup again..."
-        : "Ollama pull exited with \(result.exitCode): \(result.userMessage)"
       await refreshOllamaSetup()
+      ollamaSetupStatus.message = result.succeeded
+        ? "Download command completed for \(model). \(ollamaSetupStatus.message)"
+        : "Ollama pull exited with \(result.exitCode): \(result.userMessage)"
     } catch {
       if error is CancellationError || isOllamaCancellation(error) {
         agentStatusMessage = "Ollama model download cancelled."
       }
-      ollamaSetupStatus = OllamaSetupStatus(
-        cliPath: ollamaSetupStatus.cliPath,
-        serverReachable: ollamaSetupStatus.serverReachable,
-        installedModels: ollamaSetupStatus.installedModels,
-        targetModel: model,
-        message: error.localizedDescription,
-        checkedAt: Date()
-      )
+      ollamaSetupStatus.message = "Download client stopped for \(model): \(error.localizedDescription) Recheck model availability before retrying; partial data may remain in Ollama."
     }
   }
 
@@ -1136,10 +1424,38 @@ final class WorkbenchStore: ObservableObject {
 
   func refreshEnvironment() async {
     persistSettings()
-    environmentStatus = await environmentService.refresh(
-      skillRoot: skillRootPath,
-      pythonExecutable: pythonExecutable
+    let refreshID = UUID()
+    environmentRefreshID = refreshID
+    isCheckingEnvironment = true
+    environmentDiagnosis = .unknown
+    defer {
+      if environmentRefreshID == refreshID {
+        isCheckingEnvironment = false
+      }
+    }
+
+    let skillRoot = skillRootPath
+    let python = pythonExecutable
+    let status = await environmentService.refresh(
+      skillRoot: skillRoot,
+      pythonExecutable: python
     )
+    guard environmentRefreshID == refreshID else { return }
+    if status.status == "ok" {
+      let diagnosis = await environmentService.diagnose(
+        skillRoot: skillRoot,
+        pythonExecutable: python,
+        selectedPython: status.datanalysisPython
+      )
+      guard environmentRefreshID == refreshID else { return }
+      environmentDiagnosis = diagnosis
+    } else {
+      environmentDiagnosis = .blocked(
+        "No usable dedicated datanalysis environment was found. Check the Python and skill paths; create a separate new environment if needed.",
+        selectedPython: status.datanalysisPython
+      )
+    }
+    environmentStatus = status
   }
 
   func refreshOptionalAstronomyBackends() async {
@@ -1193,6 +1509,33 @@ final class WorkbenchStore: ObservableObject {
     }
     selectedCapabilityID = capabilityID
     selectedSection = .capabilities
+  }
+
+  func openFirstRunTask(_ kind: FirstRunExampleKind) {
+    firstRunExampleError = nil
+    guard let capability = userCapabilities.first(where: { $0.id == kind.capabilityID }) else {
+      firstRunExampleError = "Set up the bundled skills before opening this task."
+      return
+    }
+    capabilityCatalogMode = capability.catalogMode ?? kind.catalogMode
+    selectedCapabilityID = capability.id
+    searchText = ""
+    selectedSection = .capabilities
+  }
+
+  func openJob(_ job: JobRecord) {
+    guard jobs.contains(where: { $0.id == job.id }) else { return }
+    if !recentJobFilter.matches(job) {
+      recentJobFilter = RecentJobFilter()
+    }
+    selectedJobID = job.id
+    selectedSection = .jobs
+  }
+
+  func openJobResults(_ job: JobRecord) {
+    guard jobs.contains(where: { $0.id == job.id }) else { return }
+    selectedJobID = job.id
+    selectedSection = .results
   }
 
   func useNativeCatalogAlternative() {
@@ -1744,6 +2087,10 @@ final class WorkbenchStore: ObservableObject {
 
   @discardableResult
   func planAgentWorkflow(prompt promptOverride: String? = nil) async -> AgentPlan? {
+    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else {
+      agentStatusMessage = "Finish or cancel the active workflow operation before planning another workflow."
+      return nil
+    }
     let prompt = (promptOverride ?? agentPrompt).trimmingCharacters(in: .whitespacesAndNewlines)
     guard !prompt.isEmpty else {
       agentStatusMessage = "Write a prompt first."
@@ -1790,8 +2137,7 @@ final class WorkbenchStore: ObservableObject {
       )
     }
     let safePlan = launchAutomationPlanWithRestrictedStepsEnabledIfNeeded(redactedPlan(plan))
-    agentPlan = safePlan
-    agentPlanStepExecutions = [:]
+    replaceAgentPlan(safePlan)
     agentStatusMessage = "Planned \(safePlan.steps.count) step\(safePlan.steps.count == 1 ? "" : "s") using \(safePlan.source.title)."
     persistAgentState()
     isPlanningAgentWorkflow = false
@@ -1799,6 +2145,7 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func submitAgentChatPrompt() async {
+    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else { return }
     let prompt = agentPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !prompt.isEmpty else { return }
     guard pendingCloudAgentSubmission == nil else { return }
@@ -1828,6 +2175,10 @@ final class WorkbenchStore: ObservableObject {
   func confirmPendingCloudRequest(
     approvalScope: CloudConsentApprovalScope = .requestOnly
   ) async {
+    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else {
+      cancelPendingCloudRequest(message: "Finish or cancel the active workflow operation before submitting this request. Nothing was sent.")
+      return
+    }
     guard let pendingCloudAgentSubmission,
           pendingCloudConsentRequest?.id == pendingCloudAgentSubmission.request.id else {
       pendingCloudConsentRequest = nil
@@ -1983,6 +2334,7 @@ final class WorkbenchStore: ObservableObject {
 
   @discardableResult
   private func runAgentPlan(resumeFromPreviousSuccesses: Bool) async -> String {
+    guard !isPlanningAgentWorkflow else { return "Wait for planning to finish before running a workflow." }
     guard let plan = agentPlan else {
       agentStatusMessage = "Create a plan before running."
       return agentStatusMessage
@@ -1998,6 +2350,8 @@ final class WorkbenchStore: ObservableObject {
       return agentStatusMessage
     }
 
+    let workflowInputPaths = inputPaths
+    let workflowOutputRootPath = outputRootPath
     if !resumeFromPreviousSuccesses {
       agentPlanStepExecutions = [:]
       persistAgentState()
@@ -2006,12 +2360,14 @@ final class WorkbenchStore: ObservableObject {
     isRunningAgentWorkflow = true
     isCancellationRequested = false
     lastWorkflowSummaryPath = nil
+    let executionIdentity = WorkflowExecutionIdentity(planID: plan.id)
+    workflowExecutionIdentity = executionIdentity
     selectedSection = .jobs
     return await workflowExecutionCoordinator.run(
       request: WorkflowExecutionCoordinator.Request(
         plan: plan,
         capabilities: capabilities,
-        inputPaths: inputPaths,
+        inputPaths: workflowInputPaths,
         existingStepExecutions: agentPlanStepExecutions,
         resumeFromPreviousSuccesses: resumeFromPreviousSuccesses,
         allowRestrictedLocalAutomationSteps: enableRestrictedStepsForLaunchAutomation
@@ -2021,13 +2377,15 @@ final class WorkbenchStore: ObservableObject {
         setCancellationRequested: { self.isCancellationRequested = $0 },
         setRunningWorkflow: { self.isRunningAgentWorkflow = $0 },
         setStatusMessage: { self.agentStatusMessage = $0 },
-        makeRunDirectory: { self.makeRunDirectory(for: $0) },
+        makeRunDirectory: { self.makeRunDirectory(for: $0, outputRootPathOverride: workflowOutputRootPath) },
         resolveRawArguments: { rawArguments, runDirectory, previousRunDirectory, completedRunDirectories in
           self.resolveAgentRawArguments(
             rawArguments,
             runDirectory: runDirectory,
             previousRunDirectory: previousRunDirectory,
-            completedRunDirectories: completedRunDirectories
+            completedRunDirectories: completedRunDirectories,
+            inputPathsOverride: workflowInputPaths,
+            outputRootPathOverride: workflowOutputRootPath
           )
         },
         runStep: { request in
@@ -2037,7 +2395,9 @@ final class WorkbenchStore: ObservableObject {
             inputPathsOverride: request.inputPaths,
             selectJobs: false,
             runDirectoryOverride: request.runDirectory,
-            allowDuringAgentWorkflow: true
+            allowDuringAgentWorkflow: true,
+            outputRootPathOverride: workflowOutputRootPath,
+            workflowExecutionID: executionIdentity.id
           )
         },
         recordStepExecution: { stepID, execution in
@@ -2045,13 +2405,17 @@ final class WorkbenchStore: ObservableObject {
         },
         setSelectedJobID: { self.selectedJobID = $0 },
         writeWorkflowSummary: { enabledSteps, jobIDs, status, startedAt, finishedAt in
+          self.workflowExecutionIdentity?.jobIDs.formUnion(jobIDs)
           _ = self.writeWorkflowSummary(
             plan: plan,
             enabledSteps: enabledSteps,
             jobIDs: jobIDs,
             status: status,
             startedAt: startedAt,
-            finishedAt: finishedAt
+            finishedAt: finishedAt,
+            inputPathsOverride: workflowInputPaths,
+            outputRootPathOverride: workflowOutputRootPath,
+            workflowExecutionID: executionIdentity.id
           )
         },
         persistAgentState: { self.persistAgentState() }
@@ -2115,7 +2479,9 @@ final class WorkbenchStore: ObservableObject {
     runDirectoryOverride: String? = nil,
     retryOfJobID: UUID? = nil,
     allowDuringAgentWorkflow: Bool = false,
-    prepareGuidedArtifactsDirectory: Bool = false
+    prepareGuidedArtifactsDirectory: Bool = false,
+    outputRootPathOverride: String? = nil,
+    workflowExecutionID: UUID? = nil
   ) async -> JobRecord? {
     guard allowDuringAgentWorkflow || (!isRunningAgentWorkflow && !hasActiveJob) else {
       agentStatusMessage = "Wait for the active Scientific Workbench run to finish or cancel it first."
@@ -2130,11 +2496,12 @@ final class WorkbenchStore: ObservableObject {
       isCancellationRequested = false
     }
     let requestInputPaths = inputPathsOverride ?? inputPaths
-    guard ensureOutputRootWriteApproved(inputPaths: requestInputPaths) else { return nil }
-    let runDirectory = runDirectoryOverride ?? makeRunDirectory(for: capability)
+    let requestOutputRootPath = outputRootPathOverride ?? outputRootPath
+    guard ensureOutputRootWriteApproved(inputPaths: requestInputPaths, outputRootPathOverride: requestOutputRootPath) else { return nil }
+    let runDirectory = runDirectoryOverride ?? makeRunDirectory(for: capability, outputRootPathOverride: requestOutputRootPath)
     let allowedRunRoot = legacyWorkspacePolicy.runRoot(
       for: capability.id,
-      preferredOutputRoot: outputRootPath
+      preferredOutputRoot: requestOutputRootPath
     )
     do {
       try filesystemSafetyPolicy.validateRunDirectory(
@@ -2151,8 +2518,12 @@ final class WorkbenchStore: ObservableObject {
     job.requestRawArguments = rawArguments
     job.retryOfJobID = retryOfJobID
     jobs.insert(job, at: 0)
+    if let workflowExecutionID, workflowExecutionIdentity?.id == workflowExecutionID {
+      workflowExecutionIdentity?.jobIDs.insert(job.id)
+    }
     selectedJobID = job.id
     persistJobHistory()
+    let interruptedOutput = InterruptedProcessOutputCapture()
     if selectJobs {
       selectedSection = .jobs
     }
@@ -2196,7 +2567,11 @@ final class WorkbenchStore: ObservableObject {
       job.startedAt = Date()
       replace(job)
 
-      let result = try await runner.run(command)
+      let result = try await runner.run(
+        command,
+        onInterrupted: { output in await interruptedOutput.record(output) },
+        cancellationRequested: { await self.isCancellationRequested }
+      )
       let stdoutEnvelope = envelopeParser.parse(result.stdout)
       job.stdout = redactSecrets(result.stdout)
       job.stderr = redactSecrets(result.stderr)
@@ -2241,6 +2616,10 @@ final class WorkbenchStore: ObservableObject {
       }
       return job
     } catch {
+      if let partial = await interruptedOutput.snapshot() {
+        job.stdout = redactSecrets(partial.stdout)
+        job.stderr = redactSecrets(partial.stderr)
+      }
       if isCancellationRequested || error is CancellationError || isProcessRunnerCancellation(error) {
         job.status = .cancelled
         job.message = "Run cancelled by user."
@@ -2256,7 +2635,7 @@ final class WorkbenchStore: ObservableObject {
         runDirectory: runDirectory,
         command: job.command,
         stdout: job.stdout,
-        stderr: job.message ?? ""
+        stderr: job.stderr.isEmpty ? (job.message ?? "") : job.stderr
       )
       runBundleService.hydrate(&job, redact: redactSecrets)
       runBundleService.writeNextStepsIfMissing(for: job)
@@ -2298,12 +2677,18 @@ final class WorkbenchStore: ObservableObject {
     return false
   }
 
-  func openArtifact(_ artifact: Artifact) {
-    NSWorkspace.shared.open(artifact.url)
+  func revealArtifact(_ artifact: Artifact) {
+    guard let url = safeArtifactURL(artifact) else { return }
+    NSWorkspace.shared.activateFileViewerSelecting([url])
   }
 
-  func revealArtifact(_ artifact: Artifact) {
-    NSWorkspace.shared.activateFileViewerSelecting([artifact.url])
+  private func safeArtifactURL(_ artifact: Artifact) -> URL? {
+    guard let job = jobs.first(where: { job in
+      job.artifacts.contains { $0.id == artifact.id }
+    }), ArtifactInspectionService().inspect(artifact, in: job).canPreview else {
+      return nil
+    }
+    return artifact.url.standardizedFileURL.resolvingSymlinksInPath()
   }
 
   func redactedPreviewText(_ text: String) -> String {
@@ -2325,10 +2710,10 @@ final class WorkbenchStore: ObservableObject {
     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: job.runDirectory)])
   }
 
-  private func makeRunDirectory(for capability: CapabilityEntry) -> String {
+  private func makeRunDirectory(for capability: CapabilityEntry, outputRootPathOverride: String? = nil) -> String {
     let runRoot = legacyWorkspacePolicy.runRoot(
       for: capability.id,
-      preferredOutputRoot: outputRootPath
+      preferredOutputRoot: outputRootPathOverride ?? outputRootPath
     )
     return runDirectoryFactory.makePath(root: runRoot, capabilityID: capability.id)
   }
@@ -2360,12 +2745,14 @@ final class WorkbenchStore: ObservableObject {
     }
   }
 
-  private func ensureOutputRootWriteApproved(inputPaths: [String]) -> Bool {
-    switch filesystemSafetyPolicy.assessOutputRoot(outputRootPath, inputPaths: inputPaths) {
+  private func ensureOutputRootWriteApproved(inputPaths: [String], outputRootPathOverride: String? = nil) -> Bool {
+    let requestedRoot = outputRootPathOverride ?? outputRootPath
+    switch filesystemSafetyPolicy.assessOutputRoot(requestedRoot, inputPaths: inputPaths) {
     case .safe:
       return true
     case .requiresConfirmation(let reason):
-      guard outputRootRiskApprovalIsCurrent(inputPaths: inputPaths) else {
+      guard FilesystemPath.canonicalURL(requestedRoot) == FilesystemPath.canonicalURL(outputRootPath),
+            outputRootRiskApprovalIsCurrent(inputPaths: inputPaths) else {
         agentStatusMessage = "Output blocked until you confirm the path in Settings: \(reason)"
         return false
       }
@@ -2840,15 +3227,18 @@ final class WorkbenchStore: ObservableObject {
     _ rawArguments: String,
     runDirectory: String?,
     previousRunDirectory: String?,
-    completedRunDirectories: [String: String] = [:]
+    completedRunDirectories: [String: String] = [:],
+    inputPathsOverride: [String]? = nil,
+    outputRootPathOverride: String? = nil
   ) -> String {
     guard !rawArguments.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       return rawArguments
     }
 
-    let currentRun = runDirectory ?? outputRootPath
+    let requestOutputRootPath = outputRootPathOverride ?? outputRootPath
+    let currentRun = runDirectory ?? requestOutputRootPath
     var replacements: [String: String] = [
-      "{outputRoot}": outputRootPath,
+      "{outputRoot}": requestOutputRootPath,
       "{runDirectory}": currentRun,
       "{artifactsDir}": URL(fileURLWithPath: currentRun).appendingPathComponent("artifacts").path,
       "{summaryJson}": URL(fileURLWithPath: currentRun).appendingPathComponent("summary.json").path,
@@ -2868,7 +3258,7 @@ final class WorkbenchStore: ObservableObject {
         .path
     }
 
-    for (index, inputPath) in inputPaths.enumerated() {
+    for (index, inputPath) in (inputPathsOverride ?? inputPaths).enumerated() {
       replacements["{input\(index)}"] = inputPath
     }
 
@@ -3175,9 +3565,14 @@ final class WorkbenchStore: ObservableObject {
     jobIDs: [UUID],
     status: String,
     startedAt: Date,
-    finishedAt: Date
+    finishedAt: Date,
+    inputPathsOverride: [String]? = nil,
+    outputRootPathOverride: String? = nil,
+    workflowExecutionID: UUID? = nil
   ) -> String? {
-    guard ensureOutputRootWriteApproved(inputPaths: inputPaths) else { return nil }
+    let summaryInputPaths = inputPathsOverride ?? inputPaths
+    let summaryOutputRootPath = outputRootPathOverride ?? outputRootPath
+    guard ensureOutputRootWriteApproved(inputPaths: summaryInputPaths, outputRootPathOverride: summaryOutputRootPath) else { return nil }
     do {
       let fileURL = try workflowSummaryService.write(
         request: WorkflowSummaryRequest(
@@ -3185,11 +3580,13 @@ final class WorkbenchStore: ObservableObject {
           enabledSteps: enabledSteps,
           jobs: jobs,
           jobIDs: jobIDs,
-          inputPaths: inputPaths,
-          outputRootPath: outputRootPath,
+          inputPaths: summaryInputPaths,
+          outputRootPath: summaryOutputRootPath,
           status: status,
           startedAt: startedAt,
-          finishedAt: finishedAt
+          finishedAt: finishedAt,
+          stepExecutions: Array(agentPlanStepExecutions.values),
+          workflowExecutionID: workflowExecutionID
         ),
         redact: redactSecrets
       )

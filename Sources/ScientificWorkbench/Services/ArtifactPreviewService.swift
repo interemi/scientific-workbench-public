@@ -45,11 +45,17 @@ struct ArtifactPreviewService {
       return textPreview(artifact, kind: .json, title: "JSON preview", redact: redact)
     case "ipynb":
       return notebookPreview(artifact, redact: redact)
+    case "fit", "fits", "fts":
+      return ArtifactPreviewPayload(
+        kind: .unavailable,
+        title: "FITS image preview unavailable",
+        note: "Select a generated PNG quicklook when present. Raw FITS image rendering is not supported in this bounded preview."
+      )
     default:
       return ArtifactPreviewPayload(
         kind: .unavailable,
         title: "Preview unavailable",
-        note: "Open this artifact with its system application."
+        note: "This file has no in-app preview. Review its location before choosing an external app."
       )
     }
   }
@@ -92,10 +98,23 @@ struct ArtifactPreviewService {
     title: String,
     redact: (String) -> String
   ) -> ArtifactPreviewPayload {
-    guard
-      let data = try? Data(contentsOf: artifact.url, options: [.mappedIfSafe]),
-      let text = String(data: Data(data.prefix(maximumBytes)), encoding: .utf8)
-    else {
+    guard let data = try? Data(contentsOf: artifact.url, options: [.mappedIfSafe]) else {
+      return ArtifactPreviewPayload(
+        kind: .unavailable,
+        title: "\(title) unavailable",
+        note: "The file is not readable UTF-8 text."
+      )
+    }
+    let byteLimit = min(data.count, maximumBytes)
+    let possibleBoundaryBytes = data.count > maximumBytes ? 3 : 0
+    var decoded: String?
+    for trailingBytes in 0...possibleBoundaryBytes where byteLimit >= trailingBytes {
+      if let text = String(data: data.prefix(byteLimit - trailingBytes), encoding: .utf8) {
+        decoded = text
+        break
+      }
+    }
+    guard let text = decoded else {
       return ArtifactPreviewPayload(
         kind: .unavailable,
         title: "\(title) unavailable",
@@ -110,7 +129,7 @@ struct ArtifactPreviewService {
       kind: kind,
       title: title,
       text: redact(bounded),
-      note: truncated ? "Preview truncated; open the artifact for the complete file." : nil
+      note: truncated ? "Preview truncated; review the complete file before opening it externally." : nil
     )
   }
 
@@ -152,7 +171,7 @@ struct ArtifactPreviewService {
       kind: .notebook,
       title: "Notebook preview",
       text: redact(lines.joined(separator: "\n")),
-      note: cells.count > 12 ? "Open the notebook for all cells and outputs." : nil
+      note: cells.count > 12 ? "Only source text is shown. Review the full notebook before opening it externally." : nil
     )
   }
 }

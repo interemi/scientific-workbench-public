@@ -2,9 +2,11 @@ import SwiftUI
 
 struct ResultsView: View {
   @ObservedObject var store: WorkbenchStore
-  @State private var selectedArtifactID: UUID?
   @State private var pendingMixedFollowUpJob: JobRecord?
   @State private var isReplacingInputSelection = false
+  @State private var comparisonSource: ArtifactComparisonSource?
+
+  private let inspectionService = ArtifactInspectionService()
 
   var body: some View {
     HSplitView {
@@ -24,6 +26,9 @@ struct ResultsView: View {
             .padding(.horizontal)
 
           JobEvidenceStagesView(job: job, compact: true)
+            .padding(.horizontal)
+
+          JobIdentityView(store: store, job: job)
             .padding(.horizontal)
 
           if store.canPrepareMixedDataFollowUp(for: job) {
@@ -61,22 +66,46 @@ struct ResultsView: View {
             .padding(.horizontal)
           }
 
-          List(selection: $selectedArtifactID) {
-            ForEach(job.artifacts) { artifact in
-              HStack {
-                Image(systemName: icon(for: artifact))
-                  .foregroundStyle(.secondary)
-                  .frame(width: 16)
-                VStack(alignment: .leading, spacing: 2) {
-                  Text(store.redactedPreviewText(artifact.label ?? artifact.relativePath))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                  Text(artifactDetail(for: artifact))
-                    .font(.caption)
+          if let artifact = selectedArtifact {
+            Button {
+              comparisonSource = ArtifactComparisonSource(job: job, artifact: artifact)
+            } label: {
+              Label("Compare two artifacts", systemImage: "square.split.2x1")
+            }
+            .disabled(!store.jobs.contains { candidate in
+              candidate.artifacts.contains { $0.id != artifact.id }
+            })
+            .accessibilityIdentifier("results.compare-artifacts")
+            .padding(.horizontal)
+          }
+
+          if job.artifacts.isEmpty {
+            ContentUnavailableView {
+              Label("No Recorded Artifacts", systemImage: "doc.questionmark")
+            } description: {
+              Text("Inspect the job status and logs, or refresh its run bundle after the process stops.")
+            }
+          } else {
+            List(selection: artifactSelection) {
+              ForEach(job.artifacts) { artifact in
+                HStack {
+                  Image(systemName: icon(for: artifact))
                     .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                  VStack(alignment: .leading, spacing: 2) {
+                    Text(store.redactedPreviewText(artifact.label ?? artifact.relativePath))
+                      .lineLimit(1)
+                      .truncationMode(.middle)
+                    Text(artifactDetail(for: artifact))
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                    Text(inspectionService.role(for: artifact).rawValue)
+                      .font(.caption2)
+                      .foregroundStyle(.secondary)
+                  }
                 }
+                .tag(Optional(artifact.id))
               }
-              .tag(Optional(artifact.id))
             }
           }
         } else {
@@ -95,7 +124,9 @@ struct ResultsView: View {
       .frame(minWidth: 340, idealWidth: 390)
 
       if let artifact = selectedArtifact {
-        ArtifactPreview(store: store, artifact: artifact)
+        if let job = store.selectedJob {
+          ArtifactPreview(store: store, job: job, artifact: artifact)
+        }
       } else if let job = store.selectedJob {
         ResultsSummaryView(store: store, job: job)
       } else {
@@ -116,8 +147,14 @@ struct ResultsView: View {
       selectPreferredArtifact()
     }
     .onChange(of: store.selectedJobID) {
-      selectedArtifactID = nil
+      comparisonSource = nil
       selectPreferredArtifact()
+    }
+    .onChange(of: store.selectedJob?.artifacts.map(\.id)) {
+      selectPreferredArtifact()
+    }
+    .sheet(item: $comparisonSource) { source in
+      ArtifactComparisonSheet(store: store, source: source)
     }
     .confirmationDialog(
       "Replace the current input selection?",
@@ -139,12 +176,24 @@ struct ResultsView: View {
 
   private var selectedArtifact: Artifact? {
     guard
-      let selectedArtifactID,
-      let artifacts = store.selectedJob?.artifacts
+      let job = store.selectedJob,
+      let selectedArtifactID = store.selectedResultArtifactID(for: job)
     else {
       return nil
     }
-    return artifacts.first { $0.id == selectedArtifactID }
+    return job.artifacts.first { $0.id == selectedArtifactID }
+  }
+
+  private var artifactSelection: Binding<UUID?> {
+    let job = store.selectedJob
+    return Binding(
+      get: { job.flatMap { store.selectedResultArtifactID(for: $0) } },
+      set: { artifactID in
+        if let job {
+          store.selectResultArtifact(artifactID, for: job)
+        }
+      }
+    )
   }
 
   private func icon(for artifact: Artifact) -> String {
@@ -177,11 +226,8 @@ struct ResultsView: View {
   }
 
   private func selectPreferredArtifact() {
-    guard selectedArtifactID == nil, let job = store.selectedJob else { return }
-    let preferredTypes = job.previewArtifactTypes + ["preview_png", "preview_pdf", "app_preview", "report_md", "table_csv", "table_ecsv"]
-    selectedArtifactID = preferredTypes.lazy.compactMap { type in
-      job.artifacts.first { $0.artifactType == type }?.id
-    }.first ?? job.artifacts.first(where: { $0.primary == true })?.id ?? job.artifacts.first?.id
+    guard let job = store.selectedJob else { return }
+    store.selectPreferredResultArtifact(for: job)
   }
 }
 
@@ -199,7 +245,9 @@ struct ResultsSummaryView: View {
           Spacer()
           StatusBadge(status: job.displaySeverity)
         }
-        Text("Select an artifact to preview it, or reveal the run folder for the full bundle.")
+        Text(job.artifacts.isEmpty
+          ? "No artifact is recorded for this job. Inspect its logs and recovery advice; a running job may still have partial files in its separate run folder."
+          : "Select an artifact to preview it, or reveal the run folder for the full bundle.")
           .foregroundStyle(.secondary)
 
         if let shortSummary = job.shortSummary {
@@ -209,6 +257,9 @@ struct ResultsSummaryView: View {
         }
 
         HStack {
+          if job.artifacts.isEmpty {
+            Button("Open Job") { store.selectedSection = .jobs }
+          }
           Button {
             store.revealRunDirectory(job)
           } label: {
@@ -241,12 +292,15 @@ struct ResultsSummaryView: View {
 
 struct ArtifactPreview: View {
   @ObservedObject var store: WorkbenchStore
+  let job: JobRecord
   let artifact: Artifact
   @State private var payload: ArtifactPreviewPayload?
   private let previewService = ArtifactPreviewService()
+  private let inspectionService = ArtifactInspectionService()
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    let inspection = inspectionService.inspect(artifact, in: job)
+    return VStack(alignment: .leading, spacing: 12) {
       HStack {
         VStack(alignment: .leading, spacing: 4) {
           Text(store.redactedPreviewText(artifact.relativePath))
@@ -263,29 +317,28 @@ struct ArtifactPreview: View {
         }
         Spacer()
         Button {
-          store.openArtifact(artifact)
-        } label: {
-          Label("Open", systemImage: "arrow.up.right.square")
-        }
-        .accessibilityLabel("Open artifact \(store.redactedPreviewText(artifact.relativePath))")
-        .accessibilityHint("Opens the selected artifact in its default macOS app.")
-        Button {
           store.revealArtifact(artifact)
         } label: {
           Label("Reveal", systemImage: "folder")
         }
         .accessibilityLabel("Reveal artifact \(store.redactedPreviewText(artifact.relativePath))")
         .accessibilityHint("Shows the selected artifact in Finder.")
+        .disabled(!inspection.canPreview)
       }
 
+      ArtifactMetadataView(store: store, job: job, artifact: artifact, inspection: inspection)
       preview
     }
     .padding(24)
     .task(id: artifact.id) {
-      payload = previewService.load(
-        artifact: artifact,
-        redact: store.redactedPreviewText
-      )
+      let currentInspection = inspectionService.inspect(artifact, in: job)
+      payload = currentInspection.canPreview
+        ? previewService.load(artifact: artifact, redact: store.redactedPreviewText)
+        : ArtifactPreviewPayload(
+          kind: .unavailable,
+          title: "Preview unavailable",
+          note: "The artifact is missing or resolves outside its recorded run folder."
+        )
     }
   }
 
@@ -320,8 +373,8 @@ struct ArtifactPreview: View {
         }
 
         if artifact.artifactType == "preview_png",
-           store.selectedJob?.capabilityID == "inspect_fits" {
-          if let input = store.selectedJob?.requestInputPaths.first,
+           job.capabilityID == "inspect_fits" {
+          if let input = job.requestInputPaths.first,
              FirstRunExampleService.isGeneratedFITS(at: input) {
             Text("Synthetic TAN WCS: horizontal right ascension and vertical declination in ICRS, one arcsecond per pixel; pixel unit: adu.")
               .font(.caption)

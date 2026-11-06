@@ -2,6 +2,7 @@ import SwiftUI
 
 struct JobsView: View {
   @ObservedObject var store: WorkbenchStore
+  private var recentFilter: Binding<RecentJobFilter> { $store.recentJobFilter }
 
   var body: some View {
     HStack(spacing: 0) {
@@ -10,23 +11,52 @@ struct JobsView: View {
 
       Divider()
 
-      if let job = store.selectedJob {
-        JobDetailView(store: store, job: job)
-          .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
-      } else {
+      if store.jobs.isEmpty {
         ContentUnavailableView {
           Label("No Jobs Yet", systemImage: "list.bullet.rectangle")
         } description: {
           Text("Plan a workflow in Chat or run a capability. Its logs, recovery advice, and artifacts will appear here.")
         } actions: {
-          Button("Open Chat") {
-            store.selectedSection = .agent
-          }
-          .accessibilityIdentifier("jobs.empty.open-chat")
+          Button("Open Chat") { store.selectedSection = .agent }
+            .accessibilityIdentifier("jobs.empty.open-chat")
+        }
+        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+      } else if matchingJobs.isEmpty {
+        ContentUnavailableView {
+          Label("No Matching Jobs", systemImage: "line.3.horizontal.decrease.circle")
+        } description: {
+          Text("Change the search, date, status, or artifact type. Your job history has not been changed.")
+        } actions: {
+          Button("Clear Search and Filters") { store.recentJobFilter = RecentJobFilter() }
+            .accessibilityIdentifier("jobs.clear-search")
+        }
+        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+      } else if let job = selectedVisibleJob {
+        JobDetailView(store: store, job: job)
+          .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+      } else {
+        ContentUnavailableView {
+          Label("Select a Matching Job", systemImage: "list.bullet.rectangle")
+        } description: {
+          Text("Choose a job from the filtered list to inspect its logs, recovery advice, and artifacts.")
+        } actions: {
+          Button("Clear Search and Filters") { store.recentJobFilter = RecentJobFilter() }
+            .accessibilityIdentifier("jobs.clear-search")
         }
         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
       }
     }
+  }
+
+  private var matchingJobs: [JobRecord] {
+    guard store.recentJobFilter.isActive else { return store.jobs }
+    let now = Date()
+    return store.jobs.filter { store.recentJobFilter.matches($0, now: now) }
+  }
+
+  private var selectedVisibleJob: JobRecord? {
+    guard let selected = store.selectedJob else { return nil }
+    return matchingJobs.first { $0.id == selected.id }
   }
 
   private var jobList: some View {
@@ -40,6 +70,50 @@ struct JobsView: View {
       }
       .padding(.horizontal, 16)
       .padding(.top, 18)
+
+      TextField("Search jobs, capabilities, dates, or artifacts", text: recentFilter.query)
+        .textFieldStyle(.roundedBorder)
+        .padding(.horizontal, 16)
+        .accessibilityIdentifier("jobs.search")
+
+      HStack(spacing: 8) {
+        Picker("Date", selection: recentFilter.window) {
+          ForEach(RecentJobWindow.allCases, id: \.self) { window in
+            Text(window.title).tag(window)
+          }
+        }
+        .accessibilityIdentifier("jobs.filter.date")
+
+        Picker("Status", selection: recentFilter.status) {
+          Text("Any status").tag(Optional<JobStatus>.none)
+          ForEach(JobStatus.allCases, id: \.self) { status in
+            Text(status.title).tag(Optional(status))
+          }
+        }
+        .accessibilityIdentifier("jobs.filter.status")
+      }
+      .padding(.horizontal, 16)
+
+      Picker("Artifact type", selection: recentFilter.artifactType) {
+        ForEach(RecentArtifactType.allCases, id: \.self) { artifactType in
+          Text(artifactType.title).tag(artifactType)
+        }
+      }
+      .padding(.horizontal, 16)
+      .accessibilityIdentifier("jobs.filter.artifact")
+
+      HStack {
+        Text("\(matchingJobs.count) of \(store.jobs.count) jobs")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Spacer()
+        if store.recentJobFilter.isActive {
+          Button("Clear") { store.recentJobFilter = RecentJobFilter() }
+            .font(.caption)
+            .accessibilityIdentifier("jobs.clear-filters")
+        }
+      }
+      .padding(.horizontal, 16)
 
       HStack(spacing: 8) {
         Button {
@@ -99,28 +173,46 @@ struct JobsView: View {
         Text("No jobs have run yet. Open Chat or Capabilities to start a reproducible run.")
           .foregroundStyle(.secondary)
           .padding(.horizontal, 16)
+      } else if matchingJobs.isEmpty {
+        Text("No jobs match these filters. Clear them to see the preserved history.")
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 16)
       } else {
-        List(selection: $store.selectedJobID) {
-          ForEach(store.jobs) { job in
-            VStack(alignment: .leading, spacing: 5) {
-              HStack {
-                Text(job.capabilityLabel)
-                  .lineLimit(1)
-                Spacer()
-                StatusBadge(status: job.displaySeverity)
+        ScrollView {
+          LazyVStack(spacing: 4) {
+            ForEach(matchingJobs) { job in
+              Button {
+                store.selectedJobID = job.id
+              } label: {
+                VStack(alignment: .leading, spacing: 5) {
+                  HStack {
+                    Text(job.capabilityLabel)
+                      .lineLimit(1)
+                    Spacer()
+                    StatusBadge(status: job.displaySeverity)
+                  }
+                  Text(DateFormatters.timestamp.string(from: job.createdAt))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background {
+                  if store.selectedJobID == job.id {
+                    RoundedRectangle(cornerRadius: 8)
+                      .fill(.tint.opacity(0.15))
+                  }
+                }
               }
-              Text(DateFormatters.timestamp.string(from: job.createdAt))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+              .buttonStyle(.plain)
+              .accessibilityLabel("\(job.capabilityLabel), \(job.displaySeverity)")
+              .accessibilityHint("Created \(DateFormatters.timestamp.string(from: job.createdAt)). Select to review logs and artifacts.")
+              .accessibilityAddTraits(store.selectedJobID == job.id ? .isSelected : [])
             }
-            .padding(.vertical, 4)
-            .tag(Optional(job.id))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(job.capabilityLabel), \(job.displaySeverity)")
-            .accessibilityHint("Created \(DateFormatters.timestamp.string(from: job.createdAt)). Select to review logs and artifacts.")
           }
+          .padding(.horizontal, 8)
         }
-        .listStyle(.sidebar)
       }
     }
     .frame(maxHeight: .infinity, alignment: .top)
@@ -148,49 +240,52 @@ struct JobDetailView: View {
           StatusBadge(status: job.displaySeverity)
         }
 
-      if job.status == .running {
-        Button(role: .cancel) {
-          store.cancelActiveRun()
+        if job.status == .queued || job.status == .running {
+          Button(role: .cancel) {
+            store.cancelActiveRun()
           } label: {
             Label(store.isCancellationRequested ? "Cancelling..." : "Cancel Run", systemImage: "xmark.circle")
           }
-        .disabled(store.isCancellationRequested)
-      }
+          .disabled(store.isCancellationRequested)
+          .accessibilityIdentifier("jobs.cancel-run")
+        }
+
+        JobJourneyView(store: store, job: job)
 
         HStack(spacing: 10) {
-        if job.status != .queued && job.status != .running {
-          Button {
-            Task { await store.retryJob(job) }
-          } label: {
-            Label("Retry Job", systemImage: "arrow.counterclockwise")
+          if job.status != .queued && job.status != .running {
+            Button {
+              Task { await store.retryJob(job) }
+            } label: {
+              Label("Retry Job", systemImage: "arrow.counterclockwise")
+            }
+            .disabled(store.hasActiveJob)
           }
-          .disabled(store.hasActiveJob)
-        }
 
-        if store.workflowRecoveryState?.stoppedJobID == job.id, store.canResumeAgentPlan {
-          Button {
-            Task { await store.resumeAgentPlanFromLastSuccess() }
-          } label: {
-            Label("Run Remaining", systemImage: "play.forward")
+          if store.workflowRecoveryState?.stoppedJobID == job.id, store.canResumeAgentPlan {
+            Button {
+              Task { await store.resumeAgentPlanFromLastSuccess() }
+            } label: {
+              Label("Run Remaining", systemImage: "play.forward")
+            }
+            .disabled(store.hasActiveJob)
+            .help("Resume the workflow after its last successful step.")
           }
-          .disabled(store.hasActiveJob)
-          .help("Resume the workflow after its last successful step.")
-        }
 
-        Button {
-          store.refreshRunBundle(for: job)
-        } label: {
-          Label("Refresh Bundle", systemImage: "arrow.clockwise")
-        }
-        .help("Re-read summary, manifest, logs, next steps, and artifacts from the run folder.")
+          Button {
+            store.refreshRunBundle(for: job)
+          } label: {
+            Label("Refresh Bundle", systemImage: "arrow.clockwise")
+          }
+          .help("Re-read summary, manifest, logs, next steps, and artifacts from the run folder.")
 
-        Button {
-          store.exportJobSupportBundle(job)
-        } label: {
-          Label("Support Bundle", systemImage: "lifepreserver")
+          Button {
+            store.exportJobSupportBundle(job)
+          } label: {
+            Label("Support Bundle", systemImage: "lifepreserver")
+          }
+          .help("Export a redacted diagnostic bundle for this job.")
         }
-        .help("Export a redacted diagnostic bundle for this job.")
-      }
 
         Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 10) {
           GridRow {
@@ -225,7 +320,12 @@ struct JobDetailView: View {
             .textSelection(.enabled)
         }
 
-        RecoveryAdviceView(advice: job.recoveryAdvice)
+        if let issue = job.recoveryIssue {
+          JobRecoveryIssueView(store: store, job: job, issue: issue)
+            .id(job.id)
+        } else {
+          RecoveryAdviceView(advice: job.recoveryAdvice)
+        }
         JobFindingsView(
           warnings: job.warnings,
           errors: job.structuredErrors,
@@ -246,17 +346,145 @@ struct JobDetailView: View {
         LogBlock(title: "stdout", text: job.stdout)
         LogBlock(title: "stderr", text: job.stderr)
 
-        HStack {
-          Button {
-            store.revealRunDirectory(job)
-          } label: {
-            Label("Reveal Run Folder", systemImage: "folder")
-          }
-          Spacer()
-        }
       }
       .padding(24)
     }
+  }
+}
+
+private struct JobRecoveryIssueView: View {
+  @ObservedObject var store: WorkbenchStore
+  let job: JobRecord
+  let issue: JobRecoveryIssue
+  @State private var isRechecking = false
+  @State private var recheckResult: String?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Label(issue.title(for: job), systemImage: "cross.case")
+        .font(.headline)
+      Text(issue.guidance(for: job))
+        .font(.callout)
+        .textSelection(.enabled)
+
+      HStack(spacing: 10) {
+        Button(issue.actionLabel(for: job)) {
+          if issue.opensCapability(for: job) {
+            store.openOptionalCapability(job.capabilityID)
+          } else {
+            store.settingsRecoverySection = issue.settingsSection(for: job)
+            store.selectedSection = .settings
+          }
+        }
+        .accessibilityIdentifier("jobs.recovery.action")
+
+        if issue.offersFilesystemRecheck {
+          Button("Recheck Current Files") {
+            isRechecking = true
+            recheckResult = nil
+            let outputRootPath = store.outputRootPath
+            Task {
+              let result = await Task.detached(priority: .userInitiated) {
+                JobRecoveryFilesystemProbe().inspect(
+                  issue: issue,
+                  job: job,
+                  outputRootPath: outputRootPath
+                )
+              }.value
+              recheckResult = store.outputRootPath == outputRootPath
+                ? result
+                : "The output root changed during this check. Recheck Current Files again."
+              isRechecking = false
+            }
+          }
+          .disabled(isRechecking)
+          .accessibilityIdentifier("jobs.recovery.recheck-files")
+        } else if issue == .pythonEnvironment {
+          Button("Recheck Python") {
+            isRechecking = true
+            recheckResult = nil
+            Task {
+              await store.refreshEnvironment()
+              recheckResult = JobRecoveryEnvironmentCheck.summary(diagnosis: store.environmentDiagnosis)
+              isRechecking = false
+            }
+          }
+          .disabled(isRechecking || store.isCheckingEnvironment)
+          .accessibilityIdentifier("jobs.recovery.recheck-python")
+        } else if issue == .optionalBackend,
+                  job.capabilityID == "stilts_workbench" || job.capabilityID == "apt_workbench" {
+          Button("Recheck Backends") {
+            isRechecking = true
+            recheckResult = nil
+            Task {
+              await store.refreshOptionalAstronomyBackends()
+              let status = store.optionalAstronomyBackendStatus
+              recheckResult = job.capabilityID == "apt_workbench"
+                ? "Current APT check: \(status.aptOverallStatus). \(status.aptSummary)"
+                : "Current STILTS check: \(status.overallStatus). \(status.summary)"
+              isRechecking = false
+            }
+          }
+          .disabled(isRechecking || store.isCheckingOptionalAstronomyBackends)
+          .accessibilityIdentifier("jobs.recovery.recheck-backends")
+        } else if issue == .optionalBackend {
+          Button("Recheck Named Dependencies") {
+            isRechecking = true
+            recheckResult = nil
+            Task {
+              await store.refreshEnvironment()
+              recheckResult = JobRecoveryEnvironmentCheck.summary(
+                diagnosis: store.environmentDiagnosis, job: job
+              )
+              isRechecking = false
+            }
+          }
+          .disabled(isRechecking || store.isCheckingEnvironment)
+          .accessibilityIdentifier("jobs.recovery.recheck-dependencies")
+        } else if issue.offersLocalAIRecheck(for: job) {
+          Button("Recheck Local AI") {
+            isRechecking = true
+            recheckResult = nil
+            Task {
+              await store.refreshOllamaSetup()
+              let status = store.ollamaSetupStatus
+              recheckResult = status.checkedAt == nil
+                ? "Current Local AI check was interrupted. Open Settings and check the selected model again."
+                : "Current Local AI setup for \(status.targetModel): \(status.message)"
+              isRechecking = false
+            }
+          }
+          .disabled(isRechecking || store.isCheckingOllamaSetup)
+          .accessibilityIdentifier("jobs.recovery.recheck-local-ai")
+        } else if issue == .network {
+          Button("Recheck Network Path") {
+            isRechecking = true
+            recheckResult = nil
+            Task {
+              recheckResult = await JobRecoveryNetworkProbe().inspect().summary
+              isRechecking = false
+            }
+          }
+          .disabled(isRechecking)
+          .accessibilityIdentifier("jobs.recovery.recheck-network")
+        }
+      }
+
+      if isRechecking {
+        ProgressView("Checking current setup")
+          .controlSize(.small)
+      } else if let recheckResult {
+        Text(recheckResult)
+          .font(.caption)
+          .textSelection(.enabled)
+        Text("This check does not rerun or change the original job.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
   }
 }
 

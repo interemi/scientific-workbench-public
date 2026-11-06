@@ -427,6 +427,188 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func jobRecoveryIssuesUseStructuredKindsForSpecificSafeRoutes() {
+    let cases: [(String, JobRecoveryIssue, SettingsRecoverySection?)] = [
+      ("missing_input", .missingInput, nil),
+      ("output_conflict", .outputConflict, nil),
+      ("permission_denied", .permissionDenied, .paths),
+      ("missing_optional_backend", .optionalBackend, nil),
+      ("dependency_error", .pythonEnvironment, .environment),
+      ("timeout", .timedOut, .behavior),
+      ("network_error", .network, nil),
+      ("model_unavailable", .modelUnavailable, nil),
+    ]
+
+    for (kind, expected, section) in cases {
+      var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
+      job.status = .blocked
+      job.structuredErrors = [JobStructuredError(kind: kind, message: "Check this run.", recoveryHint: nil)]
+
+      #expect(job.recoveryIssue == expected)
+      #expect(job.recoveryIssue?.title(for: job).isEmpty == false)
+      #expect(job.recoveryIssue?.guidance(for: job).isEmpty == false)
+      #expect(job.recoveryIssue?.actionLabel(for: job).isEmpty == false)
+      #expect(job.recoveryIssue?.settingsSection(for: job) == section)
+      if section == nil {
+        #expect(job.recoveryIssue?.opensCapability(for: job) == true)
+      }
+    }
+  }
+
+  @Test
+  func jobRecoveryIssuesRecognizeDiagnosticTextButIgnoreUnrelatedLogs() {
+    let cases: [(String, JobRecoveryIssue)] = [
+      ("OSError: [Errno 28] No space left on device", .diskSpace),
+      ("ModuleNotFoundError: No module named 'astropy'", .pythonEnvironment),
+      ("The output target exists and will not be overwritten.", .outputConflict),
+      ("PermissionError: operation not permitted", .permissionDenied),
+    ]
+
+    for (message, expected) in cases {
+      var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
+      job.status = .failed
+      job.stderr = message
+      #expect(job.recoveryIssue == expected)
+    }
+
+    var unrelatedLog = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
+    unrelatedLog.status = .failed
+    unrelatedLog.stdout = "Example documentation: PermissionError and No space left on device."
+    #expect(unrelatedLog.recoveryIssue == nil)
+
+    unrelatedLog.status = .succeeded
+    unrelatedLog.structuredErrors = [
+      JobStructuredError(kind: "output_conflict", message: "Historical warning.", recoveryHint: nil)
+    ]
+    #expect(unrelatedLog.recoveryIssue == nil)
+  }
+
+  @Test
+  func jobRecoveryIssuePrefersSpecificConflictOverGenericDependencyFailure() {
+    var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
+    job.status = .failed
+    job.structuredErrors = [
+      JobStructuredError(kind: "dependency_error", message: "Generic error.", recoveryHint: nil),
+      JobStructuredError(kind: "output_conflict", message: "Existing output.", recoveryHint: nil),
+    ]
+
+    #expect(job.recoveryIssue == .outputConflict)
+    #expect(job.recoveryIssue?.opensCapability(for: job) == true)
+
+    job.status = .timedOut
+    #expect(job.recoveryIssue == .timedOut)
+
+    job.status = .failed
+    job.structuredErrors = [
+      JobStructuredError(kind: "network_error", message: "Ollama timed out.", recoveryHint: nil)
+    ]
+    #expect(job.recoveryIssue == .network)
+  }
+
+  @Test
+  func localAIRecheckOnlyAppearsForOllamaRelatedJobErrors() {
+    var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
+    job.status = .failed
+    job.structuredErrors = [
+      JobStructuredError(kind: "network_error", message: "Could not connect to Ollama.", recoveryHint: nil)
+    ]
+    #expect(job.recoveryIssue == .network)
+    #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == true)
+    #expect(job.recoveryIssue?.settingsSection(for: job) == .localAI)
+    #expect(job.recoveryIssue?.title(for: job) == "The AI connection needs attention")
+
+    job.structuredErrors = [
+      JobStructuredError(kind: "network_error", message: "Cloud provider could not be reached.", recoveryHint: nil)
+    ]
+    #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == false)
+    #expect(job.recoveryIssue?.settingsSection(for: job) == .connections)
+    #expect(job.recoveryIssue?.opensCapability(for: job) == false)
+    #expect(job.recoveryIssue?.title(for: job) == "The AI connection needs attention")
+    #expect(job.recoveryIssue?.guidance(for: job).contains("historical job") == true)
+
+    job.structuredErrors = [
+      JobStructuredError(kind: "model_unavailable", message: "Ollama model was not found.", recoveryHint: nil)
+    ]
+    #expect(job.recoveryIssue?.offersLocalAIRecheck(for: job) == true)
+    #expect(job.recoveryIssue?.settingsSection(for: job) == .localAI)
+    #expect(job.recoveryIssue?.title(for: job) == "The selected local model is unavailable")
+  }
+
+  @Test
+  func optionalBackendRecoveryOnlyOpensAstronomySettingsForThoseCapabilities() {
+    let astronomy = CapabilityEntry(
+      id: "stilts_workbench",
+      label: "STILTS",
+      script: "scripts/stilts_workbench.py",
+      visibleBlock: "astro",
+      kind: "optional",
+      supportLevel: "stable",
+      platform: "portable",
+      requiresDatanalysis: true,
+      preflightMode: "explicit",
+      smokeTier: "optional",
+      shortDescription: "Inspect STILTS readiness."
+    )
+    var stiltsJob = JobRecord(capability: astronomy, runDirectory: "/tmp/run")
+    stiltsJob.status = .blocked
+    stiltsJob.structuredErrors = [
+      JobStructuredError(kind: "missing_optional_backend", message: "STILTS unavailable.", recoveryHint: nil)
+    ]
+    #expect(stiltsJob.recoveryIssue?.settingsSection(for: stiltsJob) == .optionalBackends)
+    #expect(stiltsJob.recoveryIssue?.opensCapability(for: stiltsJob) == false)
+
+    var genericJob = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
+    genericJob.status = .blocked
+    genericJob.structuredErrors = [
+      JobStructuredError(kind: "missing_optional_backend", message: "DuckDB unavailable.", recoveryHint: nil)
+    ]
+    #expect(genericJob.recoveryIssue?.settingsSection(for: genericJob) == nil)
+    #expect(genericJob.recoveryIssue?.opensCapability(for: genericJob) == true)
+    #expect(genericJob.recoveryIssue?.actionLabel(for: genericJob) == "Review Capability Setup")
+
+    genericJob.structuredErrors = [
+      JobStructuredError(kind: "network_error", message: "Catalog endpoint unavailable.", recoveryHint: nil)
+    ]
+    #expect(genericJob.recoveryIssue?.title(for: genericJob) == "The capability's network connection needs attention")
+    #expect(genericJob.recoveryIssue?.settingsSection(for: genericJob) == nil)
+  }
+
+  @Test
+  func filesystemRecoveryRecheckReadsCurrentStateWithoutChangingInputsOrOutputs() throws {
+    let root = FileManager.default.temporaryDirectory
+      .appendingPathComponent("Scientific-Workbench-Recovery-\(UUID().uuidString)", isDirectory: true)
+    let input = root.appendingPathComponent("input.csv")
+    let output = root.appendingPathComponent("outputs", isDirectory: true)
+    try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let original = Data("column\n42\n".utf8)
+    try original.write(to: input)
+
+    var job = JobRecord(capability: sampleCapability(), runDirectory: output.appendingPathComponent("old-run").path)
+    job.status = .failed
+    let probe = JobRecoveryFilesystemProbe()
+
+    #expect(JobRecoveryIssue.missingInput.offersFilesystemRecheck)
+    #expect(probe.inspect(issue: .missingInput, job: job, outputRootPath: output.path)
+      .contains("No input paths were recorded"))
+
+    job.requestInputPaths = [input.path]
+    let access = probe.inspect(issue: .permissionDenied, job: job, outputRootPath: output.path)
+    #expect(access.contains("1/1 recorded input paths are currently readable"))
+    #expect(access.contains("subprocess access can still differ"))
+
+    let disk = probe.inspect(issue: .diskSpace, job: job, outputRootPath: output.path)
+    #expect(disk.contains("cannot establish that a new run will fit"))
+
+    let conflict = probe.inspect(issue: .outputConflict, job: job, outputRootPath: output.path)
+    #expect(conflict.contains("exact occupied target was not retained"))
+    #expect(conflict.contains("inspect Dry Run"))
+
+    #expect(try Data(contentsOf: input) == original)
+    #expect(try FileManager.default.contentsOfDirectory(atPath: output.path).isEmpty)
+  }
+
+  @Test
   func jobRecordCodableRoundTripsTimedOutStatus() throws {
     var job = JobRecord(capability: sampleCapability(), runDirectory: "/tmp/run")
     job.status = .timedOut

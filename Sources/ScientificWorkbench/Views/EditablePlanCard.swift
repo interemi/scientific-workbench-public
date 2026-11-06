@@ -12,9 +12,20 @@ struct EditablePlanCard: View {
             .font(.title3)
             .fontWeight(.semibold)
             .textFieldStyle(.plain)
+            .disabled(store.isRunningAgentWorkflow || store.isPlanningAgentWorkflow)
           Text("\(plan.source.title) - \(DateFormatters.timestamp.string(from: plan.createdAt))")
             .font(.caption)
             .foregroundStyle(.secondary)
+          Text("Plan ID: \(plan.id.uuidString)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+          if let identity = store.workflowExecutionIdentity, identity.planID == plan.id {
+            Text("Latest Workflow Run ID: \(identity.id.uuidString)")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .textSelection(.enabled)
+          }
         }
         Spacer()
         Button {
@@ -41,44 +52,12 @@ struct EditablePlanCard: View {
           }
           .help("Open the exported plans folder.")
         }
-
-        if store.canResumeAgentPlan {
-          Button {
-            Task {
-              let result = await store.resumeAgentPlanFromLastSuccess()
-              store.agentChatMessages.append(AgentChatMessage(role: .assistant, text: result))
-            }
-          } label: {
-            Label("Run Remaining", systemImage: "forward.end.fill")
-          }
-          .help("Continue from the last successful workflow step.")
-          .disabled(store.isRunningAgentWorkflow)
-        }
-
-        Button {
-          Task {
-            let result = await store.runAgentPlan()
-            store.agentChatMessages.append(AgentChatMessage(role: .assistant, text: result))
-          }
-        } label: {
-          Label(store.isRunningAgentWorkflow ? "Running..." : "Run Enabled", systemImage: "play.fill")
-        }
-        .buttonStyle(.borderedProminent)
-        .disabled(store.isRunningAgentWorkflow || store.enabledAgentPlanSteps.isEmpty)
-
-        if store.isRunningAgentWorkflow {
-          Button(role: .cancel) {
-            store.cancelActiveRun()
-          } label: {
-            Label(store.isCancellationRequested ? "Cancelling..." : "Cancel", systemImage: "xmark.circle")
-          }
-          .disabled(store.isCancellationRequested)
-        }
       }
 
       TextField("Why this plan?", text: rationaleBinding, axis: .vertical)
         .lineLimit(2...5)
         .textFieldStyle(.roundedBorder)
+        .disabled(store.isRunningAgentWorkflow || store.isPlanningAgentWorkflow)
 
       PlanEstimateView(estimate: AgentPlanEstimate.estimate(plan: currentPlan))
 
@@ -92,7 +71,10 @@ struct EditablePlanCard: View {
 
       ForEach(Array(plan.steps.enumerated()), id: \.element.id) { index, step in
         EditableAgentStepRow(store: store, index: index + 1, step: step)
+          .disabled(store.isRunningAgentWorkflow || store.isPlanningAgentWorkflow)
       }
+
+      runActions
     }
     .padding(14)
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -100,6 +82,44 @@ struct EditablePlanCard: View {
 
   private var currentPlan: AgentPlan {
     store.agentPlan ?? plan
+  }
+
+  private var runActions: some View {
+    HStack(spacing: 10) {
+      if store.canResumeAgentPlan {
+        Button {
+          Task {
+            let result = await store.resumeAgentPlanFromLastSuccess()
+            store.agentChatMessages.append(AgentChatMessage(role: .assistant, text: result))
+          }
+        } label: {
+          Label("Run Remaining", systemImage: "forward.end.fill")
+        }
+        .help("Continue from the last successful workflow step.")
+        .disabled(store.isRunningAgentWorkflow || store.isPlanningAgentWorkflow)
+      }
+
+      Button {
+        Task {
+          let result = await store.runAgentPlan()
+          store.agentChatMessages.append(AgentChatMessage(role: .assistant, text: result))
+        }
+      } label: {
+        Label(store.isRunningAgentWorkflow ? "Running..." : "Run Enabled", systemImage: "play.fill")
+      }
+      .buttonStyle(.borderedProminent)
+      .disabled(store.isRunningAgentWorkflow || store.isPlanningAgentWorkflow || store.enabledAgentPlanSteps.isEmpty)
+
+      if store.isRunningAgentWorkflow {
+        Button(role: .cancel) {
+          store.cancelActiveRun()
+        } label: {
+          Label(store.isCancellationRequested ? "Cancelling..." : "Cancel", systemImage: "xmark.circle")
+        }
+        .disabled(store.isCancellationRequested)
+      }
+      Spacer(minLength: 0)
+    }
   }
 
   private var titleBinding: Binding<String> {
@@ -178,6 +198,8 @@ private struct EditableAgentStepRow: View {
 
         if let execution = store.execution(for: currentStep) {
           StatusBadge(status: execution.status.rawValue)
+        } else {
+          StatusBadge(status: "planned")
         }
 
         Spacer()
@@ -199,6 +221,27 @@ private struct EditableAgentStepRow: View {
         .font(.system(.caption, design: .monospaced))
         .lineLimit(1...5)
         .textFieldStyle(.roundedBorder)
+
+      if currentStep.isEnabled, let capability {
+        VStack(alignment: .leading, spacing: 4) {
+          Label(AgentPlanEstimate.runtimeText(for: currentStep), systemImage: "clock")
+          Label(
+            "This Run adds no Scientific Workbench cloud-AI request; external services may charge separately.",
+            systemImage: "creditcard"
+          )
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+        RunScopeView(summary: RunScopeSummary(
+          capability: capability,
+          step: currentStep,
+          availableInputPaths: store.inputPaths,
+          configuredOutputRoot: store.outputRootPath,
+          pythonExecutable: store.pythonExecutable,
+          skillRoot: store.skillRootPath
+        ))
+      }
     }
     .padding(10)
     .opacity(currentStep.isEnabled ? 1 : 0.55)
