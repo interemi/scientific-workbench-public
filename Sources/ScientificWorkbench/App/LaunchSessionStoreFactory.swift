@@ -2,7 +2,7 @@ import Foundation
 
 enum LaunchSessionStoreFactory {
   @MainActor
-  static func makeStore(options: LaunchAutomationOptions) -> WorkbenchStore {
+  static func makeStore(options: LaunchAutomationOptions, deferJobHistoryHydration: Bool = false) -> WorkbenchStore {
     if let name = options.persistentIsolatedSessionName {
       precondition(!options.isolatedSession, "Persistent and one-shot isolation cannot be combined.")
       precondition(
@@ -34,6 +34,7 @@ enum LaunchSessionStoreFactory {
         loadSecrets: false,
         defaults: defaults,
         loadPersistedState: true,
+        deferJobHistoryHydration: deferJobHistoryHydration,
         firstRunExampleLibraryRoot: exampleRoot
       )
     }
@@ -49,6 +50,9 @@ enum LaunchSessionStoreFactory {
       )
     }
 
-    return WorkbenchStore(loadSecrets: options.aiProvider?.requiresAPIKey ?? true)
+    return WorkbenchStore(
+      loadSecrets: options.aiProvider?.requiresAPIKey ?? true,
+      deferJobHistoryHydration: deferJobHistoryHydration
+    )
   }
 }

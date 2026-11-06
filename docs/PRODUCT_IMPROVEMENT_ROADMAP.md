@@ -233,6 +233,11 @@ and artifacts. This is an internal functional criterion, not a user-success rate
 | PERF.15 | Explain derived-data quotas and clean only reviewed, regenerable material. |
 | PERF.17 | Set fluency budgets against the recorded local baseline and representative fixtures. |
 
+The [startup history measurement](PHASE5_STARTUP_HISTORY_2026-11-06.md)
+records the first PERF.02 and PERF.17 result. Graphical startup defers
+run-bundle reads, with a paired component benchmark and an isolated app
+check. The remaining main-thread paths and end-to-end timing are open.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.
 

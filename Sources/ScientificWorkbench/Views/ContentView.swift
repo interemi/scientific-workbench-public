@@ -180,7 +180,7 @@ struct InspectorView: View {
             .font(.headline)
           MetricLine(label: "User capabilities", value: "\(store.userCapabilities.count)")
           MetricLine(label: "Maintenance gates", value: "\(store.maintainerCapabilities.count)")
-          MetricLine(label: "Jobs", value: "\(store.jobs.count)")
+          MetricLine(label: "Jobs", value: store.isRestoringJobHistory ? "Loading…" : "\(store.jobs.count)")
           MetricLine(label: "Inputs", value: "\(store.inputPaths.count)")
         }
 

@@ -108,6 +108,9 @@ struct ResultsView: View {
               }
             }
           }
+        } else if store.isRestoringJobHistory {
+          ProgressView("Restoring job history")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
           ContentUnavailableView {
             Label("No Results Yet", systemImage: "doc.richtext")
@@ -129,6 +132,10 @@ struct ResultsView: View {
         }
       } else if let job = store.selectedJob {
         ResultsSummaryView(store: store, job: job)
+      } else if store.isRestoringJobHistory {
+        Text("Saved results will appear after job history is restored.")
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
         ContentUnavailableView {
           Label("Run a Capability", systemImage: "play")

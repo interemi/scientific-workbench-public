@@ -11,7 +11,10 @@ struct JobsView: View {
 
       Divider()
 
-      if store.jobs.isEmpty {
+      if store.isRestoringJobHistory {
+        ProgressView("Restoring job history")
+          .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+      } else if store.jobs.isEmpty {
         ContentUnavailableView {
           Label("No Jobs Yet", systemImage: "list.bullet.rectangle")
         } description: {
@@ -103,7 +106,7 @@ struct JobsView: View {
       .accessibilityIdentifier("jobs.filter.artifact")
 
       HStack {
-        Text("\(matchingJobs.count) of \(store.jobs.count) jobs")
+        Text(store.isRestoringJobHistory ? "Restoring history…" : "\(matchingJobs.count) of \(store.jobs.count) jobs")
           .font(.caption)
           .foregroundStyle(.secondary)
         Spacer()
@@ -125,6 +128,7 @@ struct JobsView: View {
         .accessibilityLabel("Reload job history")
         .accessibilityIdentifier("jobs.reload-history")
         .help("Reload persisted job history from disk.")
+        .disabled(store.isRestoringJobHistory)
 
         Button {
           store.revealJobHistory()
@@ -169,7 +173,11 @@ struct JobsView: View {
         .padding(.horizontal, 16)
       }
 
-      if store.jobs.isEmpty {
+      if store.isRestoringJobHistory {
+        Text("Saved jobs and their evidence are loading.")
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 16)
+      } else if store.jobs.isEmpty {
         Text("No jobs have run yet. Open Chat or Capabilities to start a reproducible run.")
           .foregroundStyle(.secondary)
           .padding(.horizontal, 16)

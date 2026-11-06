@@ -38,6 +38,7 @@ final class WorkbenchStore: ObservableObject {
   @Published var workflowNavigationNotice: String?
   @Published private(set) var workflowPlanRevealRequest: UUID?
   @Published var jobs: [JobRecord] = []
+  @Published private(set) var isRestoringJobHistory = false
   @Published var recentJobFilter = RecentJobFilter()
   @Published var selectedJobID: UUID?
   @Published var inputPaths: [String] = [] {
@@ -204,11 +205,13 @@ final class WorkbenchStore: ObservableObject {
   private var ollamaPullTask: Task<OllamaCommandResult, Error>?
   private var ollamaSetupCheckID: UUID?
   private var codexBridgeTask: Task<String, Error>?
+  private var jobHistoryRestore: Task<Void, Never>?
 
   init(
     loadSecrets: Bool = true,
     defaults: UserDefaults = .standard,
     loadPersistedState: Bool = true,
+    deferJobHistoryHydration: Bool = false,
     cloudAIClient: CloudAIClient = CloudAIClient(),
     credentialStore: any CloudCredentialStoring = KeychainCredentialStore(),
     filesystemSafetyPolicy: FilesystemSafetyPolicy = FilesystemSafetyPolicy(),
@@ -281,7 +284,7 @@ final class WorkbenchStore: ObservableObject {
     environmentStatus = .unknown(skillRoot: skillRoot)
     registryNotice = nil
     if loadPersistedState {
-      loadJobHistory()
+      loadJobHistory(deferHydration: deferJobHistoryHydration)
       loadAgentState()
     }
   }
@@ -1271,6 +1274,7 @@ final class WorkbenchStore: ObservableObject {
 
   func runLaunchAutomation(_ options: LaunchAutomationOptions) async {
     guard options.shouldRun else { return }
+    await waitForJobHistoryRestore()
     let previousRestrictedStepOverride = enableRestrictedStepsForLaunchAutomation
     enableRestrictedStepsForLaunchAutomation = options.enableRestrictedSteps
     defer { enableRestrictedStepsForLaunchAutomation = previousRestrictedStepOverride }
@@ -1368,10 +1372,12 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func reloadJobHistory() {
+    guard !isRestoringJobHistory else { return }
     loadJobHistory()
   }
 
   func clearJobHistory() {
+    guard !isRestoringJobHistory else { return }
     jobs = []
     selectedJobID = nil
     persistJobHistory()
@@ -2483,6 +2489,18 @@ final class WorkbenchStore: ObservableObject {
     outputRootPathOverride: String? = nil,
     workflowExecutionID: UUID? = nil
   ) async -> JobRecord? {
+    if let jobHistoryRestore {
+      let inputSelection = inputPathsOverride ?? inputPaths
+      let runSettings = (outputRootPath, skillRootPath, pythonExecutable, externalProcessTimeoutSeconds)
+      await jobHistoryRestore.value
+      guard !Task.isCancelled else { return nil }
+      guard !allowDuringAgentWorkflow || !isCancellationRequested else { return nil }
+      guard inputSelection == (inputPathsOverride ?? inputPaths),
+            runSettings == (outputRootPath, skillRootPath, pythonExecutable, externalProcessTimeoutSeconds) else {
+        agentStatusMessage = "Inputs or execution settings changed while restoring job history. Review the run before trying again."
+        return nil
+      }
+    }
     guard allowDuringAgentWorkflow || (!isRunningAgentWorkflow && !hasActiveJob) else {
       agentStatusMessage = "Wait for the active Scientific Workbench run to finish or cancel it first."
       return nil
@@ -2835,7 +2853,7 @@ final class WorkbenchStore: ObservableObject {
       .appendingPathComponent("agent_state.json")
   }
 
-  private func loadJobHistory() {
+  private func loadJobHistory(deferHydration: Bool = false) {
     guard outputRootReadIsAllowed else { return }
     let url = jobHistoryURL
     do {
@@ -2843,16 +2861,45 @@ final class WorkbenchStore: ObservableObject {
       if result.diagnostics.requiresRewrite {
         try preserveAndRewriteJobHistory(result, at: url)
       }
-      jobs = result.jobs.map { loadedJob in
-        var refreshed = loadedJob
-        runBundleService.hydrate(&refreshed, redact: redactSecrets)
-        return refreshed
+      let records = result.jobs
+      let secrets = configuredSecrets
+      if deferHydration && !records.isEmpty {
+        isRestoringJobHistory = true
+        let hydration = Task.detached(priority: .userInitiated) {
+          Self.hydratedJobHistory(records, secrets: secrets)
+        }
+        jobHistoryRestore = Task { [weak self] in
+          let hydrated = await hydration.value
+          guard let self else { return }
+          self.installRestoredJobHistory(hydrated)
+          self.isRestoringJobHistory = false
+          self.jobHistoryRestore = nil
+        }
+      } else {
+        installRestoredJobHistory(Self.hydratedJobHistory(records, secrets: secrets))
       }
-      selectedJobID = jobs.first?.id
     } catch let error as PersistenceStoreError where error.canRecoverByArchiving {
       recoverUnreadableJobHistory(at: url, error: error)
     } catch {
       registryError = "Could not load job history: \(error.localizedDescription)"
+    }
+  }
+
+  func waitForJobHistoryRestore() async {
+    await jobHistoryRestore?.value
+  }
+
+  private func installRestoredJobHistory(_ records: [JobRecord]) {
+    jobs = records
+    selectedJobID = records.first?.id
+  }
+
+  nonisolated private static func hydratedJobHistory(_ records: [JobRecord], secrets: [String]) -> [JobRecord] {
+    let service = JobRunBundleService()
+    return records.map { record in
+      var refreshed = record
+      service.hydrate(&refreshed) { SecretsRedactor.redact($0, secrets: secrets) }
+      return refreshed
     }
   }
 

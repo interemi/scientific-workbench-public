@@ -14,7 +14,7 @@ struct ScientificWorkbenchApp: App {
 
   init() {
     let launchOptions = LaunchAutomationOptions.parse(CommandLine.arguments)
-    let store = LaunchSessionStoreFactory.makeStore(options: launchOptions)
+    let store = LaunchSessionStoreFactory.makeStore(options: launchOptions, deferJobHistoryHydration: true)
     _store = StateObject(wrappedValue: store)
     Task { @MainActor in
       await store.startupRefresh()
