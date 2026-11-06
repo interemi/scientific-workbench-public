@@ -148,7 +148,18 @@ struct ArtifactPreviewService {
     title: String,
     redact: (String) -> String
   ) -> ArtifactPreviewPayload {
-    guard let data = try? Data(contentsOf: artifact.url, options: [.mappedIfSafe]) else {
+    guard let handle = try? FileHandle(forReadingFrom: artifact.url) else {
+      return ArtifactPreviewPayload(
+        kind: .unavailable,
+        title: "\(title) unavailable",
+        note: "The file is not readable UTF-8 text."
+      )
+    }
+    defer { try? handle.close() }
+    let data: Data
+    do {
+      data = try handle.read(upToCount: maximumBytes + 1) ?? Data()
+    } catch {
       return ArtifactPreviewPayload(
         kind: .unavailable,
         title: "\(title) unavailable",
@@ -171,14 +182,15 @@ struct ArtifactPreviewService {
         note: "The file is not readable UTF-8 text."
       )
     }
-    let bounded = text.split(separator: "\n", omittingEmptySubsequences: false)
+    let lines = redact(text).split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+    let bounded = lines
       .prefix(maximumLines)
       .joined(separator: "\n")
-    let truncated = data.count > maximumBytes || text.split(separator: "\n").count > maximumLines
+    let truncated = data.count > maximumBytes || lines.count > maximumLines
     return ArtifactPreviewPayload(
       kind: kind,
       title: title,
-      text: redact(bounded),
+      text: bounded,
       note: truncated ? "Preview truncated; review the complete file before opening it externally." : nil
     )
   }

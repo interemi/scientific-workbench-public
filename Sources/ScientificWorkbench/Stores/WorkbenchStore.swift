@@ -2802,6 +2802,11 @@ final class WorkbenchStore: ObservableObject {
     redactSecrets(text)
   }
 
+  func previewRedactor() -> @Sendable (String) -> String {
+    let secrets = configuredSecrets
+    return { SecretsRedactor.redact($0, secrets: secrets) }
+  }
+
   func refreshRunBundle(for job: JobRecord) {
     var refreshed = job
     runBundleService.hydrate(&refreshed, redact: redactSecrets)

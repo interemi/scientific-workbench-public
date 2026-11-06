@@ -298,18 +298,23 @@ struct ResultsSummaryView: View {
 }
 
 struct ArtifactPreview: View {
-  private struct RequestID: Equatable {
+  private struct RequestID: Hashable {
     let job: UUID
     let artifact: UUID
+    let showTableText: Bool
   }
 
   @ObservedObject var store: WorkbenchStore
   let job: JobRecord
   let artifact: Artifact
   @State private var loadedPreview: (id: RequestID, payload: ArtifactPreviewPayload)?
+  @State private var showTableText = false
   private let previewService = ArtifactPreviewService()
   private let inspectionService = ArtifactInspectionService()
-  private var requestID: RequestID { RequestID(job: job.id, artifact: artifact.id) }
+  private var isTable: Bool { TablePreviewService.supports(artifact) }
+  private var requestID: RequestID {
+    RequestID(job: job.id, artifact: artifact.id, showTableText: isTable && showTableText)
+  }
 
   var body: some View {
     let inspection = inspectionService.inspect(artifact, in: job)
@@ -340,13 +345,24 @@ struct ArtifactPreview: View {
       }
 
       ArtifactMetadataView(store: store, job: job, artifact: artifact, inspection: inspection)
-      preview
+      if isTable {
+        Toggle("Text sample", isOn: $showTableText)
+          .controlSize(.small)
+          .accessibilityIdentifier("results.table.text-sample")
+      }
+      if isTable && !showTableText {
+        TableArtifactPreview(store: store, job: job, artifact: artifact)
+          .id(requestID)
+      } else {
+        preview
+      }
     }
     .padding(24)
     .task(id: requestID) {
       guard !Task.isCancelled else { return }
       let id = requestID
       loadedPreview = nil
+      guard !isTable || id.showTableText else { return }
       let result: ArtifactPreviewPayload?
       if ArtifactPreviewService.isRaster(artifact) {
         result = await previewService.loadRaster(artifact, in: job)

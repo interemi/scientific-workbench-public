@@ -257,6 +257,11 @@ list no longer reevaluated in the measured unrelated updates, and the
 catalog reuses its filter result within a body evaluation. Broader
 invalidation and search measurements remain open.
 
+The [table preview verification](PHASE5_TABLE_PREVIEWS_2026-11-06.md)
+records PERF.07 for the supported table formats and advances PERF.02.
+It documents record paging, limits, the CRLF comparison and independent
+full workflow counts for the two large fixtures.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.
 
