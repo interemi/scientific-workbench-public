@@ -164,7 +164,7 @@ struct InspectorView: View {
         VStack(alignment: .leading, spacing: 8) {
           Text("Environment")
             .font(.headline)
-          StatusBadge(status: store.environmentStatus.status)
+          StatusBadge(status: store.environmentSummaryStatus)
           Text(store.environmentStatus.datanalysisPython ?? "No datanalysis Python resolved yet.")
             .font(.caption)
             .foregroundStyle(.secondary)

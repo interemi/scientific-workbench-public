@@ -295,7 +295,7 @@ struct HomeView: View {
       alignment: .leading,
       spacing: 14
     ) {
-      SummaryTile(title: "Environment", value: store.environmentStatus.status.uppercased(), systemImage: "checkmark.seal")
+      SummaryTile(title: "Environment", value: store.environmentSummaryStatus.uppercased(), systemImage: "checkmark.seal")
       SummaryTile(title: "Capabilities", value: "\(store.userCapabilities.count)", systemImage: "square.grid.2x2")
       SummaryTile(title: "Maintenance", value: "\(store.maintainerCapabilities.count)", systemImage: "wrench.and.screwdriver")
       SummaryTile(title: "Output Root", value: URL(fileURLWithPath: store.outputRootPath).lastPathComponent, systemImage: "folder")

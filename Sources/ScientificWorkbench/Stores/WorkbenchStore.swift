@@ -1,7 +1,13 @@
 import Foundation
 import AppKit
 import Darwin
+import OSLog
 import UniformTypeIdentifiers
+
+private let environmentCheckLogger = Logger(
+  subsystem: Bundle.main.bundleIdentifier ?? "com.emilio.scientific-workbench",
+  category: "EnvironmentChecks"
+)
 
 private struct PendingCloudAgentSubmission {
   var prompt: String
@@ -51,7 +57,11 @@ final class WorkbenchStore: ObservableObject {
   @Published var preparedFirstRunExample: PreparedFirstRunExample?
   @Published var firstRunExampleError: String?
   @Published var searchText = ""
-  @Published var skillRootPath: String
+  @Published var skillRootPath: String {
+    didSet {
+      if skillRootPath != oldValue { invalidateEnvironmentCheck() }
+    }
+  }
   @Published var outputRootPath: String {
     didSet {
       if oldValue != outputRootPath {
@@ -70,7 +80,11 @@ final class WorkbenchStore: ObservableObject {
       }
     }
   }
-  @Published var pythonExecutable: String
+  @Published var pythonExecutable: String {
+    didSet {
+      if pythonExecutable != oldValue { invalidateEnvironmentCheck() }
+    }
+  }
   @Published var externalProcessTimeoutMinutes: Int
   @Published var registryError: String?
   @Published var registryNotice: String?
@@ -78,7 +92,7 @@ final class WorkbenchStore: ObservableObject {
   @Published var lastPersistenceRecoveryArchivePath: String?
   @Published var environmentStatus: EnvironmentStatus
   @Published var environmentDiagnosis: EnvironmentDiagnosis = .unknown
-  @Published var isCheckingEnvironment = false
+  @Published private(set) var environmentCheckState: EnvironmentCheckState = .notChecked
   @Published var agentPrompt = ""
   @Published var agentPlan: AgentPlan?
   @Published var agentPlanStepExecutions: [AgentPlanStep.ID: AgentPlanStepExecution] = [:]
@@ -166,7 +180,10 @@ final class WorkbenchStore: ObservableObject {
   private let runBundleService = JobRunBundleService()
   private let envelopeParser = ToolEnvelopeParser()
   private let environmentService = SkillEnvironmentService()
-  private var environmentRefreshID: UUID?
+  private let environmentCheckLifetime: Duration
+  private var environmentRefresh: (id: UUID, task: Task<Void, Never>)?
+  private var environmentCheckExpiration: ContinuousClock.Instant?
+  private var environmentExpiryTask: Task<Void, Never>?
   private let agentPlanner: AgentPlanner
   private let agentRoutingService = AgentRoutingService()
   private let cloudAIClient: CloudAIClient
@@ -216,11 +233,13 @@ final class WorkbenchStore: ObservableObject {
     credentialStore: any CloudCredentialStoring = KeychainCredentialStore(),
     filesystemSafetyPolicy: FilesystemSafetyPolicy = FilesystemSafetyPolicy(),
     firstRunExampleLibraryRoot: URL? = nil,
-    ollamaSetupService: OllamaSetupService = OllamaSetupService()
+    ollamaSetupService: OllamaSetupService = OllamaSetupService(),
+    environmentCheckLifetime: Duration = .seconds(600)
   ) {
     self.defaults = defaults
     self.cloudAIClient = cloudAIClient
     self.ollamaSetupService = ollamaSetupService
+    self.environmentCheckLifetime = environmentCheckLifetime
     self.credentialStore = credentialStore
     self.aiConnectionService = AIConnectionService(client: cloudAIClient)
     self.filesystemSafetyPolicy = filesystemSafetyPolicy
@@ -632,10 +651,20 @@ final class WorkbenchStore: ObservableObject {
     )
   }
 
+  var isCheckingEnvironment: Bool { environmentCheckState == .checking }
+
+  var environmentSummaryStatus: String {
+    switch environmentCheckState {
+    case .checking: "checking"
+    case .expired: "expired"
+    default: environmentStatus.status
+    }
+  }
+
   private var setupChecklistContext: SetupChecklistContext {
     SetupChecklistContext(
       environmentStatus: environmentStatus,
-      environmentDiagnosis: environmentDiagnosis,
+      environmentDiagnosis: environmentCheckState == .expired ? .unknown : environmentDiagnosis,
       outputRootPath: outputRootPath,
       userCapabilityCount: userCapabilities.count,
       ollamaModel: model(for: .ollama),
@@ -1260,8 +1289,8 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func startupRefresh() async {
-    await reloadRegistry()
-    await refreshEnvironment()
+    await reloadRegistry(invalidateEnvironment: false)
+    await checkEnvironment(reuseFreshResult: true)
   }
 
   func runLaunchAutomationIfNeeded() async {
@@ -1400,7 +1429,8 @@ final class WorkbenchStore: ObservableObject {
     ])
   }
 
-  func reloadRegistry() async {
+  func reloadRegistry(invalidateEnvironment: Bool = true) async {
+    if invalidateEnvironment { invalidateEnvironmentCheck() }
     do {
       let result = try registryLoader.loadWithDiagnostics(skillRoot: skillRootPath)
       capabilities = result.entries
@@ -1429,39 +1459,98 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func refreshEnvironment() async {
+    await checkEnvironment(reuseFreshResult: false)
+  }
+
+  private func checkEnvironment(reuseFreshResult: Bool) async {
+    guard !Task.isCancelled else { return }
+    if reuseFreshResult, let expiration = environmentCheckExpiration, .now < expiration {
+      environmentCheckLogger.info("Reused current environment check")
+      return
+    }
     persistSettings()
-    let refreshID = UUID()
-    environmentRefreshID = refreshID
-    isCheckingEnvironment = true
-    environmentDiagnosis = .unknown
-    defer {
-      if environmentRefreshID == refreshID {
-        isCheckingEnvironment = false
-      }
+    if let active = environmentRefresh, !active.task.isCancelled {
+      environmentCheckLogger.info("Joined active environment check")
+      await active.task.value
+      return
     }
 
+    let id = UUID()
     let skillRoot = skillRootPath
     let python = pythonExecutable
-    let status = await environmentService.refresh(
-      skillRoot: skillRoot,
-      pythonExecutable: python
-    )
-    guard environmentRefreshID == refreshID else { return }
-    if status.status == "ok" {
-      let diagnosis = await environmentService.diagnose(
+    let superseded = environmentRefresh?.task
+    cancelEnvironmentExpiry()
+    environmentDiagnosis = .unknown
+    environmentCheckState = .checking
+    let task = Task { [weak self, environmentService] in
+      defer {
+        if self?.environmentRefresh?.id == id { self?.environmentRefresh = nil }
+      }
+      // Let the cancelled process group finish before opening the new check.
+      await superseded?.value
+      guard !Task.isCancelled else { return }
+      environmentCheckLogger.info("Started environment check")
+      let status = await environmentService.refresh(
         skillRoot: skillRoot,
-        pythonExecutable: python,
-        selectedPython: status.datanalysisPython
+        pythonExecutable: python
       )
-      guard environmentRefreshID == refreshID else { return }
-      environmentDiagnosis = diagnosis
-    } else {
-      environmentDiagnosis = .blocked(
-        "No usable dedicated datanalysis environment was found. Check the Python and skill paths; create a separate new environment if needed.",
-        selectedPython: status.datanalysisPython
-      )
+      guard !Task.isCancelled else { return }
+      let diagnosis: EnvironmentDiagnosis
+      if status.status == "ok" {
+        diagnosis = await environmentService.diagnose(
+          skillRoot: skillRoot,
+          pythonExecutable: python,
+          selectedPython: status.datanalysisPython
+        )
+      } else {
+        diagnosis = .blocked(
+          "No usable dedicated datanalysis environment was found. Check the Python and skill paths; create a separate new environment if needed.",
+          selectedPython: status.datanalysisPython
+        )
+      }
+      guard !Task.isCancelled, let self, self.environmentRefresh?.id == id else { return }
+      self.environmentStatus = status
+      self.environmentDiagnosis = diagnosis
+      self.environmentCheckState = .current
+      self.scheduleEnvironmentExpiry()
+      environmentCheckLogger.info("Completed environment check")
     }
-    environmentStatus = status
+    environmentRefresh = (id, task)
+    await task.value
+  }
+
+  private func invalidateEnvironmentCheck() {
+    environmentRefresh?.task.cancel()
+    cancelEnvironmentExpiry()
+    let unknown = EnvironmentStatus.unknown(skillRoot: skillRootPath)
+    if environmentStatus != unknown { environmentStatus = unknown }
+    if environmentDiagnosis != .unknown { environmentDiagnosis = .unknown }
+    if environmentCheckState != .configurationChanged {
+      environmentCheckState = .configurationChanged
+      environmentCheckLogger.info("Invalidated environment check after configuration change")
+    }
+  }
+
+  private func cancelEnvironmentExpiry() {
+    environmentExpiryTask?.cancel()
+    environmentExpiryTask = nil
+    environmentCheckExpiration = nil
+  }
+
+  private func scheduleEnvironmentExpiry() {
+    let deadline = ContinuousClock.now.advanced(by: environmentCheckLifetime)
+    environmentCheckExpiration = deadline
+    environmentExpiryTask = Task { [weak self] in
+      do {
+        try await Task.sleep(until: deadline, clock: .continuous)
+      } catch {
+        return
+      }
+      guard let self, self.environmentCheckExpiration == deadline else { return }
+      self.environmentCheckState = .expired
+      self.environmentExpiryTask = nil
+      environmentCheckLogger.info("Environment check expired")
+    }
   }
 
   func refreshOptionalAstronomyBackends() async {

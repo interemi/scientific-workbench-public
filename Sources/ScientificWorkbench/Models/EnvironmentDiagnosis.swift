@@ -1,5 +1,23 @@
 import Foundation
 
+enum EnvironmentCheckState: Equatable {
+  case notChecked
+  case checking
+  case current
+  case expired
+  case configurationChanged
+
+  var detail: String {
+    switch self {
+    case .notChecked: "No environment check has run in this session."
+    case .checking: "Checking the selected Python and installed packages."
+    case .current: "Current session result. Recheck after installing packages or updating skills."
+    case .expired: "The previous check expired. Recheck to verify the current environment."
+    case .configurationChanged: "Python or skill configuration changed. Recheck to verify this environment."
+    }
+  }
+}
+
 struct EnvironmentMissingGroup: Identifiable, Equatable, Sendable {
   let id: String
   let label: String

@@ -246,6 +246,11 @@ quicklooks. It documents the input limits, the PNG/TIFF memory
 reduction and the longer decode times. Raster decoding also advances
 PERF.02.
 
+The [environment check verification](PHASE5_ENVIRONMENT_REFRESH_2026-11-06.md)
+records PERF.05 and the environment-refresh portion of PERF.13. It
+compares subprocess counts, session expiry, path invalidation and
+explicit recheck behavior.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.
 
