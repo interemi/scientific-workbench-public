@@ -272,8 +272,10 @@ capture and search from the retained file.
 The [history scale checkpoint](PHASE5_HISTORY_SCALE_2026-11-08.md)
 records partial PERF.09 results for history restore, pagination,
 indexed search and retention. It compares 250, 1,000 and 10,000
-records. Demand-loaded details and the remaining GUI verification
-are still open. The full-index write cost informs PERF.14.
+records. The [deferred capture comparison](PHASE5_DEFERRED_CAPTURE_2026-11-08.md)
+records demand-loaded command and log details and preservation of
+search metadata. The remaining 10,000-job GUI checks are still open.
+The full-index write cost informs PERF.14.
 
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.

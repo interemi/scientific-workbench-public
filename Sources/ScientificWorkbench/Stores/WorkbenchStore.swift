@@ -47,6 +47,8 @@ final class WorkbenchStore: ObservableObject {
     didSet { jobsRevision &+= 1 }
   }
   private(set) var jobsRevision: UInt64 = 0
+  private(set) var historyCaptureRevision: UInt64 = 0
+  private var deferredJobCaptureIDs: Set<JobRecord.ID> = []
   @Published private(set) var isRestoringJobHistory = false
   @Published var recentJobFilter = RecentJobFilter()
   @Published var selectedJobID: UUID?
@@ -1410,8 +1412,7 @@ final class WorkbenchStore: ObservableObject {
 
   func clearJobHistory() {
     guard !isRestoringJobHistory else { return }
-    jobs = []
-    selectedJobID = nil
+    installRestoredJobHistory([])
     persistJobHistory()
   }
 
@@ -2826,7 +2827,12 @@ final class WorkbenchStore: ObservableObject {
   func refreshRunBundle(for job: JobRecord) {
     var refreshed = job
     runBundleService.hydrate(&refreshed, redact: redactSecrets)
+    deferredJobCaptureIDs.remove(job.id)
     replace(refreshed)
+  }
+
+  func hasDeferredCapture(for job: JobRecord) -> Bool {
+    deferredJobCaptureIDs.contains(job.id)
   }
 
   func openWorkflowSummary() {
@@ -2970,9 +2976,12 @@ final class WorkbenchStore: ObservableObject {
     if deferHydration {
       let revision = jobsRevision
       isRestoringJobHistory = true
-      let load: Task<(JobHistoryLoadResult, [JobRecord])?, Error> = Task.detached(priority: .userInitiated) {
+      let load: Task<(result: JobHistoryLoadResult, records: [JobRecord], deferCapture: Bool)?, Error>
+        = Task.detached(priority: .userInitiated) {
         guard let result = try JobHistoryStore().loadRecovering(from: url) else { return nil }
-        return (result, Self.hydratedJobHistory(result.jobs, secrets: secrets))
+        let deferCapture = result.jobs.count > HistoryPage.pagingThreshold
+        return (result, Self.hydratedJobHistory(result.jobs, secrets: secrets, includingCapture: !deferCapture),
+                deferCapture)
       }
       jobHistoryRestore = Task { [weak self] in
         let outcome = await load.result
@@ -2983,9 +2992,9 @@ final class WorkbenchStore: ObservableObject {
         }
         guard self.jobHistoryURL == url, self.jobsRevision == revision else { return }
         do {
-          guard let (result, records) = try outcome.get() else { return }
+          guard let (result, records, deferCapture) = try outcome.get() else { return }
           if result.diagnostics.requiresRewrite { try self.preserveAndRewriteJobHistory(result, at: url) }
-          self.installRestoredJobHistory(records)
+          self.installRestoredJobHistory(records, deferCapture: deferCapture)
         } catch {
           self.handleJobHistoryLoadError(error, at: url)
         }
@@ -3015,17 +3024,21 @@ final class WorkbenchStore: ObservableObject {
     await jobHistoryRestore?.value
   }
 
-  private func installRestoredJobHistory(_ records: [JobRecord]) {
+  private func installRestoredJobHistory(_ records: [JobRecord], deferCapture: Bool = false) {
     let retainedSelection = records.first { $0.id == selectedJobID }?.id
+    deferredJobCaptureIDs = deferCapture ? Set(records.map(\.id)) : []
+    historyCaptureRevision &+= 1
     jobs = records
     selectedJobID = retainedSelection ?? records.first?.id
   }
 
-  nonisolated private static func hydratedJobHistory(_ records: [JobRecord], secrets: [String]) -> [JobRecord] {
+  nonisolated private static func hydratedJobHistory(
+    _ records: [JobRecord], secrets: [String], includingCapture: Bool = true
+  ) -> [JobRecord] {
     let service = JobRunBundleService()
     return records.map { record in
       var refreshed = record
-      service.hydrate(&refreshed) { SecretsRedactor.redact($0, secrets: secrets) }
+      service.hydrate(&refreshed, includingCapture: includingCapture) { SecretsRedactor.redact($0, secrets: secrets) }
       return refreshed
     }
   }
@@ -3113,8 +3126,7 @@ final class WorkbenchStore: ObservableObject {
     do {
       let archiveURL = try persistenceRecoveryArchive.preserveOriginal(at: url, reason: "corrupt")
       try jobHistoryStore.persist(jobs: [], to: url)
-      jobs = []
-      selectedJobID = nil
+      installRestoredJobHistory([])
       recordPersistenceRecovery(
         "Job history was unreadable. The exact original was preserved at \(archiveURL.path); Scientific Workbench started a clean schema-\(JobHistoryStore.currentVersion) history.",
         archiveURL: archiveURL

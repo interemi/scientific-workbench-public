@@ -112,7 +112,9 @@ struct ResultsView: View {
           ArtifactPreview(store: store, job: job, artifact: artifact)
         }
       } else if let job = store.selectedJob {
-        ResultsSummaryView(store: store, job: job)
+        JobCaptureDetail(store: store, job: job) { detailed in
+          ResultsSummaryView(store: store, job: detailed)
+        }
       } else if store.isRestoringJobHistory {
         Text("Saved results will appear after job history is restored.")
           .foregroundStyle(.secondary)

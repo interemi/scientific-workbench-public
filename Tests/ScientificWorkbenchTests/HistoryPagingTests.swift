@@ -51,12 +51,12 @@ extension ScientificWorkbenchTests {
   }
 
   @Test @MainActor
-  func historyReloadKeepsSelectionAndPersistsBeyondTheOldLimit() async throws {
+  func historyReloadKeepsSelectionAndDefersOnlyCaptureInLargeHistories() async throws {
     let root = FileManager.default.temporaryDirectory
       .appendingPathComponent("Scientific-Workbench-History-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: root) }
     let file = root.appendingPathComponent(".scientificworkbench/jobs.json")
-    let jobs = (0..<301).map { offset in
+    var jobs = (0..<301).map { offset in
       var job = JobRecord(
         capability: sampleCapability(), runDirectory: root.appendingPathComponent("run-\(offset)").path,
         createdAt: Date(timeIntervalSince1970: 1_800_000_000 - Double(offset))
@@ -64,6 +64,18 @@ extension ScientificWorkbenchTests {
       job.status = .succeeded
       return job
     }
+    jobs[299].stdout = "saved excerpt"
+    jobs[299].stderr = "saved fallback"
+    let selectedRun = URL(fileURLWithPath: jobs[299].runDirectory, isDirectory: true)
+    try FileManager.default.createDirectory(at: selectedRun, withIntermediateDirectories: true)
+    try Data("fresh capture fake-capture-token\n".utf8).write(to: selectedRun.appendingPathComponent("stdout.txt"))
+    try Data("python reviewed.py\n".utf8).write(to: selectedRun.appendingPathComponent("command.txt"))
+    try Data("source,value\n1,4.2\n".utf8).write(to: selectedRun.appendingPathComponent("unique-table.csv"))
+    try Data(#"{"tool":"indexed.fixture","status":"OK","app_hints":{"short_summary":"Searchable new summary"}}"#.utf8)
+      .write(to: selectedRun.appendingPathComponent("summary.json"))
+    let legacyRun = URL(fileURLWithPath: jobs[300].runDirectory, isDirectory: true)
+    try FileManager.default.createDirectory(at: legacyRun, withIntermediateDirectories: true)
+    try Data(#"{"tool":"legacy.stdout","status":"OK"}"#.utf8).write(to: legacyRun.appendingPathComponent("stdout.txt"))
     let history = JobHistoryStore()
     try history.persist(jobs: jobs, to: file)
     let original = try Data(contentsOf: file)
@@ -79,6 +91,23 @@ extension ScientificWorkbenchTests {
     #expect(!store.isRestoringJobHistory)
     #expect(store.jobs.map(\.id) == jobs.map(\.id))
     #expect(store.selectedJobID == jobs[299].id)
+    let selected = try #require(store.selectedJob)
+    #expect(store.hasDeferredCapture(for: selected))
+    #expect(selected.stdout == "saved excerpt")
+    #expect(selected.command.isEmpty)
+    #expect(selected.shortSummary == "Searchable new summary")
+    #expect(selected.artifacts.contains { $0.relativePath == "unique-table.csv" })
+    #expect(store.jobs[300].parsedTool == "legacy.stdout")
+    #expect(store.jobs[300].stdout.isEmpty)
+    let capture = try JobRunBundleService().capture(for: selected) {
+      SecretsRedactor.redact($0, secrets: ["fake-capture-token"])
+    }
+    let detailed = capture.applying(to: selected)
+    #expect(detailed.stdout == "fresh capture [REDACTED]\n")
+    #expect(detailed.stderr == "saved fallback")
+    #expect(detailed.command == "python reviewed.py\n")
+    #expect(detailed.artifacts == selected.artifacts)
+    #expect(store.selectedJob?.stdout == "saved excerpt")
     #expect(try Data(contentsOf: file) == original)
   }
 }

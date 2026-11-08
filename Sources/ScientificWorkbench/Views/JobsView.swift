@@ -56,8 +56,10 @@ struct JobsView: View {
         }
         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
       } else if let job = selected {
-        JobDetailView(store: store, job: job)
-          .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+        JobCaptureDetail(store: store, job: job) { detailed in
+          JobDetailView(store: store, job: detailed)
+        }
+        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
       } else {
         ContentUnavailableView {
           Label("Select a Matching Job", systemImage: "list.bullet.rectangle")
