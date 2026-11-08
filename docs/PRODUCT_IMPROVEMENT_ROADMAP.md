@@ -262,6 +262,10 @@ records PERF.07 for the supported table formats and advances PERF.02.
 It documents record paging, limits, the CRLF comparison and independent
 full workflow counts for the two large fixtures.
 
+The [recent log excerpt verification](PHASE5_LOG_EXCERPTS_2026-11-08.md)
+records partial PERF.08 results for bounded restoration and rendering.
+Complete redacted retention and search over retained log files remain open.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.
 

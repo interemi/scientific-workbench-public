@@ -17,8 +17,8 @@ struct JobRunBundleService {
   func load(runDirectory: String, stdoutFallback: String = "") -> JobRunBundleSnapshot {
     let root = URL(fileURLWithPath: runDirectory, isDirectory: true)
     let command = readText(root.appendingPathComponent("command.txt"))
-    let stdout = readText(root.appendingPathComponent("stdout.txt"))
-    let stderr = readText(root.appendingPathComponent("stderr.txt"))
+    let stdout = readLog(root.appendingPathComponent("stdout.txt"))
+    let stderr = readLog(root.appendingPathComponent("stderr.txt"))
     let nextSteps = readText(root.appendingPathComponent("next_steps.md"))
     let envelope = ["summary.json", "manifest.json"]
       .lazy
@@ -144,6 +144,10 @@ struct JobRunBundleService {
       return nil
     }
     return text
+  }
+
+  private func readLog(_ url: URL) -> String? {
+    BoundedProcessOutput.read(at: url, maximumBytes: maximumSidecarBytes)?.text
   }
 
   private func parseNextActions(

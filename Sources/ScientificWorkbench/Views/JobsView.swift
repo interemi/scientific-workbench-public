@@ -323,7 +323,9 @@ struct JobDetailView: View {
         }
 
         if let message = job.message {
-          Text(message)
+          let bytes = message.utf8.prefix(2_048)
+          let summary = String(decoding: bytes, as: UTF8.self)
+          Text(bytes.endIndex == message.utf8.endIndex ? summary : summary + "…")
             .foregroundStyle((job.status == .blocked || job.status == .timedOut) ? .orange : .red)
             .textSelection(.enabled)
         }
@@ -351,8 +353,8 @@ struct JobDetailView: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
 
-        LogBlock(title: "stdout", text: job.stdout)
-        LogBlock(title: "stderr", text: job.stderr)
+        LogBlock(store: store, job: job, stream: .stdout)
+        LogBlock(store: store, job: job, stream: .stderr)
 
       }
       .padding(24)
@@ -570,15 +572,31 @@ struct JobFindingsView: View {
 }
 
 struct LogBlock: View {
-  let title: String
-  let text: String
+  let store: WorkbenchStore
+  let job: JobRecord
+  let stream: RunLogStream
 
   var body: some View {
+    let excerpt = RunLogExcerpt(stream.output(in: job))
     VStack(alignment: .leading, spacing: 8) {
-      Text(title)
-        .font(.headline)
+      HStack {
+        Text(stream.rawValue)
+          .font(.headline)
+        Spacer()
+        if let artifact = job.artifacts.first(where: { $0.relativePath == stream.fileName }) {
+          Button("Reveal Log", systemImage: "folder") { store.revealArtifact(artifact) }
+            .accessibilityLabel("Reveal \(stream.rawValue) log")
+            .accessibilityIdentifier("run.log.reveal.\(stream.rawValue)")
+        }
+      }
+      if excerpt.isTruncated {
+        Text("Showing recent output. Review the retained log file for more context.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .accessibilityIdentifier("run.log.excerpt.\(stream.rawValue)")
+      }
       ScrollView {
-        Text(text.isEmpty ? "-" : text)
+        Text(excerpt.text.isEmpty ? "-" : excerpt.text)
           .font(.system(.caption, design: .monospaced))
           .textSelection(.enabled)
           .frame(maxWidth: .infinity, alignment: .leading)

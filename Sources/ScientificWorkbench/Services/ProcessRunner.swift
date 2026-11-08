@@ -263,14 +263,14 @@ actor ProcessRunner {
     }
 
     let finishedAt = Date()
-    let stdout = Self.boundedOutput(
+    let stdout = BoundedProcessOutput.read(
       at: stdoutURL,
       maximumBytes: maximumCapturedOutputBytes
-    )
-    let stderr = Self.boundedOutput(
+    ) ?? .empty
+    let stderr = BoundedProcessOutput.read(
       at: stderrURL,
       maximumBytes: maximumCapturedOutputBytes
-    )
+    ) ?? .empty
     return ProcessResult(
       exitCode: process.terminationStatus ?? 1,
       stdout: stdout.text,
@@ -291,14 +291,14 @@ actor ProcessRunner {
   ) async {
     guard let callback else { return }
     await callback(InterruptedProcessOutput(
-      stdout: Self.boundedOutput(
+      stdout: BoundedProcessOutput.read(
         at: stdoutURL,
         maximumBytes: maximumCapturedOutputBytes
-      ).text,
-      stderr: Self.boundedOutput(
+      )?.text ?? "",
+      stderr: BoundedProcessOutput.read(
         at: stderrURL,
         maximumBytes: maximumCapturedOutputBytes
-      ).text
+      )?.text ?? ""
     ))
   }
 
@@ -337,58 +337,6 @@ actor ProcessRunner {
     await Task.detached {
       try? await Task.sleep(nanoseconds: nanoseconds)
     }.value
-  }
-
-  private static nonisolated func boundedOutput(
-    at url: URL,
-    maximumBytes: Int
-  ) -> BoundedProcessOutput {
-    guard
-      let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-      let byteCount = (attributes[.size] as? NSNumber)?.intValue,
-      byteCount > 0
-    else {
-      return BoundedProcessOutput(text: "", totalBytes: 0, wasTruncated: false)
-    }
-
-    guard byteCount > maximumBytes else {
-      guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) else {
-        return BoundedProcessOutput(text: "", totalBytes: byteCount, wasTruncated: false)
-      }
-      return BoundedProcessOutput(
-        text: String(decoding: data, as: UTF8.self),
-        totalBytes: byteCount,
-        wasTruncated: false
-      )
-    }
-
-    let headBytes = maximumBytes / 4
-    let tailBytes = maximumBytes - headBytes
-    let omittedBytes = byteCount - maximumBytes
-    guard let handle = try? FileHandle(forReadingFrom: url) else {
-      return BoundedProcessOutput(text: "", totalBytes: byteCount, wasTruncated: true)
-    }
-    defer { try? handle.close() }
-
-    let head = (try? handle.read(upToCount: headBytes)) ?? Data()
-    do {
-      try handle.seek(toOffset: UInt64(byteCount - tailBytes))
-    } catch {
-      return BoundedProcessOutput(
-        text: String(decoding: head, as: UTF8.self),
-        totalBytes: byteCount,
-        wasTruncated: true
-      )
-    }
-    let tail = (try? handle.read(upToCount: tailBytes)) ?? Data()
-    let marker = "\n\n[Scientific Workbench truncated \(omittedBytes) output bytes; showing the beginning and end.]\n\n"
-    return BoundedProcessOutput(
-      text: String(decoding: head, as: UTF8.self)
-        + marker
-        + String(decoding: tail, as: UTF8.self),
-      totalBytes: byteCount,
-      wasTruncated: true
-    )
   }
 
   private static nonisolated func outputStreamExceedingLimit(
@@ -510,12 +458,6 @@ actor ProcessRunner {
         }
     )
   }
-}
-
-private struct BoundedProcessOutput {
-  let text: String
-  let totalBytes: Int
-  let wasTruncated: Bool
 }
 
 struct InterruptedProcessOutput: Sendable {

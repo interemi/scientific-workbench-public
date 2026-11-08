@@ -289,8 +289,8 @@ struct ResultsSummaryView: View {
           errors: job.structuredErrors,
           nextActions: job.nextActions
         )
-        LogBlock(title: "stdout", text: job.stdout)
-        LogBlock(title: "stderr", text: job.stderr)
+        LogBlock(store: store, job: job, stream: .stdout)
+        LogBlock(store: store, job: job, stream: .stderr)
       }
       .padding(24)
     }
