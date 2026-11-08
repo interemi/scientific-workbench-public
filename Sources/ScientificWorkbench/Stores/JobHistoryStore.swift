@@ -71,13 +71,14 @@ struct JobHistoryStore {
       at: url.deletingLastPathComponent(),
       withIntermediateDirectories: true
     )
-    let normalized = Self.uniqueJobs(jobs).prefix(250).map(\.job)
+    let normalized = Self.uniqueJobs(jobs).map(\.job)
     let payload = JobHistoryPayload(
       version: Self.currentVersion,
       generatedAt: Date(),
-      jobs: Array(normalized)
+      jobs: normalized
     )
     let data = try JSONEncoder.scientificWorkbench.encode(payload)
+    try PersistenceFileAccess.validateSize(data.count, at: url)
     try data.write(to: url, options: [.atomic])
   }
 

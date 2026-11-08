@@ -43,7 +43,10 @@ final class WorkbenchStore: ObservableObject {
   @Published private(set) var workflowExecutionIdentity: WorkflowExecutionIdentity?
   @Published var workflowNavigationNotice: String?
   @Published private(set) var workflowPlanRevealRequest: UUID?
-  @Published var jobs: [JobRecord] = []
+  @Published var jobs: [JobRecord] = [] {
+    didSet { jobsRevision &+= 1 }
+  }
+  private(set) var jobsRevision: UInt64 = 0
   @Published private(set) var isRestoringJobHistory = false
   @Published var recentJobFilter = RecentJobFilter()
   @Published var selectedJobID: UUID?
@@ -1401,8 +1404,8 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func reloadJobHistory() {
-    guard !isRestoringJobHistory else { return }
-    loadJobHistory()
+    guard !isRestoringJobHistory, !hasActiveJob else { return }
+    loadJobHistory(deferHydration: true)
   }
 
   func clearJobHistory() {
@@ -2963,31 +2966,47 @@ final class WorkbenchStore: ObservableObject {
   private func loadJobHistory(deferHydration: Bool = false) {
     guard outputRootReadIsAllowed else { return }
     let url = jobHistoryURL
+    let secrets = configuredSecrets
+    if deferHydration {
+      let revision = jobsRevision
+      isRestoringJobHistory = true
+      let load: Task<(JobHistoryLoadResult, [JobRecord])?, Error> = Task.detached(priority: .userInitiated) {
+        guard let result = try JobHistoryStore().loadRecovering(from: url) else { return nil }
+        return (result, Self.hydratedJobHistory(result.jobs, secrets: secrets))
+      }
+      jobHistoryRestore = Task { [weak self] in
+        let outcome = await load.result
+        guard let self else { return }
+        defer {
+          self.isRestoringJobHistory = false
+          self.jobHistoryRestore = nil
+        }
+        guard self.jobHistoryURL == url, self.jobsRevision == revision else { return }
+        do {
+          guard let (result, records) = try outcome.get() else { return }
+          if result.diagnostics.requiresRewrite { try self.preserveAndRewriteJobHistory(result, at: url) }
+          self.installRestoredJobHistory(records)
+        } catch {
+          self.handleJobHistoryLoadError(error, at: url)
+        }
+      }
+      return
+    }
     do {
       guard let result = try jobHistoryStore.loadRecovering(from: url) else { return }
       if result.diagnostics.requiresRewrite {
         try preserveAndRewriteJobHistory(result, at: url)
       }
-      let records = result.jobs
-      let secrets = configuredSecrets
-      if deferHydration && !records.isEmpty {
-        isRestoringJobHistory = true
-        let hydration = Task.detached(priority: .userInitiated) {
-          Self.hydratedJobHistory(records, secrets: secrets)
-        }
-        jobHistoryRestore = Task { [weak self] in
-          let hydrated = await hydration.value
-          guard let self else { return }
-          self.installRestoredJobHistory(hydrated)
-          self.isRestoringJobHistory = false
-          self.jobHistoryRestore = nil
-        }
-      } else {
-        installRestoredJobHistory(Self.hydratedJobHistory(records, secrets: secrets))
-      }
-    } catch let error as PersistenceStoreError where error.canRecoverByArchiving {
-      recoverUnreadableJobHistory(at: url, error: error)
+      installRestoredJobHistory(Self.hydratedJobHistory(result.jobs, secrets: secrets))
     } catch {
+      handleJobHistoryLoadError(error, at: url)
+    }
+  }
+
+  private func handleJobHistoryLoadError(_ error: Error, at url: URL) {
+    if let error = error as? PersistenceStoreError, error.canRecoverByArchiving {
+      recoverUnreadableJobHistory(at: url, error: error)
+    } else {
       registryError = "Could not load job history: \(error.localizedDescription)"
     }
   }
@@ -2997,8 +3016,9 @@ final class WorkbenchStore: ObservableObject {
   }
 
   private func installRestoredJobHistory(_ records: [JobRecord]) {
+    let retainedSelection = records.first { $0.id == selectedJobID }?.id
     jobs = records
-    selectedJobID = records.first?.id
+    selectedJobID = retainedSelection ?? records.first?.id
   }
 
   nonisolated private static func hydratedJobHistory(_ records: [JobRecord], secrets: [String]) -> [JobRecord] {

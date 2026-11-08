@@ -1,12 +1,30 @@
 import SwiftUI
 
 struct JobsView: View {
+  private struct SearchRequest: Equatable {
+    let revision: UInt64
+    let filter: RecentJobFilter
+  }
+
   @ObservedObject var store: WorkbenchStore
+  @State private var searchIndex = RecentJobSearchIndex()
+  @State private var searchResult: (request: SearchRequest, offsets: [Int])?
+  @State private var pageIndex = 0
+
   private var recentFilter: Binding<RecentJobFilter> { $store.recentJobFilter }
 
   var body: some View {
+    let request = SearchRequest(revision: store.jobsRevision, filter: store.recentJobFilter)
+    let offsets = searchResult?.request == request ? searchResult?.offsets : nil
+    let searching = request.filter.isActive && offsets == nil
+    let count = searching ? 0 : offsets?.count ?? store.jobs.count
+    let page = HistoryPage(total: count, index: pageIndex)
+    let visibleRows = page.range.map { store.jobs[offsets?[$0] ?? $0] }
+    let selected = selectedJobOffset.flatMap { index in
+      offsets?.contains(index) == false ? nil : store.jobs[index]
+    }
     HStack(spacing: 0) {
-      jobList
+      jobList(page: page, rows: visibleRows, searching: searching)
         .frame(width: 360)
 
       Divider()
@@ -24,7 +42,10 @@ struct JobsView: View {
             .accessibilityIdentifier("jobs.empty.open-chat")
         }
         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
-      } else if matchingJobs.isEmpty {
+      } else if searching {
+        ProgressView("Searching job history…")
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if count == 0 {
         ContentUnavailableView {
           Label("No Matching Jobs", systemImage: "line.3.horizontal.decrease.circle")
         } description: {
@@ -34,7 +55,7 @@ struct JobsView: View {
             .accessibilityIdentifier("jobs.clear-search")
         }
         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
-      } else if let job = selectedVisibleJob {
+      } else if let job = selected {
         JobDetailView(store: store, job: job)
           .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
       } else {
@@ -49,20 +70,49 @@ struct JobsView: View {
         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
       }
     }
+    .task(id: request) {
+      guard store.jobsRevision == request.revision, store.recentJobFilter == request.filter else { return }
+      if !request.filter.isActive {
+        searchResult = nil
+        revealSelection(in: nil)
+        return
+      }
+      let jobs = store.jobs
+      do {
+        if !request.filter.query.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
+        let matches = try await searchIndex.matchingOffsets(
+          in: jobs, revision: request.revision, filter: request.filter
+        )
+        try Task.checkCancellation()
+        guard store.jobsRevision == request.revision, store.recentJobFilter == request.filter else { return }
+        searchResult = (request, matches)
+        revealSelection(in: matches)
+      } catch {
+        return
+      }
+    }
+    .onChange(of: store.selectedJobID) {
+      revealSelection(in: offsets)
+    }
   }
 
-  private var matchingJobs: [JobRecord] {
-    guard store.recentJobFilter.isActive else { return store.jobs }
-    let now = Date()
-    return store.jobs.filter { store.recentJobFilter.matches($0, now: now) }
+  private var selectedJobOffset: Int? {
+    if let id = store.selectedJobID {
+      return store.jobs.firstIndex { $0.id == id }
+    }
+    return store.jobs.indices.first
   }
 
-  private var selectedVisibleJob: JobRecord? {
-    guard let selected = store.selectedJob else { return nil }
-    return matchingJobs.first { $0.id == selected.id }
+  private func revealSelection(in offsets: [Int]?) {
+    let selected = selectedJobOffset
+    if let offsets {
+      pageIndex = HistoryPage.containing(selected.flatMap { offsets.firstIndex(of: $0) }, total: offsets.count)
+    } else {
+      pageIndex = HistoryPage.containing(selected, total: store.jobs.count)
+    }
   }
 
-  private var jobList: some View {
+  private func jobList(page: HistoryPage, rows: [JobRecord], searching: Bool) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       VStack(alignment: .leading, spacing: 6) {
         Text("Jobs")
@@ -106,7 +156,8 @@ struct JobsView: View {
       .accessibilityIdentifier("jobs.filter.artifact")
 
       HStack {
-        Text(store.isRestoringJobHistory ? "Restoring history…" : "\(matchingJobs.count) of \(store.jobs.count) jobs")
+        Text(store.isRestoringJobHistory ? "Restoring history…" :
+          searching ? "Searching job history…" : "\(page.total) of \(store.jobs.count) jobs")
           .font(.caption)
           .foregroundStyle(.secondary)
         Spacer()
@@ -128,7 +179,7 @@ struct JobsView: View {
         .accessibilityLabel("Reload job history")
         .accessibilityIdentifier("jobs.reload-history")
         .help("Reload persisted job history from disk.")
-        .disabled(store.isRestoringJobHistory)
+        .disabled(store.isRestoringJobHistory || store.hasActiveJob)
 
         Button {
           store.revealJobHistory()
@@ -181,14 +232,17 @@ struct JobsView: View {
         Text("No jobs have run yet. Open Chat or Capabilities to start a reproducible run.")
           .foregroundStyle(.secondary)
           .padding(.horizontal, 16)
-      } else if matchingJobs.isEmpty {
+      } else if searching {
+        Spacer(minLength: 0)
+      } else if rows.isEmpty {
         Text("No jobs match these filters. Clear them to see the preserved history.")
           .foregroundStyle(.secondary)
           .padding(.horizontal, 16)
       } else {
+        HistoryPageControls(page: page, identifier: "jobs.page", index: $pageIndex)
         ScrollView {
           LazyVStack(spacing: 4) {
-            ForEach(matchingJobs) { job in
+            ForEach(rows) { job in
               Button {
                 store.selectedJobID = job.id
               } label: {
@@ -217,10 +271,12 @@ struct JobsView: View {
               .accessibilityLabel("\(job.capabilityLabel), \(job.displaySeverity)")
               .accessibilityHint("Created \(DateFormatters.timestamp.string(from: job.createdAt)). Select to review logs and artifacts.")
               .accessibilityAddTraits(store.selectedJobID == job.id ? .isSelected : [])
+              .accessibilityIdentifier("jobs.row.\(job.id.uuidString)")
             }
           }
           .padding(.horizontal, 8)
         }
+        .id(page.index)
       }
     }
     .frame(maxHeight: .infinity, alignment: .top)

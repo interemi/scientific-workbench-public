@@ -269,6 +269,12 @@ records the PERF.08 reference tests for complete redacted retention
 within the output limit, local memory bounds, UI navigation during
 capture and search from the retained file.
 
+The [history scale checkpoint](PHASE5_HISTORY_SCALE_2026-11-08.md)
+records partial PERF.09 results for history restore, pagination,
+indexed search and retention. It compares 250, 1,000 and 10,000
+records. Demand-loaded details and the remaining GUI verification
+are still open. The full-index write cost informs PERF.14.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.
 

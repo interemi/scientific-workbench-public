@@ -1,6 +1,6 @@
 import Foundation
 
-enum RecentJobWindow: String, CaseIterable {
+enum RecentJobWindow: String, CaseIterable, Sendable {
   case any
   case lastDay
   case lastWeek
@@ -25,7 +25,7 @@ enum RecentJobWindow: String, CaseIterable {
   }
 }
 
-enum RecentArtifactType: String, CaseIterable {
+enum RecentArtifactType: String, CaseIterable, Sendable {
   case any
   case table
   case image
@@ -74,7 +74,7 @@ enum RecentArtifactType: String, CaseIterable {
   }
 }
 
-struct RecentJobFilter {
+struct RecentJobFilter: Equatable, Sendable {
   var query = ""
   var window: RecentJobWindow = .any
   var status: JobStatus?
@@ -97,7 +97,14 @@ struct RecentJobFilter {
 
     let terms = query.split(whereSeparator: \.isWhitespace)
     guard !terms.isEmpty else { return true }
-    let searchable = [
+    let searchable = Self.searchableFields(for: job)
+    return terms.allSatisfy { term in
+      searchable.contains { $0.localizedStandardContains(String(term)) }
+    }
+  }
+
+  fileprivate static func searchableFields(for job: JobRecord) -> [String] {
+    [
       job.capabilityLabel,
       job.capabilityID,
       job.id.uuidString,
@@ -109,8 +116,50 @@ struct RecentJobFilter {
     ] + job.tags + job.artifacts.flatMap { artifact in
       [artifact.label ?? "", artifact.relativePath, artifact.artifactType ?? ""]
     }
-    return terms.allSatisfy { term in
-      searchable.contains { $0.localizedStandardContains(String(term)) }
+  }
+}
+
+actor RecentJobSearchIndex {
+  private struct Entry {
+    let createdAt: Date
+    let status: JobStatus
+    let artifactTypes: Set<RecentArtifactType>
+    let text: String
+
+    init(_ job: JobRecord) {
+      createdAt = job.createdAt
+      status = job.status
+      artifactTypes = Set(job.artifacts.map(RecentArtifactType.classify))
+      text = RecentJobFilter.searchableFields(for: job).joined(separator: "\n")
     }
+  }
+
+  private var revision: UInt64?
+  private var entries: [Entry] = []
+
+  func matchingOffsets(
+    in jobs: [JobRecord], revision: UInt64, filter: RecentJobFilter, now: Date = Date()
+  ) throws -> [Int] {
+    if self.revision != revision {
+      var newEntries: [Entry] = []
+      newEntries.reserveCapacity(jobs.count)
+      for job in jobs {
+        try Task.checkCancellation()
+        newEntries.append(Entry(job))
+      }
+      entries = newEntries
+      self.revision = revision
+    }
+    let terms = filter.query.split(whereSeparator: \.isWhitespace).map(String.init)
+    let cutoff = filter.window.duration.map { now.addingTimeInterval(-$0) }
+    var matches: [Int] = []
+    for (index, entry) in entries.enumerated() {
+      try Task.checkCancellation()
+      if let cutoff, entry.createdAt < cutoff { continue }
+      if let status = filter.status, entry.status != status { continue }
+      if filter.artifactType != .any, !entry.artifactTypes.contains(filter.artifactType) { continue }
+      if terms.allSatisfy({ entry.text.localizedStandardContains($0) }) { matches.append(index) }
+    }
+    return matches
   }
 }

@@ -5,6 +5,7 @@ struct ResultsView: View {
   @State private var pendingMixedFollowUpJob: JobRecord?
   @State private var isReplacingInputSelection = false
   @State private var comparisonSource: ArtifactComparisonSource?
+  @State private var artifactPageIndex = 0
 
   private let inspectionService = ArtifactInspectionService()
 
@@ -86,27 +87,7 @@ struct ResultsView: View {
               Text("Inspect the job status and logs, or refresh its run bundle after the process stops.")
             }
           } else {
-            List(selection: artifactSelection) {
-              ForEach(job.artifacts) { artifact in
-                HStack {
-                  Image(systemName: icon(for: artifact))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
-                  VStack(alignment: .leading, spacing: 2) {
-                    Text(store.redactedPreviewText(artifact.label ?? artifact.relativePath))
-                      .lineLimit(1)
-                      .truncationMode(.middle)
-                    Text(artifactDetail(for: artifact))
-                      .font(.caption)
-                      .foregroundStyle(.secondary)
-                    Text(inspectionService.role(for: artifact).rawValue)
-                      .font(.caption2)
-                      .foregroundStyle(.secondary)
-                  }
-                }
-                .tag(Optional(artifact.id))
-              }
-            }
+            artifactList(for: job)
           }
         } else if store.isRestoringJobHistory {
           ProgressView("Restoring job history")
@@ -157,7 +138,7 @@ struct ResultsView: View {
       comparisonSource = nil
       selectPreferredArtifact()
     }
-    .onChange(of: store.selectedJob?.artifacts.map(\.id)) {
+    .onChange(of: store.jobsRevision) {
       selectPreferredArtifact()
     }
     .sheet(item: $comparisonSource) { source in
@@ -191,16 +172,51 @@ struct ResultsView: View {
     return job.artifacts.first { $0.id == selectedArtifactID }
   }
 
-  private var artifactSelection: Binding<UUID?> {
-    let job = store.selectedJob
+  private func artifactSelection(for job: JobRecord, page: HistoryPage) -> Binding<UUID?> {
+    let visible = job.artifacts[page.range]
     return Binding(
-      get: { job.flatMap { store.selectedResultArtifactID(for: $0) } },
+      get: {
+        let selected = store.selectedResultArtifactID(for: job)
+        return visible.contains { $0.id == selected } ? selected : nil
+      },
       set: { artifactID in
-        if let job {
+        guard store.selectedJob?.id == job.id, artifactPageIndex == page.index else { return }
+        let selected = store.selectedResultArtifactID(for: job)
+        if artifactID != nil || visible.contains(where: { $0.id == selected }) {
           store.selectResultArtifact(artifactID, for: job)
         }
       }
     )
+  }
+
+  private func artifactList(for job: JobRecord) -> some View {
+    let page = HistoryPage(total: job.artifacts.count, index: artifactPageIndex)
+    return VStack(alignment: .leading, spacing: 6) {
+      HistoryPageControls(page: page, identifier: "results.page", index: $artifactPageIndex)
+        .padding(.horizontal)
+      List(selection: artifactSelection(for: job, page: page)) {
+        ForEach(job.artifacts[page.range]) { artifact in
+          HStack {
+            Image(systemName: icon(for: artifact))
+              .foregroundStyle(.secondary)
+              .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(store.redactedPreviewText(artifact.label ?? artifact.relativePath))
+                .lineLimit(1)
+                .truncationMode(.middle)
+              Text(artifactDetail(for: artifact))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Text(inspectionService.role(for: artifact).rawValue)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+          }
+          .tag(Optional(artifact.id))
+        }
+      }
+      .id(page.index)
+    }
   }
 
   private func icon(for artifact: Artifact) -> String {
@@ -233,8 +249,15 @@ struct ResultsView: View {
   }
 
   private func selectPreferredArtifact() {
-    guard let job = store.selectedJob else { return }
+    guard let job = store.selectedJob else {
+      artifactPageIndex = 0
+      return
+    }
     store.selectPreferredResultArtifact(for: job)
+    let selected = store.selectedResultArtifactID(for: job)
+    artifactPageIndex = HistoryPage.containing(
+      job.artifacts.firstIndex { $0.id == selected }, total: job.artifacts.count
+    )
   }
 }
 

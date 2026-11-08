@@ -93,10 +93,12 @@ enum PersistenceFileAccess {
     guard values.isSymbolicLink != true, values.isRegularFile == true else {
       throw PersistenceStoreError.unsafeFileType(url.path)
     }
-    if let fileSize = values.fileSize, Int64(fileSize) > maximumBytes {
-      throw PersistenceStoreError.oversizedFile(url.path)
-    }
+    if let fileSize = values.fileSize { try validateSize(fileSize, at: url) }
     return try Data(contentsOf: url, options: [.mappedIfSafe])
+  }
+
+  static func validateSize(_ bytes: Int, at url: URL) throws {
+    guard Int64(bytes) <= maximumBytes else { throw PersistenceStoreError.oversizedFile(url.path) }
   }
 
   static func validateWriteTarget(_ url: URL) throws {
