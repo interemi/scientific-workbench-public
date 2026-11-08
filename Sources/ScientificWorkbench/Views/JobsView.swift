@@ -584,13 +584,16 @@ struct LogBlock: View {
           .font(.headline)
         Spacer()
         if let artifact = job.artifacts.first(where: { $0.relativePath == stream.fileName }) {
-          Button("Reveal Log", systemImage: "folder") { store.revealArtifact(artifact) }
-            .accessibilityLabel("Reveal \(stream.rawValue) log")
-            .accessibilityIdentifier("run.log.reveal.\(stream.rawValue)")
+          Menu("Log File", systemImage: "doc.text") {
+            Button("Open in TextEdit") { store.openRunLog(artifact, stream: stream) }
+            Button("Reveal in Finder") { store.revealArtifact(artifact) }
+          }
+          .accessibilityLabel("\(stream.rawValue) log file")
+          .accessibilityIdentifier("run.log.file.\(stream.rawValue)")
         }
       }
       if excerpt.isTruncated {
-        Text("Showing recent output. Review the retained log file for more context.")
+        Text("Showing recent output. Open the retained log file to search or copy more text.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .accessibilityIdentifier("run.log.excerpt.\(stream.rawValue)")

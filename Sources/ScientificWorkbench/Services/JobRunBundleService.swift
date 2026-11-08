@@ -107,13 +107,18 @@ struct JobRunBundleService {
     runDirectory: String,
     command: String,
     stdout: String,
-    stderr: String
+    stderr: String,
+    retaining retainedLogs: Set<RunLogStream> = []
   ) {
     let root = URL(fileURLWithPath: runDirectory, isDirectory: true)
     try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     write(command, to: root.appendingPathComponent("command.txt"))
-    write(stdout, to: root.appendingPathComponent("stdout.txt"))
-    write(stderr, to: root.appendingPathComponent("stderr.txt"))
+    if !retainedLogs.contains(.stdout) {
+      write(stdout, to: root.appendingPathComponent(RunLogStream.stdout.fileName))
+    }
+    if !retainedLogs.contains(.stderr) {
+      write(stderr, to: root.appendingPathComponent(RunLogStream.stderr.fileName))
+    }
   }
 
   func writeNextStepsIfMissing(for job: JobRecord) {

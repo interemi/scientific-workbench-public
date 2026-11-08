@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-struct BoundedProcessOutput {
+struct BoundedProcessOutput: Sendable {
   let text: String
   let totalBytes: Int
   let wasTruncated: Bool
@@ -13,12 +13,17 @@ struct BoundedProcessOutput {
     guard descriptor >= 0 else { return nil }
     let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
     defer { try? handle.close() }
+    return read(from: handle, maximumBytes: maximumBytes)
+  }
+
+  static func read(from handle: FileHandle, maximumBytes: Int) -> BoundedProcessOutput? {
     var info = stat()
-    guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { return nil }
+    guard fstat(handle.fileDescriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { return nil }
     let byteCount = Int(info.st_size)
     guard byteCount > 0 else { return .empty }
 
     do {
+      try handle.seek(toOffset: 0)
       if byteCount <= maximumBytes {
         let data = try handle.read(upToCount: byteCount) ?? Data()
         return BoundedProcessOutput(

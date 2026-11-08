@@ -459,6 +459,7 @@ struct ProcessResult: Equatable, Sendable {
   let stderrTotalBytes: Int
   let stdoutWasTruncated: Bool
   let stderrWasTruncated: Bool
+  let retainedLogs: Set<RunLogStream>
 
   init(
     exitCode: Int32,
@@ -469,7 +470,8 @@ struct ProcessResult: Equatable, Sendable {
     stdoutTotalBytes: Int? = nil,
     stderrTotalBytes: Int? = nil,
     stdoutWasTruncated: Bool = false,
-    stderrWasTruncated: Bool = false
+    stderrWasTruncated: Bool = false,
+    retainedLogs: Set<RunLogStream> = []
   ) {
     self.exitCode = exitCode
     self.stdout = stdout
@@ -480,6 +482,7 @@ struct ProcessResult: Equatable, Sendable {
     self.stderrTotalBytes = stderrTotalBytes ?? stderr.utf8.count
     self.stdoutWasTruncated = stdoutWasTruncated
     self.stderrWasTruncated = stderrWasTruncated
+    self.retainedLogs = retainedLogs
   }
 }
 

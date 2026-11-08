@@ -263,8 +263,11 @@ It documents record paging, limits, the CRLF comparison and independent
 full workflow counts for the two large fixtures.
 
 The [recent log excerpt verification](PHASE5_LOG_EXCERPTS_2026-11-08.md)
-records partial PERF.08 results for bounded restoration and rendering.
-Complete redacted retention and search over retained log files remain open.
+records bounded restoration and rendering. The later
+[log retention verification](PHASE5_LOG_RETENTION_2026-11-08.md)
+records the PERF.08 reference tests for complete redacted retention
+within the output limit, local memory bounds, UI navigation during
+capture and search from the retained file.
 
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.

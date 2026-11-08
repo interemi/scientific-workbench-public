@@ -1015,7 +1015,7 @@ final class WorkbenchStore: ObservableObject {
       agentStatusMessage = "Could not find the bundled Scientific Workbench guide."
       return
     }
-    openMarkdownDocument(userGuideURL)
+    openTextDocument(userGuideURL)
   }
 
   func openFirstRunGuide(for kind: FirstRunExampleKind) {
@@ -1023,7 +1023,7 @@ final class WorkbenchStore: ObservableObject {
       agentStatusMessage = "Could not find the bundled \(kind.launcherTitle) workflow guide."
       return
     }
-    openMarkdownDocument(url)
+    openTextDocument(url)
   }
 
   @discardableResult
@@ -2676,6 +2676,9 @@ final class WorkbenchStore: ObservableObject {
 
       let result = try await runner.run(
         command,
+        retainingLogs: RunLogArchive(runDirectory: runDirectory, secrets: configuredSecrets) {
+          await self.configuredSecrets
+        },
         onInterrupted: { output in await interruptedOutput.record(output) },
         cancellationRequested: { await self.isCancellationRequested }
       )
@@ -2688,7 +2691,8 @@ final class WorkbenchStore: ObservableObject {
         runDirectory: runDirectory,
         command: job.command,
         stdout: job.stdout,
-        stderr: job.stderr
+        stderr: job.stderr,
+        retaining: result.retainedLogs
       )
       runBundleService.hydrate(
         &job,
@@ -2723,7 +2727,8 @@ final class WorkbenchStore: ObservableObject {
       }
       return job
     } catch {
-      if let partial = await interruptedOutput.snapshot() {
+      let partial = await interruptedOutput.snapshot()
+      if let partial {
         job.stdout = redactSecrets(partial.stdout)
         job.stderr = redactSecrets(partial.stderr)
       }
@@ -2742,7 +2747,8 @@ final class WorkbenchStore: ObservableObject {
         runDirectory: runDirectory,
         command: job.command,
         stdout: job.stdout,
-        stderr: job.stderr.isEmpty ? (job.message ?? "") : job.stderr
+        stderr: job.stderr.isEmpty ? (job.message ?? "") : job.stderr,
+        retaining: partial?.retainedLogs ?? []
       )
       runBundleService.hydrate(&job, redact: redactSecrets)
       runBundleService.writeNextStepsIfMissing(for: job)
@@ -2789,6 +2795,13 @@ final class WorkbenchStore: ObservableObject {
     NSWorkspace.shared.activateFileViewerSelecting([url])
   }
 
+  func openRunLog(_ artifact: Artifact, stream: RunLogStream) {
+    guard artifact.relativePath == stream.fileName,
+          let url = safeArtifactURL(artifact),
+          url.pathExtension.lowercased() == "txt" else { return }
+    openTextDocument(url)
+  }
+
   private func safeArtifactURL(_ artifact: Artifact) -> URL? {
     guard let job = jobs.first(where: { job in
       job.artifacts.contains { $0.id == artifact.id }
@@ -2815,7 +2828,7 @@ final class WorkbenchStore: ObservableObject {
 
   func openWorkflowSummary() {
     guard let lastWorkflowSummaryPath else { return }
-    openMarkdownDocument(URL(fileURLWithPath: lastWorkflowSummaryPath))
+    openTextDocument(URL(fileURLWithPath: lastWorkflowSummaryPath))
   }
 
   func revealRunDirectory(_ job: JobRecord) {
@@ -3238,7 +3251,7 @@ final class WorkbenchStore: ObservableObject {
     return updatedPlan
   }
 
-  private func openMarkdownDocument(_ url: URL) {
+  private func openTextDocument(_ url: URL) {
     let textEditURL = URL(fileURLWithPath: "/System/Applications/TextEdit.app", isDirectory: true)
     let configuration = NSWorkspace.OpenConfiguration()
     if FileManager.default.fileExists(atPath: textEditURL.path) {

@@ -1,6 +1,6 @@
 import Foundation
 
-enum RunLogStream: String {
+enum RunLogStream: String, Sendable {
   case stdout
   case stderr
 
