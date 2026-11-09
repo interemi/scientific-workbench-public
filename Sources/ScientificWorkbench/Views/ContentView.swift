@@ -81,9 +81,8 @@ struct ContentView: View {
     case .capabilities:
       CapabilityCatalogView(
         store: store,
-        entries: store.userCapabilities,
         title: "Capabilities",
-        subtitle: "\(store.userCapabilities.count) user-facing capabilities loaded from the installed skill.",
+        subtitle: "\(store.capabilitySearchIndex.all.entries.count) user-facing capabilities loaded from the installed skill.",
         isMaintenance: false
       )
       .equatable()
@@ -94,9 +93,8 @@ struct ContentView: View {
     case .maintenance:
       CapabilityCatalogView(
         store: store,
-        entries: store.maintainerCapabilities,
         title: "Maintenance",
-        subtitle: "\(store.maintainerCapabilities.count) maintainer-only gates kept separate from daily work.",
+        subtitle: "\(store.maintenanceSearchIndex.all.entries.count) maintainer-only gates kept separate from daily work.",
         isMaintenance: true
       )
       .equatable()

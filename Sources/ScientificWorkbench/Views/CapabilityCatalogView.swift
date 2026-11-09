@@ -1,6 +1,15 @@
 import SwiftUI
 
 struct CapabilityCatalogView: View, Equatable {
+  private struct SearchRequest: Equatable {
+    let revision: UInt64
+    let query: String
+    let filters: CapabilityDiscoveryFilters?
+
+    var hasQuery: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    var usesFullCatalog: Bool { !hasQuery && (filters ?? CapabilityDiscoveryFilters()) == CapabilityDiscoveryFilters() }
+  }
+
   private struct Presentation: Equatable, Sendable {
     let selection: String?
     let query: String
@@ -18,16 +27,19 @@ struct CapabilityCatalogView: View, Equatable {
   }
 
   private let store: WorkbenchStore
-  private let entries: [CapabilityEntry]
+  private let index: CapabilitySearchIndex
+  private let searchRevision: UInt64
   private let title: String
   private let subtitle: String
   private let isMaintenance: Bool
   private let presentation: Presentation
   @State private var accessConfirmed = false
+  @State private var applied: (request: SearchRequest, result: CapabilitySearchResult)?
 
-  init(store: WorkbenchStore, entries: [CapabilityEntry], title: String, subtitle: String, isMaintenance: Bool) {
+  init(store: WorkbenchStore, title: String, subtitle: String, isMaintenance: Bool) {
     self.store = store
-    self.entries = entries
+    index = isMaintenance ? store.maintenanceSearchIndex : store.capabilitySearchIndex
+    searchRevision = store.capabilitySearchRevision
     self.title = title
     self.subtitle = subtitle
     self.isMaintenance = isMaintenance
@@ -37,17 +49,20 @@ struct CapabilityCatalogView: View, Equatable {
   nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
     lhs.store === rhs.store
       && lhs.isMaintenance == rhs.isMaintenance
-      && lhs.entries == rhs.entries
+      && lhs.searchRevision == rhs.searchRevision
       && lhs.title == rhs.title
       && lhs.subtitle == rhs.subtitle
       && lhs.presentation == rhs.presentation
   }
 
   var body: some View {
-    let visibleEntries = filteredEntries(for: presentation)
-    let selectedEntry = visibleEntries.first { $0.id == presentation.selection } ?? visibleEntries.first
+    let request = SearchRequest(revision: searchRevision, query: presentation.query, filters: presentation.filters)
+    let updating = !request.usesFullCatalog && applied?.request != request
+    let visible = request.usesFullCatalog || applied?.request.revision != request.revision
+      ? index.all : applied?.result ?? index.all
+    let selectedEntry = visible.entries.first { $0.id == presentation.selection } ?? visible.entries.first
     HStack(spacing: 0) {
-      capabilityList(visibleEntries)
+      capabilityList(visible, updating: updating)
         .frame(width: 390)
 
       Divider()
@@ -59,21 +74,17 @@ struct CapabilityCatalogView: View, Equatable {
         accessConfirmed: $accessConfirmed,
         isMaintenance: isMaintenance
       )
+      .disabled(updating)
+      .accessibilityHidden(updating)
       .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
     }
-    .onChange(of: entries.map(\.id)) { _, _ in
-      selectVisibleEntryIfNeeded()
-    }
-    .onChange(of: visibleEntries.map(\.id)) { _, _ in
-      selectVisibleEntryIfNeeded()
-    }
+    .task(id: request) { await applySearch(request) }
     .onChange(of: presentation.selection) {
       accessConfirmed = false
       revealExternallySelectedEntryIfNeeded()
     }
     .onAppear {
       revealExternallySelectedEntryIfNeeded()
-      selectVisibleEntryIfNeeded()
     }
   }
 
@@ -96,7 +107,7 @@ struct CapabilityCatalogView: View, Equatable {
     )
   }
 
-  private func capabilityList(_ visibleEntries: [CapabilityEntry]) -> some View {
+  private func capabilityList(_ visible: CapabilitySearchResult, updating: Bool) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       VStack(alignment: .leading, spacing: 6) {
         Text(title)
@@ -120,7 +131,7 @@ struct CapabilityCatalogView: View, Equatable {
         .accessibilityIdentifier("catalog.search")
 
       if !isMaintenance {
-        discoveryControls(visibleCount: visibleEntries.count)
+        discoveryControls(visibleCount: visible.entries.count, updating: updating)
       }
 
       if let error = presentation.registryError {
@@ -136,53 +147,45 @@ struct CapabilityCatalogView: View, Equatable {
           .padding(.horizontal, 16)
       }
 
-      List(selection: catalogSelection) {
-        if visibleEntries.isEmpty {
+      List(selection: Binding(
+        get: { catalogSelection.wrappedValue },
+        set: { if !updating { catalogSelection.wrappedValue = $0 } }
+      )) {
+        if visible.entries.isEmpty && !updating {
           ContentUnavailableView(
             "No matching capabilities",
             systemImage: "line.3.horizontal.decrease.circle",
             description: Text("Change the task or requirement filters, or clear the search.")
           )
           .accessibilityIdentifier("catalog.empty-results")
-        } else if isMaintenance {
-          ForEach(visibleEntries.groupedByBlock(), id: \.0) { block, blockEntries in
-            Section(block) {
-              ForEach(blockEntries) { entry in
+        } else {
+          ForEach(visible.groups) { group in
+            Section(group.title) {
+              ForEach(group.entries) { entry in
                 CapabilityRow(entry: entry)
                   .tag(Optional(entry.id))
-              }
-            }
-          }
-        } else {
-          ForEach(CapabilityTask.allCases) { task in
-            let taskEntries = visibleEntries
-              .filter { CapabilityDiscovery.forEntry($0).task == task }
-              .sorted {
-                if $0.isGoldenPath != $1.isGoldenPath {
-                  return $0.isGoldenPath
-                }
-                return CapabilityDiscovery.forEntry($0).title.localizedStandardCompare(
-                  CapabilityDiscovery.forEntry($1).title
-                ) == .orderedAscending
-              }
-            if !taskEntries.isEmpty {
-              Section(task.title) {
-                ForEach(taskEntries) { entry in
-                  CapabilityRow(entry: entry)
-                    .tag(Optional(entry.id))
-                }
               }
             }
           }
         }
       }
       .listStyle(.sidebar)
+      .disabled(updating)
+      .accessibilityHidden(updating)
+      .overlay(alignment: .topLeading) {
+        if isMaintenance && updating {
+          searchStatus
+            .padding(8)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+            .padding(8)
+        }
+      }
     }
     .frame(maxHeight: .infinity)
     .background(.bar)
   }
 
-  private func discoveryControls(visibleCount: Int) -> some View {
+  private func discoveryControls(visibleCount: Int, updating: Bool) -> some View {
     let filters = binding(\.capabilityDiscoveryFilters)
     return VStack(alignment: .leading, spacing: 4) {
       HStack {
@@ -246,45 +249,58 @@ struct CapabilityCatalogView: View, Equatable {
       }
       .accessibilityIdentifier("catalog.filter.level")
 
-      Text("\(visibleCount) of \(entries.count) routes · Full includes Core. Catalog readiness is not a live backend check; review Settings before running.")
+      Text("\(visibleCount) of \(index.all.entries.count) routes · Full includes Core. Catalog readiness is not a live backend check; review Settings before running.")
         .font(.caption)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
+        .opacity(updating ? 0 : 1)
+        .accessibilityHidden(updating)
+        .accessibilityIdentifier("catalog.result-count")
+        .overlay(alignment: .topLeading) {
+          if updating { searchStatus }
+        }
     }
     .pickerStyle(.menu)
     .controlSize(.small)
     .padding(.horizontal, 16)
   }
 
-  private func filteredEntries(for presentation: Presentation) -> [CapabilityEntry] {
-    if let filters = presentation.filters {
-      return entries.filter { filters.matches($0, query: presentation.query) }
-    }
-    let query = presentation.query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !query.isEmpty else { return entries }
-    return entries.filter {
-      [$0.id, $0.label, $0.shortDescription]
-        .joined(separator: " ").localizedCaseInsensitiveContains(query)
-    }
+  private var searchStatus: some View {
+    Text("Updating results…")
+      .font(.caption)
+      .foregroundStyle(.secondary)
+      .accessibilityIdentifier("catalog.updating")
   }
 
-  private func selectVisibleEntryIfNeeded() {
+  private func applySearch(_ request: SearchRequest) async {
+    let previous = applied?.request
+    let typing = request.hasQuery && previous?.query != request.query
+      && (previous == nil || previous?.filters == request.filters)
+    let result: CapabilitySearchResult
+    if request.usesFullCatalog {
+      result = index.all
+    } else {
+      guard let match = try? await index.search(query: request.query, filters: request.filters, coalescingTyping: typing)
+      else { return }
+      result = match
+    }
     let current = Presentation(store: store, isMaintenance: isMaintenance)
-    let visibleEntries = filteredEntries(for: current)
-    if !visibleEntries.contains(where: { $0.id == current.selection }) {
-      catalogSelection.wrappedValue = visibleEntries.first?.id
+    guard !Task.isCancelled, request.revision == store.capabilitySearchRevision,
+          request.query == current.query, request.filters == current.filters else { return }
+    applied = (request, result)
+    if !result.entries.contains(where: { $0.id == current.selection }) {
+      catalogSelection.wrappedValue = result.entries.first?.id
     }
   }
 
   private func revealExternallySelectedEntryIfNeeded() {
     guard !isMaintenance,
           let id = store.selectedCapabilityID,
-          entries.contains(where: { $0.id == id }),
-          !filteredEntries(for: Presentation(store: store, isMaintenance: false))
-            .contains(where: { $0.id == id }) else { return }
+          store.capabilitySearchIndex.matches(
+            id: id, query: store.searchText, filters: store.capabilityDiscoveryFilters
+          ) == false else { return }
     store.capabilityDiscoveryFilters = CapabilityDiscoveryFilters()
-    if !filteredEntries(for: Presentation(store: store, isMaintenance: false))
-      .contains(where: { $0.id == id }) {
+    if store.capabilitySearchIndex.matches(id: id, query: store.searchText, filters: nil) == false {
       store.searchText = ""
     }
   }

@@ -67,4 +67,64 @@ extension ScientificWorkbenchTests {
     #expect(!ready.matches(try #require(byID["fxcor_iraf_workbench.run-auto"]), query: ""))
     #expect(entries.filter { cli.matches($0, query: "") }.count == 12)
   }
+
+  @Test
+  func indexedCatalogSearchPreservesMatchesAndGroupOrder() throws {
+    let registry = try CapabilityRegistryLoader().load(skillRoot: DefaultPaths.motherSkillRoot)
+    let entries = registry.userFacing
+    let index = CapabilitySearchIndex(entries: entries)
+    let queries = ["", "  ", "f", "FITS inspect", "profile CSV", "match sky catalogs", "LaTeX", "no-synthetic-match"]
+    let facets = [
+      CapabilityDiscoveryFilters(),
+      CapabilityDiscoveryFilters(task: .inspect, format: .fits, profile: .core, readiness: .appReady),
+      CapabilityDiscoveryFilters(task: .prepare, profile: .full, skill: .documents, level: .normal),
+      CapabilityDiscoveryFilters(readiness: .cli)
+    ]
+    for query in queries {
+      for filters in facets {
+        let expected = entries.filter { filters.matches($0, query: query) }
+        let actual = index.matching(query: query, filters: filters)
+        #expect(actual.entries.map(\.id) == expected.map(\.id))
+        let groups = CapabilityTask.allCases.compactMap { task -> [String]? in
+          let members = expected.filter { CapabilityDiscovery.forEntry($0).task == task }
+          guard !members.isEmpty else { return nil }
+          return members.sorted {
+            if $0.isGoldenPath != $1.isGoldenPath { return $0.isGoldenPath }
+            return CapabilityDiscovery.forEntry($0).title
+              .localizedStandardCompare(CapabilityDiscovery.forEntry($1).title) == .orderedAscending
+          }.map(\.id)
+        }
+        #expect(actual.groups.map { $0.entries.map(\.id) } == groups)
+      }
+    }
+
+    let maintenance = registry.maintainerOnly
+    let maintenanceIndex = CapabilitySearchIndex(entries: maintenance, maintenance: true)
+    for query in ["", "  ", "gate", "release readiness", "no-synthetic-match"] {
+      let phrase = query.trimmingCharacters(in: .whitespacesAndNewlines)
+      let expected = maintenance.filter {
+        phrase.isEmpty || [$0.id, $0.label, $0.shortDescription].joined(separator: " ")
+          .localizedCaseInsensitiveContains(phrase)
+      }
+      let actual = maintenanceIndex.matching(query: query, filters: nil)
+      #expect(actual.entries.map(\.id) == expected.map(\.id))
+      #expect(actual.groups.map { $0.entries.map(\.id) } == expected.groupedByBlock().map { $0.1.map(\.id) })
+    }
+  }
+
+  @Test
+  func indexedCatalogSearchCancelsAnObsoleteQuery() async throws {
+    let entries = try CapabilityRegistryLoader().load(skillRoot: DefaultPaths.motherSkillRoot).userFacing
+    let index = CapabilitySearchIndex(entries: entries)
+    let obsolete = Task {
+      try await index.search(query: "inspect FITS", filters: CapabilityDiscoveryFilters(), coalescingTyping: true)
+    }
+    obsolete.cancel()
+    await #expect(throws: CancellationError.self) { try await obsolete.value }
+
+    let latest = try await index.search(
+      query: "profile CSV", filters: CapabilityDiscoveryFilters(), coalescingTyping: true
+    )
+    #expect(latest.entries.map(\.id) == ["profile_table"])
+  }
 }

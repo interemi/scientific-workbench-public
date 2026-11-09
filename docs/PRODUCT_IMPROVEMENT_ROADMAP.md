@@ -254,8 +254,10 @@ explicit recheck behavior.
 The [navigation and catalog comparison](PHASE5_VIEW_INVALIDATION_2026-11-06.md)
 records partial PERF.03 and PERF.10 results. The sidebar and catalog
 list no longer reevaluated in the measured unrelated updates, and the
-catalog reuses its filter result within a body evaluation. Broader
-invalidation and search measurements remain open.
+catalog reused its filter result within a body evaluation. The
+[catalog search comparison](PHASE5_CATALOG_SEARCH_2026-11-09.md) records
+the index, cancellation tests and settled graphical results for PERF.10.
+Broader invalidation and frame timing remain open.
 
 The [table preview verification](PHASE5_TABLE_PREVIEWS_2026-11-06.md)
 records PERF.07 for the supported table formats and advances PERF.02.

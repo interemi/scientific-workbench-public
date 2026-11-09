@@ -31,7 +31,16 @@ private actor InterruptedProcessOutputCapture {
 final class WorkbenchStore: ObservableObject {
   @Published var selectedSection: AppSection? = .agent
   @Published var settingsRecoverySection: SettingsRecoverySection?
-  @Published var capabilities: [CapabilityEntry] = []
+  @Published var capabilities: [CapabilityEntry] = [] {
+    didSet {
+      capabilitySearchRevision &+= 1
+      capabilitySearchIndex = CapabilitySearchIndex(entries: capabilities.userFacing)
+      maintenanceSearchIndex = CapabilitySearchIndex(entries: capabilities.maintainerOnly, maintenance: true)
+    }
+  }
+  private(set) var capabilitySearchRevision: UInt64 = 0
+  private(set) var capabilitySearchIndex = CapabilitySearchIndex(entries: [])
+  private(set) var maintenanceSearchIndex = CapabilitySearchIndex(entries: [], maintenance: true)
   @Published var selectedCapabilityID: String?
   @Published var selectedMaintenanceCapabilityID: String?
   @Published var capabilityCatalogMode: CapabilityCatalogMode = .normal
