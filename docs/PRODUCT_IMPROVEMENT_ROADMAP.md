@@ -276,8 +276,9 @@ records partial PERF.09 results for history restore, pagination,
 indexed search and retention. It compares 250, 1,000 and 10,000
 records. The [deferred capture comparison](PHASE5_DEFERRED_CAPTURE_2026-11-08.md)
 records demand-loaded command and log details and preservation of
-search metadata. The remaining 10,000-job GUI checks are still open.
-The full-index write cost informs PERF.14.
+search metadata. The [large history graphical verification](PHASE5_HISTORY_GUI_2026-11-09.md)
+completes the local PERF.09 checks for 10,000 jobs. The full-index write
+cost informs PERF.14.
 
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.
