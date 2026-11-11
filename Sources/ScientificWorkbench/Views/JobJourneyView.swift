@@ -73,7 +73,7 @@ struct JobJourneyView: View {
         ?? job.artifacts.first,
         FileManager.default.fileExists(atPath: primary.path) {
         Button {
-          store.revealArtifact(primary)
+          Task { await store.revealArtifact(primary) }
         } label: {
           Label("Reveal artifact: \(primary.label ?? primary.relativePath)", systemImage: "folder")
         }

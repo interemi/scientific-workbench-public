@@ -13,8 +13,7 @@ struct ArtifactComparisonSheet: View {
 
   @State private var comparisonJobID: UUID?
   @State private var comparisonArtifactID: UUID?
-
-  private let inspectionService = ArtifactInspectionService()
+  @State private var loadedSummary: (artifact: Artifact, text: String)?
 
   private var candidateJobs: [JobRecord] {
     store.jobs.filter { !candidates(in: $0).isEmpty }
@@ -59,12 +58,14 @@ struct ArtifactComparisonSheet: View {
       }
 
       if let comparisonJob, let comparisonArtifact {
-        Text(inspectionService.comparisonSummary(
-          inspectionService.inspect(source.artifact, in: source.job),
-          inspectionService.inspect(comparisonArtifact, in: comparisonJob)
-        ))
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        if let loadedSummary, loadedSummary.artifact == comparisonArtifact {
+          Text(loadedSummary.text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ProgressView("Checking artifact metadata…")
+            .controlSize(.small)
+        }
 
         HStack(alignment: .top, spacing: 10) {
           ArtifactPreview(store: store, job: source.job, artifact: source.artifact)
@@ -94,6 +95,15 @@ struct ArtifactComparisonSheet: View {
     }
     .onChange(of: comparisonJobID) {
       comparisonArtifactID = comparisonJob.flatMap { preferredArtifact(in: $0)?.id }
+    }
+    .task(id: comparisonArtifact) {
+      guard let job = comparisonJob, let artifact = comparisonArtifact else { return }
+      loadedSummary = nil
+      let text = await ArtifactPreviewLoader.shared.comparison(
+        source.artifact, in: source.job, artifact, in: job
+      )
+      guard !Task.isCancelled, let text else { return }
+      loadedSummary = (artifact, text)
     }
   }
 

@@ -310,6 +310,11 @@ history. The [navigation and backend follow-up](PHASE5_NAVIGATION_AND_BACKEND_IO
 compares the phase baseline and candidate and records reference I/O
 limits for two small Core fixtures.
 
+The [Results preview verification](PHASE5_ARTIFACT_PREVIEW_IO_2026-11-11.md)
+records a PERF.02 improvement for artifact metadata, PDF thumbnails,
+and comparisons. It includes a main-actor responsiveness measurement
+and an isolated app check.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine. Each performance budget
 names its representative workload, reference machine, and tolerance.

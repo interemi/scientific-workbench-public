@@ -17,7 +17,7 @@ enum ArtifactPreviewKind: String, Equatable {
 
 enum ArtifactPreviewImage: Sendable {
   case raster(CGImage)
-  case pdfThumbnail(Data)
+  case pdfThumbnail(CGImage)
 }
 
 struct ArtifactPreviewPayload: Sendable {
@@ -56,22 +56,29 @@ struct ArtifactPreviewService {
     artifact: Artifact,
     redact: (String) -> String
   ) -> ArtifactPreviewPayload {
-    if Self.isRaster(artifact) {
-      return imagePreview(artifact.url.standardizedFileURL.resolvingSymlinksInPath())
-    }
-    switch artifact.url.pathExtension.lowercased() {
+    load(at: artifact.url.standardizedFileURL.resolvingSymlinksInPath(),
+         fileExtension: artifact.url.pathExtension.lowercased(), redact: redact)
+  }
+
+  fileprivate func load(
+    at url: URL,
+    fileExtension: String,
+    redact: (String) -> String
+  ) -> ArtifactPreviewPayload {
+    if Self.rasterExtensions.contains(fileExtension) { return imagePreview(url) }
+    switch fileExtension {
     case "pdf":
-      return pdfPreview(artifact)
+      return pdfPreview(url)
     case "csv", "tsv", "ecsv":
-      return textPreview(artifact, kind: .table, title: "Table preview", redact: redact)
+      return textPreview(url, kind: .table, title: "Table preview", redact: redact)
     case "md":
-      return textPreview(artifact, kind: .markdown, title: "Markdown preview", redact: redact)
+      return textPreview(url, kind: .markdown, title: "Markdown preview", redact: redact)
     case "txt", "log":
-      return textPreview(artifact, kind: .log, title: "Log preview", redact: redact)
+      return textPreview(url, kind: .log, title: "Log preview", redact: redact)
     case "json":
-      return textPreview(artifact, kind: .json, title: "JSON preview", redact: redact)
+      return textPreview(url, kind: .json, title: "JSON preview", redact: redact)
     case "ipynb":
-      return notebookPreview(artifact, redact: redact)
+      return notebookPreview(url, redact: redact)
     case "fit", "fits", "fts":
       return ArtifactPreviewPayload(
         kind: .unavailable,
@@ -123,9 +130,9 @@ struct ArtifactPreviewService {
     return ArtifactPreviewPayload(kind: .image, title: "Image preview", image: .raster(thumbnail), note: note)
   }
 
-  private func pdfPreview(_ artifact: Artifact) -> ArtifactPreviewPayload {
+  private func pdfPreview(_ url: URL) -> ArtifactPreviewPayload {
     guard
-      let document = PDFDocument(url: artifact.url),
+      let document = PDFDocument(url: url),
       let page = document.page(at: 0)
     else {
       return ArtifactPreviewPayload(
@@ -138,18 +145,18 @@ struct ArtifactPreviewService {
     return ArtifactPreviewPayload(
       kind: .pdf,
       title: "PDF preview",
-      image: thumbnail.tiffRepresentation.map { .pdfThumbnail($0) },
+      image: thumbnail.cgImage(forProposedRect: nil, context: nil, hints: nil).map { .pdfThumbnail($0) },
       note: document.pageCount > 1 ? "Showing page 1 of \(document.pageCount)." : "Showing page 1."
     )
   }
 
   private func textPreview(
-    _ artifact: Artifact,
+    _ url: URL,
     kind: ArtifactPreviewKind,
     title: String,
     redact: (String) -> String
   ) -> ArtifactPreviewPayload {
-    guard let handle = try? FileHandle(forReadingFrom: artifact.url) else {
+    guard let handle = try? FileHandle(forReadingFrom: url) else {
       return ArtifactPreviewPayload(
         kind: .unavailable,
         title: "\(title) unavailable",
@@ -197,11 +204,11 @@ struct ArtifactPreviewService {
   }
 
   private func notebookPreview(
-    _ artifact: Artifact,
+    _ url: URL,
     redact: (String) -> String
   ) -> ArtifactPreviewPayload {
     guard
-      let data = try? Data(contentsOf: artifact.url, options: [.mappedIfSafe]),
+      let data = try? Data(contentsOf: url, options: [.mappedIfSafe]),
       let object = try? JSONSerialization.jsonObject(with: Data(data.prefix(2_000_000))) as? [String: Any],
       let cells = object["cells"] as? [[String: Any]]
     else {
@@ -236,6 +243,65 @@ struct ArtifactPreviewService {
       text: redact(lines.joined(separator: "\n")),
       note: cells.count > 12 ? "Only source text is shown. Review the full notebook before opening it externally." : nil
     )
+  }
+}
+
+struct ArtifactPreviewSnapshot: Sendable {
+  let inspection: ArtifactInspection
+  var payload: ArtifactPreviewPayload?
+  let isGeneratedFITS: Bool
+}
+
+actor ArtifactPreviewLoader {
+  static let shared = ArtifactPreviewLoader()
+
+  private let inspection = ArtifactInspectionService()
+
+  func load(
+    _ artifact: Artifact, in job: JobRecord, includePreview: Bool,
+    redact: @Sendable (String) -> String
+  ) async -> ArtifactPreviewSnapshot? {
+    guard !Task.isCancelled else { return nil }
+    let metadata = autoreleasepool { inspection.inspect(artifact, in: job) }
+    guard !Task.isCancelled else { return nil }
+
+    var payload: ArtifactPreviewPayload?
+    if includePreview {
+      if let url = metadata.resolvedPreviewURL {
+        if ArtifactPreviewService.isRaster(artifact) {
+          payload = await ArtifactPreviewService.rasterLoader.load(at: url)
+        } else {
+          payload = autoreleasepool {
+            ArtifactPreviewService().load(
+              at: url, fileExtension: artifact.url.pathExtension.lowercased(), redact: redact
+            )
+          }
+        }
+      } else {
+        payload = .outsideRun
+      }
+    }
+    guard !Task.isCancelled else { return nil }
+    let generated = artifact.artifactType == "preview_png" && job.capabilityID == "inspect_fits"
+      && (job.requestInputPaths.first.map(FirstRunExampleService.isGeneratedFITS(at:)) ?? false)
+    return ArtifactPreviewSnapshot(inspection: metadata, payload: payload, isGeneratedFITS: generated)
+  }
+
+  func comparison(
+    _ first: Artifact, in firstJob: JobRecord, _ second: Artifact, in secondJob: JobRecord
+  ) -> String? {
+    guard !Task.isCancelled else { return nil }
+    return autoreleasepool {
+      let lhs = inspection.inspect(first, in: firstJob)
+      guard !Task.isCancelled else { return nil }
+      let rhs = inspection.inspect(second, in: secondJob)
+      return inspection.comparisonSummary(lhs, rhs)
+    }
+  }
+
+  func previewURL(for artifact: Artifact, in job: JobRecord) -> URL? {
+    guard !Task.isCancelled else { return nil }
+    return inspection.previewURL(for: artifact, in: job)
   }
 }
 
@@ -293,11 +359,13 @@ actor RasterPreviewLoader {
 
   func load(_ artifact: Artifact, in job: JobRecord) -> ArtifactPreviewPayload? {
     guard !Task.isCancelled else { return nil }
-    guard let url = ArtifactInspectionService().inspect(artifact, in: job).resolvedPreviewURL,
-          let version = SourceVersion(url) else {
-      return .outsideRun
-    }
+    guard let url = ArtifactInspectionService().previewURL(for: artifact, in: job) else { return .outsideRun }
+    return load(at: url)
+  }
+
+  fileprivate func load(at url: URL) -> ArtifactPreviewPayload? {
     guard !Task.isCancelled else { return nil }
+    guard let version = SourceVersion(url) else { return .outsideRun }
     if let cache, cache.url == url, cache.version == version { return cache.payload }
 
     let result = ArtifactPreviewService().imagePreview(url)

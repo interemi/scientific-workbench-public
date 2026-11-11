@@ -326,24 +326,25 @@ struct ResultsSummaryView: View {
 struct ArtifactPreview: View {
   private struct RequestID: Hashable {
     let job: UUID
-    let artifact: UUID
+    let runDirectory: String
+    let artifact: Artifact
     let showTableText: Bool
   }
 
   @ObservedObject var store: WorkbenchStore
   let job: JobRecord
   let artifact: Artifact
-  @State private var loadedPreview: (id: RequestID, payload: ArtifactPreviewPayload)?
+  @State private var loadedPreview: (id: RequestID, snapshot: ArtifactPreviewSnapshot)?
   @State private var showTableText = false
-  private let previewService = ArtifactPreviewService()
-  private let inspectionService = ArtifactInspectionService()
   private var isTable: Bool { TablePreviewService.supports(artifact) }
   private var requestID: RequestID {
-    RequestID(job: job.id, artifact: artifact.id, showTableText: isTable && showTableText)
+    RequestID(job: job.id, runDirectory: job.runDirectory, artifact: artifact,
+              showTableText: isTable && showTableText)
   }
 
   var body: some View {
-    let inspection = inspectionService.inspect(artifact, in: job)
+    let snapshot = loadedPreview?.id == requestID ? loadedPreview?.snapshot : nil
+    let inspection = snapshot?.inspection
     return VStack(alignment: .leading, spacing: 12) {
       HStack {
         VStack(alignment: .leading, spacing: 4) {
@@ -361,16 +362,18 @@ struct ArtifactPreview: View {
         }
         Spacer()
         Button {
-          store.revealArtifact(artifact)
+          Task { await store.revealArtifact(artifact) }
         } label: {
           Label("Reveal", systemImage: "folder")
         }
         .accessibilityLabel("Reveal artifact \(store.redactedPreviewText(artifact.relativePath))")
         .accessibilityHint("Shows the selected artifact in Finder.")
-        .disabled(!inspection.canPreview)
+        .disabled(inspection?.canPreview != true)
       }
 
-      ArtifactMetadataView(store: store, job: job, artifact: artifact, inspection: inspection)
+      if let inspection {
+        ArtifactMetadataView(store: store, job: job, artifact: artifact, inspection: inspection)
+      }
       if isTable {
         Toggle("Text sample", isOn: $showTableText)
           .controlSize(.small)
@@ -380,7 +383,7 @@ struct ArtifactPreview: View {
         TableArtifactPreview(store: store, job: job, artifact: artifact)
           .id(requestID)
       } else {
-        preview
+        preview(snapshot)
       }
     }
     .padding(24)
@@ -388,24 +391,19 @@ struct ArtifactPreview: View {
       guard !Task.isCancelled else { return }
       let id = requestID
       loadedPreview = nil
-      guard !isTable || id.showTableText else { return }
-      let result: ArtifactPreviewPayload?
-      if ArtifactPreviewService.isRaster(artifact) {
-        result = await previewService.loadRaster(artifact, in: job)
-      } else if inspectionService.inspect(artifact, in: job).canPreview {
-        result = previewService.load(artifact: artifact, redact: store.redactedPreviewText)
-      } else {
-        result = .outsideRun
+      guard var result = await ArtifactPreviewLoader.shared.load(
+        artifact, in: job, includePreview: !isTable || id.showTableText, redact: store.previewRedactor()
+      ), !Task.isCancelled else { return }
+      if let text = result.payload?.text {
+        result.payload?.text = store.redactedPreviewText(text)
       }
-      guard !Task.isCancelled, let result else { return }
       loadedPreview = (id, result)
     }
   }
 
   @ViewBuilder
-  private var preview: some View {
-    if let loadedPreview, loadedPreview.id == requestID {
-      let payload = loadedPreview.payload
+  private func preview(_ snapshot: ArtifactPreviewSnapshot?) -> some View {
+    if let snapshot, let payload = snapshot.payload {
       VStack(alignment: .leading, spacing: 10) {
         Text(payload.title)
           .font(.headline)
@@ -435,8 +433,7 @@ struct ArtifactPreview: View {
 
         if artifact.artifactType == "preview_png",
            job.capabilityID == "inspect_fits" {
-          if let input = job.requestInputPaths.first,
-             FirstRunExampleService.isGeneratedFITS(at: input) {
+          if snapshot.isGeneratedFITS {
             Text("Synthetic TAN WCS: horizontal right ascension and vertical declination in ICRS, one arcsecond per pixel; pixel unit: adu.")
               .font(.caption)
           }
@@ -455,8 +452,7 @@ struct ArtifactPreview: View {
 
   private func displayImage(_ preview: ArtifactPreviewImage?) -> NSImage? {
     switch preview {
-    case .raster(let image): NSImage(cgImage: image, size: .zero)
-    case .pdfThumbnail(let data): NSImage(data: data)
+    case .raster(let image), .pdfThumbnail(let image): NSImage(cgImage: image, size: .zero)
     case nil: nil
     }
   }

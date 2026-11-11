@@ -73,7 +73,7 @@ actor TablePreviewService {
     redact: @Sendable (String) -> String
   ) throws -> TablePreviewPage {
     try Task.checkCancellation()
-    guard let url = ArtifactInspectionService().inspect(artifact, in: job).resolvedPreviewURL else {
+    guard let url = ArtifactInspectionService().previewURL(for: artifact, in: job) else {
       throw PreviewError.outsideRun
     }
     let descriptor = open(url.path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)

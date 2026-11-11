@@ -260,7 +260,7 @@ extension ScientificWorkbenchTests {
 
   @Test
   @MainActor
-  func artifactPreviewCoversImagePDFTableMarkdownNotebookAndLogs() throws {
+  func artifactPreviewCoversImagePDFTableMarkdownNotebookAndLogs() async throws {
     let root = FileManager.default.temporaryDirectory
       .appendingPathComponent("Scientific-Workbench-Previews-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -304,7 +304,19 @@ extension ScientificWorkbenchTests {
     }
 
     #expect(service.load(artifact: try artifact("preview.png"), redact: redact).kind == .image)
-    #expect(service.load(artifact: try artifact("preview.pdf"), redact: redact).kind == .pdf)
+    let pdfBefore = try Data(contentsOf: pdfURL)
+    let job = JobRecord(capability: sampleCapability(), runDirectory: root.path)
+    let pdf = try #require(await ArtifactPreviewLoader().load(
+      try artifact("preview.pdf"), in: job, includePreview: true, redact: { $0 }
+    ))
+    #expect(pdf.inspection.currentByteCount == Int64(pdfBefore.count))
+    #expect(pdf.payload?.kind == .pdf)
+    guard case .pdfThumbnail(let thumbnail) = pdf.payload?.image else {
+      Issue.record("Expected a rendered first-page thumbnail.")
+      return
+    }
+    #expect(thumbnail.width > 0 && thumbnail.height > 0)
+    #expect(try Data(contentsOf: pdfURL) == pdfBefore)
     #expect(service.load(artifact: try artifact("table.csv"), redact: redact).kind == .table)
     let ecsv = service.load(artifact: try artifact("table.ecsv"), redact: redact)
     #expect(ecsv.kind == .table)
@@ -396,6 +408,21 @@ extension ScientificWorkbenchTests {
     }
     cancelled.cancel()
     #expect(await cancelled.value == nil)
+
+    let link = run.appendingPathComponent("outside.txt")
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: url)
+    let linked = Artifact(path: link.path, relativePath: link.lastPathComponent, byteCount: 7)
+    let loader = ArtifactPreviewLoader()
+    let document = try #require(await loader.load(linked, in: job, includePreview: true, redact: { $0 }))
+    #expect(!document.inspection.canPreview)
+    #expect(document.payload?.title == "Preview unavailable")
+    #expect(document.payload?.text == nil)
+    let cancelledDocument = Task {
+      while !Task.isCancelled { await Task.yield() }
+      return await loader.load(linked, in: job, includePreview: true, redact: { $0 })
+    }
+    cancelledDocument.cancel()
+    #expect(await cancelledDocument.value == nil)
   }
 
   @Test

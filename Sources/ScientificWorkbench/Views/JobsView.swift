@@ -653,8 +653,8 @@ struct LogBlock: View {
         Spacer()
         if let artifact = job.artifacts.first(where: { $0.relativePath == stream.fileName }) {
           Menu("Log File", systemImage: "doc.text") {
-            Button("Open in TextEdit") { store.openRunLog(artifact, stream: stream) }
-            Button("Reveal in Finder") { store.revealArtifact(artifact) }
+            Button("Open in TextEdit") { Task { await store.openRunLog(artifact, stream: stream) } }
+            Button("Reveal in Finder") { Task { await store.revealArtifact(artifact) } }
           }
           .accessibilityLabel("\(stream.rawValue) log file")
           .accessibilityIdentifier("run.log.file.\(stream.rawValue)")

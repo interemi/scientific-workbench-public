@@ -2862,25 +2862,24 @@ final class WorkbenchStore: ObservableObject {
     return false
   }
 
-  func revealArtifact(_ artifact: Artifact) {
-    guard let url = safeArtifactURL(artifact) else { return }
+  func revealArtifact(_ artifact: Artifact) async {
+    guard let url = await safeArtifactURL(artifact) else { return }
     NSWorkspace.shared.activateFileViewerSelecting([url])
   }
 
-  func openRunLog(_ artifact: Artifact, stream: RunLogStream) {
+  func openRunLog(_ artifact: Artifact, stream: RunLogStream) async {
     guard artifact.relativePath == stream.fileName,
-          let url = safeArtifactURL(artifact),
+          let url = await safeArtifactURL(artifact),
           url.pathExtension.lowercased() == "txt" else { return }
     openTextDocument(url)
   }
 
-  private func safeArtifactURL(_ artifact: Artifact) -> URL? {
+  private func safeArtifactURL(_ artifact: Artifact) async -> URL? {
     guard let job = jobs.first(where: { job in
       job.artifacts.contains { $0.id == artifact.id }
-    }), ArtifactInspectionService().inspect(artifact, in: job).canPreview else {
-      return nil
-    }
-    return artifact.url.standardizedFileURL.resolvingSymlinksInPath()
+    }) else { return nil }
+    let url = await ArtifactPreviewLoader.shared.previewURL(for: artifact, in: job)
+    return Task.isCancelled ? nil : url
   }
 
   func redactedPreviewText(_ text: String) -> String {
