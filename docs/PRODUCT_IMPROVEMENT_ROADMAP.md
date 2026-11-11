@@ -285,6 +285,11 @@ record PERF.11 on the available Mac. They establish the settled idle
 behavior, the active process checks and the observed transition after
 completion. The measured scope supports retaining the current cadence.
 
+The [process termination verification](PHASE5_PROCESS_TERMINATION_2026-11-11.md)
+records the PERF.12 single-job guard, cancellation and evidence
+retention during Quit. The process sample uses a synthetic workload.
+Backend-specific resource limits remain open.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.
 

@@ -6,6 +6,17 @@ extension ScientificWorkbenchTests {
   @Test
   @MainActor
   func cancellingJobRetainsPartialFilesAndCapturedLogsInItsRunFolder() async throws {
+    try await verifyJobCancellation(quitting: false)
+  }
+
+  @Test
+  @MainActor
+  func quittingWaitsForCancelledJobAndRetainsItsEvidence() async throws {
+    try await verifyJobCancellation(quitting: true)
+  }
+
+  @MainActor
+  private func verifyJobCancellation(quitting: Bool) async throws {
     let skillRoot = try makeScenarioFixture(
       name: "cancelled-job",
       files: [
@@ -60,7 +71,24 @@ extension ScientificWorkbenchTests {
       return
     }
 
-    store.cancelActiveRun()
+    if quitting {
+      let competingJob = await store.run(capability: capability, rawArguments: "")
+      #expect(competingJob == nil)
+      #expect(store.jobs.count == 1)
+      await store.prepareToQuit()
+      #expect(!store.canCancelActiveRun)
+      let index = outputRoot.appendingPathComponent(".scientificworkbench/jobs.json")
+      let loaded = try JobHistoryStore().loadRecovering(from: index)
+      let saved = try #require(loaded)
+      #expect(saved.diagnostics.normalizedInterruptedCount == 0)
+      #expect(saved.jobs.first?.id == runningJob.id)
+      #expect(saved.jobs.first?.status == .cancelled)
+      let lateJob = await store.run(capability: capability, rawArguments: "")
+      #expect(lateJob == nil)
+      #expect(store.jobs.count == 1)
+    } else {
+      store.cancelActiveRun()
+    }
     let result = try #require(await task.value)
     #expect(result.status == .cancelled)
     #expect(result.stdout.contains("partial stdout"))

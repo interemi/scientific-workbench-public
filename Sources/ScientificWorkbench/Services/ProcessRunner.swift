@@ -134,6 +134,10 @@ actor ProcessRunner {
   static let defaultMaximumTemporaryOutputBytesPerStream = 256 * 1024 * 1024
 
   private var activeProcesses: [UUID: ProcessGroupProcess] = [:]
+  private var cancellationGeneration: UInt64 = 0
+  private var isShuttingDown = false
+  private var pendingRuns = 0
+  private var shutdownWaiters: [CheckedContinuation<Void, Never>] = []
   private let defaultTimeoutSeconds: TimeInterval
   private let maximumCapturedOutputBytes: Int
   private let maximumTemporaryOutputBytesPerStream: Int
@@ -154,8 +158,16 @@ actor ProcessRunner {
   }
 
   func cancelAll() async {
+    cancellationGeneration &+= 1
     for process in activeProcesses.values {
       await stop(process)
+    }
+  }
+
+  func shutdown() async {
+    isShuttingDown = true
+    if pendingRuns > 0 {
+      await withCheckedContinuation { shutdownWaiters.append($0) }
     }
   }
 
@@ -165,8 +177,18 @@ actor ProcessRunner {
     onInterrupted: (@Sendable (InterruptedProcessOutput) async -> Void)? = nil,
     cancellationRequested: (@Sendable () async -> Bool)? = nil
   ) async throws -> ProcessResult {
-    if await cancellationRequested?() == true {
+    let generation = cancellationGeneration
+    let shouldCancel = await cancellationRequested?() == true
+    guard !shouldCancel, !Task.isCancelled, !isShuttingDown, generation == cancellationGeneration else {
       throw ProcessRunnerError.cancelled
+    }
+    pendingRuns += 1
+    defer {
+      pendingRuns -= 1
+      if pendingRuns == 0 {
+        for waiter in shutdownWaiters { waiter.resume() }
+        shutdownWaiters.removeAll()
+      }
     }
     let startedAt = Date()
     let tempRoot = FileManager.default.temporaryDirectory
@@ -227,7 +249,7 @@ actor ProcessRunner {
         }
         guard parentIsRunning || groupIsAlive else { break }
 
-        if Task.isCancelled {
+        if Task.isCancelled || isShuttingDown {
           throw ProcessRunnerError.cancelled
         }
         if let deadline, Date() >= deadline {

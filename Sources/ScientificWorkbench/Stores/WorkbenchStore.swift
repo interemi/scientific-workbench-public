@@ -191,9 +191,10 @@ final class WorkbenchStore: ObservableObject {
 
   private let registryLoader = CapabilityRegistryLoader()
   private let runner = ProcessRunner()
+  private let supportRunner: ProcessRunner
   private let runBundleService = JobRunBundleService()
   private let envelopeParser = ToolEnvelopeParser()
-  private let environmentService = SkillEnvironmentService()
+  private let environmentService: SkillEnvironmentService
   private let environmentCheckLifetime: Duration
   private var environmentRefresh: (id: UUID, task: Task<Void, Never>)?
   private var environmentCheckExpiration: ContinuousClock.Instant?
@@ -215,7 +216,7 @@ final class WorkbenchStore: ObservableObject {
   private let legacyWorkspacePolicy = LegacyWorkspacePolicy.shared
   private let workflowRecoveryService = WorkflowRecoveryService()
   private let workflowDryRunService = WorkflowDryRunService()
-  private let optionalAstronomyBackendService = OptionalAstronomyBackendService()
+  private let optionalAstronomyBackendService: OptionalAstronomyBackendService
   private let radialVelocityInspectionService = RadialVelocityInspectionService()
   private let photometricCalibrationService = PhotometricCalibrationService()
   private let documentWorkflowService = DocumentWorkflowService()
@@ -237,6 +238,7 @@ final class WorkbenchStore: ObservableObject {
   private var ollamaSetupCheckID: UUID?
   private var codexBridgeTask: Task<String, Error>?
   private var jobHistoryRestore: Task<Void, Never>?
+  @Published private(set) var isPreparingToQuit = false
 
   init(
     loadSecrets: Bool = true,
@@ -247,12 +249,16 @@ final class WorkbenchStore: ObservableObject {
     credentialStore: any CloudCredentialStoring = KeychainCredentialStore(),
     filesystemSafetyPolicy: FilesystemSafetyPolicy = FilesystemSafetyPolicy(),
     firstRunExampleLibraryRoot: URL? = nil,
-    ollamaSetupService: OllamaSetupService = OllamaSetupService(),
+    ollamaSetupService: OllamaSetupService? = nil,
     environmentCheckLifetime: Duration = .seconds(600)
   ) {
     self.defaults = defaults
     self.cloudAIClient = cloudAIClient
-    self.ollamaSetupService = ollamaSetupService
+    let supportRunner = ProcessRunner()
+    self.supportRunner = supportRunner
+    self.environmentService = SkillEnvironmentService(runner: supportRunner)
+    self.optionalAstronomyBackendService = OptionalAstronomyBackendService(runner: supportRunner)
+    self.ollamaSetupService = ollamaSetupService ?? OllamaSetupService(runner: supportRunner)
     self.environmentCheckLifetime = environmentCheckLifetime
     self.credentialStore = credentialStore
     self.aiConnectionService = AIConnectionService(client: cloudAIClient)
@@ -262,7 +268,8 @@ final class WorkbenchStore: ObservableObject {
         .appendingPathComponent("Scientific Workbench", isDirectory: true)
         .appendingPathComponent("Examples", isDirectory: true)
     self.agentPlanner = AgentPlanner(
-      cloudAIClient: CloudAIPlannerClient(client: cloudAIClient)
+      cloudAIClient: CloudAIPlannerClient(client: cloudAIClient),
+      skillRouterClient: SkillWorkflowRouterClient(runner: supportRunner)
     )
     let skillRoot = defaults.string(forKey: "skillRootPath") ?? DefaultPaths.motherSkillRoot
     let persistedOutputRoot = defaults.string(forKey: "outputRootPath") ?? DefaultPaths.outputRoot
@@ -413,7 +420,7 @@ final class WorkbenchStore: ObservableObject {
   }
 
   var canChangeWorkflowContext: Bool {
-    !canCancelActiveRun && !isPlanningAgentWorkflow && !isReviewingRadialVelocityInput
+    !isPreparingToQuit && !canCancelActiveRun && !isPlanningAgentWorkflow && !isReviewingRadialVelocityInput
       && !isReviewingPhotometricCalibration && !isReviewingDocumentStyles
       && !isCheckingKeynote && !isExportingKeynote
   }
@@ -2184,13 +2191,31 @@ final class WorkbenchStore: ObservableObject {
 
   func cancelActiveRun() {
     guard canCancelActiveRun else { return }
+    requestActiveRunCancellation()
+    Task {
+      await runner.cancelAll()
+    }
+  }
+
+  func prepareToQuit() async {
+    isPreparingToQuit = true
+    if canCancelActiveRun { requestActiveRunCancellation() }
+    invalidateEnvironmentCheck()
+    async let jobsStopped: Void = runner.shutdown()
+    async let supportStopped: Void = supportRunner.shutdown()
+    _ = await (jobsStopped, supportStopped)
+
+    // The runner releases subprocesses first. The store still has to retain the job and workflow evidence.
+    while canCancelActiveRun {
+      try? await Task.sleep(for: .milliseconds(50))
+    }
+  }
+
+  private func requestActiveRunCancellation() {
     isCancellationRequested = true
     agentStatusMessage = "Cancelling the active run..."
     ollamaPullTask?.cancel()
     codexBridgeTask?.cancel()
-    Task {
-      await runner.cancelAll()
-    }
   }
 
   @discardableResult
@@ -2442,6 +2467,7 @@ final class WorkbenchStore: ObservableObject {
 
   @discardableResult
   private func runAgentPlan(resumeFromPreviousSuccesses: Bool) async -> String {
+    guard !isPreparingToQuit else { return "Scientific Workbench is closing." }
     guard !isPlanningAgentWorkflow else { return "Wait for planning to finish before running a workflow." }
     guard let plan = agentPlan else {
       agentStatusMessage = "Create a plan before running."
@@ -2603,7 +2629,7 @@ final class WorkbenchStore: ObservableObject {
         return nil
       }
     }
-    guard allowDuringAgentWorkflow || (!isRunningAgentWorkflow && !hasActiveJob) else {
+    guard !isPreparingToQuit, !hasActiveJob, allowDuringAgentWorkflow || !isRunningAgentWorkflow else {
       agentStatusMessage = "Wait for the active Scientific Workbench run to finish or cancel it first."
       return nil
     }
@@ -3367,7 +3393,7 @@ final class WorkbenchStore: ObservableObject {
     guard ensureOutputRootWriteApproved(inputPaths: inputPaths) else {
       return agentStatusMessage
     }
-    guard !isRunningCodexBridge, !hasActiveJob, !isRunningAgentWorkflow, !isPullingOllamaModel else {
+    guard !isPreparingToQuit, !isRunningCodexBridge, !hasActiveJob, !isRunningAgentWorkflow, !isPullingOllamaModel else {
       return "A Scientific Workbench operation is already active. Cancel it or wait for it to finish."
     }
     isCancellationRequested = false
@@ -3379,7 +3405,7 @@ final class WorkbenchStore: ObservableObject {
       withIntermediateDirectories: true
     )
     let task = Task {
-      try await CodexBridge(executablePath: codexExecutablePath).run(
+      try await CodexBridge(executablePath: codexExecutablePath, runner: supportRunner).run(
         prompt: prompt,
         inputPaths: inputPaths,
         outputRootPath: outputRootPath,
