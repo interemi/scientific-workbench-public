@@ -53,6 +53,9 @@ final class WorkbenchStore: ObservableObject {
   private(set) var historyCaptureRevision: UInt64 = 0
   private var deferredJobCaptureIDs: Set<JobRecord.ID> = []
   @Published private(set) var isRestoringJobHistory = false
+  @Published private(set) var isSavingJobHistory = false
+  @Published private(set) var isRefreshingRunBundle = false
+  @Published private(set) var jobHistorySaveError: String?
   @Published var recentJobFilter = RecentJobFilter()
   @Published var selectedJobID: UUID?
   @Published var inputPaths: [String] = [] {
@@ -74,6 +77,7 @@ final class WorkbenchStore: ObservableObject {
     didSet {
       if oldValue != outputRootPath {
         outputRootRiskApproved = false
+        jobHistorySaveError = nil
       }
     }
   }
@@ -233,6 +237,7 @@ final class WorkbenchStore: ObservableObject {
   private var pendingOllamaModelDownloadID: UUID?
   private var codexBridgeTask: Task<String, Error>?
   private var jobHistoryRestore: Task<Void, Never>?
+  private var jobHistoryWrite: (id: UUID, task: Task<Result<Void, Error>, Never>)?
   @Published private(set) var isPreparingToQuit = false
 
   init(
@@ -1457,14 +1462,17 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func reloadJobHistory() {
-    guard !isRestoringJobHistory, !hasActiveJob else { return }
+    guard !isPreparingToQuit, !isRestoringJobHistory, !isSavingJobHistory, !hasActiveJob else { return }
     loadJobHistory(deferHydration: true)
   }
 
-  func clearJobHistory() {
-    guard !isRestoringJobHistory else { return }
-    installRestoredJobHistory([])
-    persistJobHistory()
+  func clearJobHistory() async {
+    guard !isPreparingToQuit, !isRestoringJobHistory, !isSavingJobHistory,
+          !hasActiveJob, !isRunningAgentWorkflow else { return }
+    let url = jobHistoryURL
+    if await persistJobHistory([]), jobHistoryURL == url {
+      installRestoredJobHistory([])
+    }
   }
 
   func revealJobHistory() {
@@ -2243,7 +2251,7 @@ final class WorkbenchStore: ObservableObject {
     _ = await (jobsStopped, supportStopped)
 
     // The runner releases subprocesses first. The store still has to retain the job and workflow evidence.
-    while canCancelActiveRun {
+    while canCancelActiveRun || isSavingJobHistory || isRestoringJobHistory {
       try? await Task.sleep(for: .milliseconds(50))
     }
   }
@@ -2651,7 +2659,8 @@ final class WorkbenchStore: ObservableObject {
         return nil
       }
     }
-    guard !isPreparingToQuit, !hasActiveJob, allowDuringAgentWorkflow || !isRunningAgentWorkflow else {
+    guard !isPreparingToQuit, !hasActiveJob, !isSavingJobHistory,
+          allowDuringAgentWorkflow || !isRunningAgentWorkflow else {
       agentStatusMessage = "Wait for the active Scientific Workbench run to finish or cancel it first."
       return nil
     }
@@ -2681,6 +2690,11 @@ final class WorkbenchStore: ObservableObject {
       agentStatusMessage = redactSecrets(error.localizedDescription)
       return nil
     }
+    let requestSkillRoot = skillRootPath
+    let builder = CapabilityCommandBuilder(
+      pythonExecutable: pythonExecutable,
+      timeoutSeconds: externalProcessTimeoutSeconds
+    )
     var job = JobRecord(capability: capability, runDirectory: runDirectory)
     job.requestInputPaths = requestInputPaths
     job.requestRawArguments = rawArguments
@@ -2690,13 +2704,14 @@ final class WorkbenchStore: ObservableObject {
       workflowExecutionIdentity?.jobIDs.insert(job.id)
     }
     selectedJobID = job.id
-    persistJobHistory()
+    await persistJobHistory(jobs)
     let interruptedOutput = InterruptedProcessOutputCapture()
     if selectJobs {
       selectedSection = .jobs
     }
 
     do {
+      if isCancellationRequested || Task.isCancelled { throw CancellationError() }
       try FileManager.default.createDirectory(
         atPath: runDirectory,
         withIntermediateDirectories: true
@@ -2720,20 +2735,16 @@ final class WorkbenchStore: ObservableObject {
         outputDirectory: runDirectory,
         rawArguments: effectiveRawArguments
       )
-      let builder = CapabilityCommandBuilder(
-        pythonExecutable: pythonExecutable,
-        timeoutSeconds: externalProcessTimeoutSeconds
-      )
       let command = try builder.build(
         capability: capability,
         request: request,
-        skillRoot: skillRootPath
+        skillRoot: requestSkillRoot
       )
 
       job.status = .running
       job.command = redactSecrets(command.pretty)
       job.startedAt = Date()
-      replace(job)
+      await replace(job)
 
       let result = try await runner.run(
         command,
@@ -2782,7 +2793,7 @@ final class WorkbenchStore: ObservableObject {
         fallbackEnvelope: stdoutEnvelope,
         redact: redactSecrets
       )
-      replace(job)
+      await replace(job)
       if ownsCancellationState {
         isCancellationRequested = false
       }
@@ -2814,7 +2825,7 @@ final class WorkbenchStore: ObservableObject {
       runBundleService.hydrate(&job, redact: redactSecrets)
       runBundleService.writeNextStepsIfMissing(for: job)
       runBundleService.hydrate(&job, redact: redactSecrets)
-      replace(job)
+      await replace(job)
       if ownsCancellationState {
         isCancellationRequested = false
       }
@@ -2881,11 +2892,24 @@ final class WorkbenchStore: ObservableObject {
     return { SecretsRedactor.redact($0, secrets: secrets) }
   }
 
-  func refreshRunBundle(for job: JobRecord) {
-    var refreshed = job
-    runBundleService.hydrate(&refreshed, redact: redactSecrets)
+  func refreshRunBundle(for job: JobRecord) async {
+    guard !isPreparingToQuit, !isRestoringJobHistory, !isSavingJobHistory, !isRefreshingRunBundle,
+          let current = jobs.first(where: { $0.id == job.id }) else { return }
+    let revision = jobsRevision
+    let url = jobHistoryURL
+    let secrets = configuredSecrets
+    isRefreshingRunBundle = true
+    defer { isRefreshingRunBundle = false }
+
+    let refreshed = await Task.detached(priority: .userInitiated) {
+      var refreshed = current
+      JobRunBundleService().hydrate(&refreshed) { SecretsRedactor.redact($0, secrets: secrets) }
+      return refreshed
+    }.value
+    guard !Task.isCancelled, !isPreparingToQuit, !isRestoringJobHistory, !isSavingJobHistory,
+          jobsRevision == revision, jobHistoryURL == url, configuredSecrets == secrets else { return }
     deferredJobCaptureIDs.remove(job.id)
-    replace(refreshed)
+    await replace(refreshed)
   }
 
   func hasDeferredCapture(for job: JobRecord) -> Bool {
@@ -2990,10 +3014,10 @@ final class WorkbenchStore: ObservableObject {
     arguments += [option, trimmed]
   }
 
-  private func replace(_ job: JobRecord) {
+  private func replace(_ job: JobRecord) async {
     guard let index = jobs.firstIndex(where: { $0.id == job.id }) else { return }
     jobs[index] = job
-    persistJobHistory()
+    await persistJobHistory(jobs)
   }
 
   private var jobHistoryURL: URL {
@@ -3315,14 +3339,36 @@ final class WorkbenchStore: ObservableObject {
     }
   }
 
-  private func persistJobHistory() {
-    guard outputRootWriteIsApproved(inputPaths: inputPaths) else { return }
-    let url = jobHistoryURL
-    do {
-      try jobHistoryStore.persist(jobs: jobs, to: url)
-    } catch {
-      registryError = "Could not save job history: \(error.localizedDescription)"
+  @discardableResult
+  private func persistJobHistory(_ records: [JobRecord]) async -> Bool {
+    guard outputRootWriteIsApproved(inputPaths: inputPaths) else {
+      jobHistorySaveError = "Could not save job history. Review the output folder in Settings."
+      return false
     }
+    let url = jobHistoryURL
+    let id = UUID()
+    let precedingWrite = jobHistoryWrite?.task
+    let task: Task<Result<Void, Error>, Never> = Task.detached(priority: .userInitiated) {
+      _ = await precedingWrite?.value
+      return Result { try JobHistoryStore().persist(jobs: records, to: url) }
+    }
+    jobHistoryWrite = (id, task)
+    isSavingJobHistory = true
+    let result = await task.value
+    if jobHistoryWrite?.id == id {
+      jobHistoryWrite = nil
+      isSavingJobHistory = false
+      if jobHistoryURL == url {
+        switch result {
+        case .success:
+          jobHistorySaveError = nil
+        case .failure(let error):
+          jobHistorySaveError = "Could not save job history. \(redactSecrets(error.localizedDescription))"
+        }
+      }
+    }
+    if case .success = result { return true }
+    return false
   }
 
   private func launchAutomationPlanWithRestrictedStepsEnabledIfNeeded(_ plan: AgentPlan) -> AgentPlan {

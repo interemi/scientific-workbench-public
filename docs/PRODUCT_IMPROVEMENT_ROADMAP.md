@@ -294,6 +294,10 @@ The [repeated request verification](PHASE5_SINGLE_SUBMISSION_2026-11-11.md)
 records PERF.13 for Chat, cloud reviews, and Ollama checks and downloads.
 The earlier environment check verification covers shared Core probes.
 
+The [job history checkpoint verification](PHASE5_HISTORY_CHECKPOINTS_2026-11-11.md)
+records PERF.14 progress on background saves and retention after a failed
+write. Agent state, manifests and large recovery rewrites remain open.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.
 

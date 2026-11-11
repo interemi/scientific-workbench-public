@@ -181,7 +181,7 @@ struct JobsView: View {
         .accessibilityLabel("Reload job history")
         .accessibilityIdentifier("jobs.reload-history")
         .help("Reload persisted job history from disk.")
-        .disabled(store.isRestoringJobHistory || store.hasActiveJob)
+        .disabled(store.isRestoringJobHistory || store.isSavingJobHistory || store.hasActiveJob)
 
         Button {
           store.revealJobHistory()
@@ -194,7 +194,7 @@ struct JobsView: View {
         .help("Reveal the persisted job history JSON.")
 
         Button(role: .destructive) {
-          store.clearJobHistory()
+          Task { await store.clearJobHistory() }
         } label: {
           Label("Clear History", systemImage: "trash")
         }
@@ -203,9 +203,18 @@ struct JobsView: View {
         .accessibilityHint("Removes the visible persisted history after all active jobs have finished.")
         .accessibilityIdentifier("jobs.clear-history")
         .help("Clear the visible and persisted job history.")
-        .disabled(store.jobs.isEmpty || store.hasActiveJob)
+        .disabled(store.jobs.isEmpty || store.hasActiveJob || store.isRunningAgentWorkflow
+          || store.isRestoringJobHistory || store.isSavingJobHistory)
       }
       .padding(.horizontal, 16)
+
+      if let error = store.jobHistorySaveError {
+        Label(error, systemImage: "exclamationmark.triangle")
+          .font(.caption)
+          .foregroundStyle(.orange)
+          .padding(.horizontal, 16)
+          .accessibilityIdentifier("jobs.history-save-error")
+      }
 
       if let notice = store.persistenceRecoveryNotice {
         VStack(alignment: .leading, spacing: 6) {
@@ -339,10 +348,11 @@ struct JobDetailView: View {
           }
 
           Button {
-            store.refreshRunBundle(for: job)
+            Task { await store.refreshRunBundle(for: job) }
           } label: {
             Label("Refresh Bundle", systemImage: "arrow.clockwise")
           }
+          .disabled(store.isSavingJobHistory || store.isRefreshingRunBundle)
           .help("Re-read summary, manifest, logs, next steps, and artifacts from the run folder.")
 
           Button {

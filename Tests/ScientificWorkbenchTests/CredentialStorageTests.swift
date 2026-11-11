@@ -61,7 +61,7 @@ extension ScientificWorkbenchTests {
 
     #expect(store.isRestoringJobHistory)
     #expect(store.jobs.isEmpty)
-    store.clearJobHistory()
+    await store.clearJobHistory()
     store.reloadJobHistory()
     #expect(try Data(contentsOf: history) == historyBefore)
 

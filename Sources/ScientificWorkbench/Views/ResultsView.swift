@@ -298,10 +298,11 @@ struct ResultsSummaryView: View {
             Label("Reveal Run Folder", systemImage: "folder")
           }
           Button {
-            store.refreshRunBundle(for: job)
+            Task { await store.refreshRunBundle(for: job) }
           } label: {
             Label("Refresh", systemImage: "arrow.clockwise")
           }
+          .disabled(store.isSavingJobHistory || store.isRefreshingRunBundle)
           Button {
             store.exportJobSupportBundle(job)
           } label: {
