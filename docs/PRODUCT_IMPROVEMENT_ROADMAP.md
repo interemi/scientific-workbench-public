@@ -231,7 +231,7 @@ and artifacts. This is an internal functional criterion, not a user-success rate
 | PERF.13 | Deduplicate repeated submissions and refreshes. |
 | PERF.14 | Improve persistence only against measured size, latency, and recovery cases. |
 | PERF.15 | Explain derived-data quotas and clean only reviewed, regenerable material. |
-| PERF.17 | Set fluency budgets against the recorded local baseline and representative fixtures. |
+| PERF.17 | Set trace-based budgets for interaction latency, preview memory, in-memory logs, search, and p95 startup on the reference Mac. Turn the most important budgets into release checks. |
 
 The [startup history measurement](PHASE5_STARTUP_HISTORY_2026-11-06.md)
 records the PERF.02 component result for run-bundle reads. The
@@ -300,7 +300,8 @@ after failed writes, and the measured sizes and costs of agent state and
 manifests. The measured workload retains the existing checkpoint schedule.
 
 Exit: each optimization shows a measured gain without losing results, evidence,
-responsiveness, or cancellation on the tested machine.
+responsiveness, or cancellation on the tested machine. Each performance budget
+names its representative workload, reference machine, and tolerance.
 
 ## Phase 6 — Strengthen scientific rigor and reproducibility
 
