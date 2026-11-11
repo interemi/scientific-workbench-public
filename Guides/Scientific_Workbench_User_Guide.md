@@ -392,6 +392,18 @@ applies only portable preferences: local paths, executables, and the Codex
 sandbox remain unchanged. API keys are excluded from configuration export/import
 and remain in Keychain or environment variables.
 
+Use **Settings → Output Storage → Measure Storage** to check saved
+stdout and stderr, `logs/` files and `previews/` files for the runs
+listed in Jobs under the selected output folder. This measures file
+sizes for those runs. A retained log or saved preview stays with its
+run, including the only log of a failed run.
+
+The same section shows the size of the one-thumbnail preview cache
+in memory. **Clear Cached Preview…** shows its size for confirmation
+and reports the size afterward. Opening the artifact again recreates
+its thumbnail. The app applies a 256 MiB temporary output threshold
+per stream and stops a process when it detects a stream above it.
+
 ## 10. Safety rules
 
 Keep independent backups of important inputs and review outputs before using

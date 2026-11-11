@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import Foundation
 import ImageIO
 import PDFKit
@@ -34,7 +35,7 @@ struct ArtifactPreviewPayload: Sendable {
 }
 
 struct ArtifactPreviewService {
-  private static let rasterLoader = RasterPreviewLoader()
+  static let rasterLoader = RasterPreviewLoader()
   private static let rasterExtensions: Set<String> = ["png", "jpg", "jpeg", "tif", "tiff"]
   private let maximumRasterFileBytes = 256 * 1024 * 1024
   private let maximumRasterDimension = 16_384
@@ -240,14 +241,80 @@ struct ArtifactPreviewService {
 
 // A canceled caller can finish an in-flight ImageIO call, but queued work
 // checks cancellation before opening its file and never publishes that result.
-private actor RasterPreviewLoader {
+actor RasterPreviewLoader {
+  static let maximumCacheBytes = 12 * 1024 * 1024
+
+  struct CacheUsage: Equatable, Sendable {
+    fileprivate let id: UUID?
+    let bytes: Int
+  }
+
+  private struct SourceVersion: Equatable {
+    let device: dev_t
+    let inode: ino_t
+    let bytes: off_t
+    let modifiedSeconds: Int
+    let modifiedNanoseconds: Int
+    let changedSeconds: Int
+    let changedNanoseconds: Int
+
+    init?(_ url: URL) {
+      var info = stat()
+      guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { return nil }
+      device = info.st_dev
+      inode = info.st_ino
+      bytes = info.st_size
+      modifiedSeconds = info.st_mtimespec.tv_sec
+      modifiedNanoseconds = info.st_mtimespec.tv_nsec
+      changedSeconds = info.st_ctimespec.tv_sec
+      changedNanoseconds = info.st_ctimespec.tv_nsec
+    }
+  }
+
+  private struct CacheEntry {
+    let id = UUID()
+    let url: URL
+    let version: SourceVersion
+    let payload: ArtifactPreviewPayload
+    let bytes: Int
+  }
+
+  private var cache: CacheEntry?
+
+  func cacheUsage() -> CacheUsage {
+    CacheUsage(id: cache?.id, bytes: cache?.bytes ?? 0)
+  }
+
+  func clearCache(reviewed usage: CacheUsage) -> CacheUsage? {
+    guard usage.id == cache?.id else { return nil }
+    cache = nil
+    return cacheUsage()
+  }
+
   func load(_ artifact: Artifact, in job: JobRecord) -> ArtifactPreviewPayload? {
     guard !Task.isCancelled else { return nil }
-    guard let url = ArtifactInspectionService().inspect(artifact, in: job).resolvedPreviewURL else {
+    guard let url = ArtifactInspectionService().inspect(artifact, in: job).resolvedPreviewURL,
+          let version = SourceVersion(url) else {
       return .outsideRun
     }
     guard !Task.isCancelled else { return nil }
+    if let cache, cache.url == url, cache.version == version { return cache.payload }
+
     let result = ArtifactPreviewService().imagePreview(url)
-    return Task.isCancelled ? nil : result
+    guard !Task.isCancelled else { return nil }
+    guard SourceVersion(url) == version else {
+      return ArtifactPreviewPayload(
+        kind: .unavailable,
+        title: "Image preview unavailable",
+        note: "The artifact changed while loading. Select it again to refresh the preview."
+      )
+    }
+    if case .raster(let thumbnail) = result.image {
+      let bytes = thumbnail.bytesPerRow * thumbnail.height
+      if bytes <= Self.maximumCacheBytes {
+        cache = CacheEntry(url: url, version: version, payload: result, bytes: bytes)
+      }
+    }
+    return result
   }
 }

@@ -397,6 +397,52 @@ extension ScientificWorkbenchTests {
     #expect(await cancelled.value == nil)
   }
 
+  @Test
+  func rasterPreviewCacheReusesOnlyTheCurrentVersionAndClearsOnlyTheReviewedEntry() async throws {
+    let root = try makeScenarioFixture(name: "raster-preview-cache", files: ["stderr.txt": "failure evidence"])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let imageURL = root.appendingPathComponent("preview.png")
+    let failureLog = root.appendingPathComponent("stderr.txt")
+    try writeRasterFixture(to: imageURL, width: 40, height: 30, type: .png)
+    let original = try Data(contentsOf: imageURL)
+    let artifact = Artifact(path: imageURL.path, relativePath: imageURL.lastPathComponent, byteCount: Int64(original.count))
+    let job = JobRecord(capability: sampleCapability(), runDirectory: root.path)
+    let loader = RasterPreviewLoader()
+
+    let first = await loader.load(artifact, in: job)
+    let cached = await loader.load(artifact, in: job)
+    guard case .raster(let firstImage) = first?.image, case .raster(let cachedImage) = cached?.image else {
+      Issue.record("Expected a raster thumbnail for both requests.")
+      return
+    }
+    #expect(firstImage === cachedImage)
+    let reviewed = await loader.cacheUsage()
+    #expect(reviewed.bytes == cachedImage.bytesPerRow * cachedImage.height)
+    #expect(reviewed.bytes <= RasterPreviewLoader.maximumCacheBytes)
+    #expect(try Data(contentsOf: imageURL) == original)
+
+    let replacement = root.appendingPathComponent("replacement.png")
+    try writeRasterFixture(to: replacement, width: 80, height: 30, type: .png)
+    let newSource = try Data(contentsOf: replacement)
+    try newSource.write(to: imageURL, options: .atomic)
+    let refreshed = await loader.load(artifact, in: job)
+    guard case .raster(let refreshedImage) = refreshed?.image else {
+      Issue.record("Expected a raster thumbnail after replacement.")
+      return
+    }
+    #expect(refreshedImage.width == 80)
+    #expect(await loader.clearCache(reviewed: reviewed) == nil)
+    let latest = await loader.cacheUsage()
+    #expect(latest.bytes > 0)
+    #expect(await loader.clearCache(reviewed: latest)?.bytes == 0)
+    #expect(try Data(contentsOf: imageURL) == newSource)
+    #expect(try String(contentsOf: failureLog, encoding: .utf8) == "failure evidence")
+
+    let rebuilt = await loader.load(artifact, in: job)
+    #expect(rebuilt?.kind == .image)
+    #expect(await loader.cacheUsage().bytes == latest.bytes)
+  }
+
   private func writeRasterFixture(
     to url: URL, width: Int, height: Int, type: UTType, orientation: Int = 1
   ) throws {
