@@ -304,9 +304,11 @@ records PERF.15 file-size measurement, capture limits, and confirmed
 cleanup of the regenerable in-memory preview cache.
 
 The [reference performance budgets](PHASE5_PERFORMANCE_BUDGETS_2026-11-11.md)
-record PERF.17 startup, preview, log, and search limits, and identify the
-open navigation target. The startup check is reproducible from a clean
-checkout and uses its own synthetic history.
+record PERF.17 startup, preview, log, and search limits. The startup
+check is reproducible from a clean checkout and uses its own synthetic
+history. The [navigation and backend follow-up](PHASE5_NAVIGATION_AND_BACKEND_IO_2026-11-11.md)
+compares the phase baseline and candidate and records reference I/O
+limits for two small Core fixtures.
 
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine. Each performance budget
