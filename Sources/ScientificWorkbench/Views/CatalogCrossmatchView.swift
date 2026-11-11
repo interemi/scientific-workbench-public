@@ -1,15 +1,23 @@
 import SwiftUI
 
 struct CatalogCrossmatchView: View {
+  private struct ReviewRequest: Equatable {
+    let path: String
+    let attachments: [String]
+  }
+
+  private typealias Inspection = (
+    request: ReviewRequest, result: Result<CatalogCrossmatchTableReview, any Error>
+  )
+
   @ObservedObject var store: WorkbenchStore
   let capability: CapabilityEntry
 
   @State private var leftPath = ""
   @State private var rightPath = ""
-  @State private var leftReview: CatalogCrossmatchTableReview?
-  @State private var rightReview: CatalogCrossmatchTableReview?
-  @State private var leftError: String?
-  @State private var rightError: String?
+  @State private var inspectedAttachments: (paths: [String], files: [String])?
+  @State private var leftInspection: Inspection?
+  @State private var rightInspection: Inspection?
   @State private var runError: String?
   @State private var leftRAColumn: Int?
   @State private var leftDecColumn: Int?
@@ -21,7 +29,10 @@ struct CatalogCrossmatchView: View {
   private let inspectionService = CatalogCrossmatchInspectionService()
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 14) {
+    let attachments = store.inputPaths
+    let leftRequest = request(for: leftPath)
+    let rightRequest = request(for: rightPath)
+    return VStack(alignment: .leading, spacing: 14) {
       HStack {
         VStack(alignment: .leading, spacing: 4) {
           Text("Sky Crossmatch Review")
@@ -36,36 +47,41 @@ struct CatalogCrossmatchView: View {
         }
       }
 
-      Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 10) {
-        GridRow {
-          Picker("Left catalog", selection: $leftPath) {
-            Text("Select").tag("")
-            ForEach(fileCandidates, id: \.self) { path in
-              Text(URL(fileURLWithPath: path).lastPathComponent).tag(path)
+      if let fileCandidates {
+        Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 10) {
+          GridRow {
+            Picker("Left catalog", selection: $leftPath) {
+              Text("Select").tag("")
+              ForEach(fileCandidates, id: \.self) { path in
+                Text(URL(fileURLWithPath: path).lastPathComponent).tag(path)
+              }
             }
-          }
-          Picker("Right catalog", selection: $rightPath) {
-            Text("Select").tag("")
-            ForEach(fileCandidates, id: \.self) { path in
-              Text(URL(fileURLWithPath: path).lastPathComponent).tag(path)
+            Picker("Right catalog", selection: $rightPath) {
+              Text("Select").tag("")
+              ForEach(fileCandidates, id: \.self) { path in
+                Text(URL(fileURLWithPath: path).lastPathComponent).tag(path)
+              }
             }
           }
         }
+        .pickerStyle(.menu)
+      } else {
+        ProgressView("Checking attached files…")
+          .controlSize(.small)
       }
-      .pickerStyle(.menu)
 
       HStack(alignment: .top, spacing: 24) {
         catalogMapping(
           title: "Left catalog",
-          review: leftReview,
-          error: leftError,
+          result: result(of: leftInspection, for: leftRequest),
+          hasSelection: leftRequest != nil,
           raColumn: $leftRAColumn,
           decColumn: $leftDecColumn
         )
         catalogMapping(
           title: "Right catalog",
-          review: rightReview,
-          error: rightError,
+          result: result(of: rightInspection, for: rightRequest),
+          hasSelection: rightRequest != nil,
           raColumn: $rightRAColumn,
           decColumn: $rightDecColumn
         )
@@ -80,6 +96,7 @@ struct CatalogCrossmatchView: View {
           isOn: $coordinateUnitsConfirmed
         )
         .toggleStyle(.checkbox)
+        .disabled(leftReview == nil || rightReview == nil)
       }
 
       validationPanel
@@ -98,23 +115,53 @@ struct CatalogCrossmatchView: View {
         .disabled(validation?.canRun != true || store.hasActiveJob)
       }
     }
-    .task(id: store.inputPaths) {
-      reconcileInputs()
+    .task(id: attachments) {
+      await reconcileInputs(attachments)
     }
-    .onChange(of: leftPath) {
-      reviewLeftCatalog()
+    .task(id: leftRequest) {
+      guard !Task.isCancelled, leftRequest == request(for: leftPath) else { return }
+      leftInspection = nil
+      leftRAColumn = nil
+      leftDecColumn = nil
+      coordinateUnitsConfirmed = false
+      guard let leftRequest, let result = await inspect(leftRequest),
+            leftRequest == request(for: leftPath) else { return }
+      leftInspection = (leftRequest, result)
     }
-    .onChange(of: rightPath) {
-      reviewRightCatalog()
+    .task(id: rightRequest) {
+      guard !Task.isCancelled, rightRequest == request(for: rightPath) else { return }
+      rightInspection = nil
+      rightRAColumn = nil
+      rightDecColumn = nil
+      coordinateUnitsConfirmed = false
+      guard let rightRequest, let result = await inspect(rightRequest),
+            rightRequest == request(for: rightPath) else { return }
+      rightInspection = (rightRequest, result)
     }
   }
 
-  private var fileCandidates: [String] {
-    store.inputPaths.filter { path in
-      var isDirectory: ObjCBool = false
-      return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
-        && !isDirectory.boolValue
-    }
+  private var fileCandidates: [String]? {
+    guard let inspectedAttachments, inspectedAttachments.paths == store.inputPaths else { return nil }
+    return inspectedAttachments.files
+  }
+
+  private func request(for path: String) -> ReviewRequest? {
+    guard fileCandidates?.contains(path) == true else { return nil }
+    return ReviewRequest(path: path, attachments: store.inputPaths)
+  }
+
+  private func result(of inspection: Inspection?, for request: ReviewRequest?)
+    -> Result<CatalogCrossmatchTableReview, any Error>? {
+    guard let inspection, inspection.request == request else { return nil }
+    return inspection.result
+  }
+
+  private var leftReview: CatalogCrossmatchTableReview? {
+    try? result(of: leftInspection, for: request(for: leftPath))?.get()
+  }
+
+  private var rightReview: CatalogCrossmatchTableReview? {
+    try? result(of: rightInspection, for: request(for: rightPath))?.get()
   }
 
   private var selection: CatalogCrossmatchSelection {
@@ -139,8 +186,8 @@ struct CatalogCrossmatchView: View {
 
   private func catalogMapping(
     title: String,
-    review: CatalogCrossmatchTableReview?,
-    error: String?,
+    result: Result<CatalogCrossmatchTableReview, any Error>?,
+    hasSelection: Bool,
     raColumn: Binding<Int?>,
     decColumn: Binding<Int?>
   ) -> some View {
@@ -148,11 +195,11 @@ struct CatalogCrossmatchView: View {
       Text(title)
         .font(.subheadline)
         .fontWeight(.semibold)
-      if let error {
-        Label(error, systemImage: "exclamationmark.triangle.fill")
+      if case .failure(let error) = result {
+        Label(error.localizedDescription, systemImage: "exclamationmark.triangle.fill")
           .font(.caption)
           .foregroundStyle(.orange)
-      } else if let review {
+      } else if case .success(let review) = result {
         Text("\(review.sampledRowCount) sampled row(s) · \(review.formatLabel) separated")
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -169,6 +216,9 @@ struct CatalogCrossmatchView: View {
           }
         }
         .pickerStyle(.menu)
+      } else if hasSelection {
+        ProgressView("Inspecting catalog…")
+          .controlSize(.small)
       } else {
         Text("Select a supported text catalog to inspect its header.")
           .font(.caption)
@@ -196,15 +246,16 @@ struct CatalogCrossmatchView: View {
           .font(.caption)
           .foregroundStyle(.secondary)
       }
-    } else if fileCandidates.count < 2 {
+    } else if let fileCandidates, fileCandidates.count < 2 {
       Text("Attach at least two CSV, TSV, ECSV, or delimited text catalogs.")
         .font(.caption)
         .foregroundStyle(.orange)
     }
   }
 
-  private func reconcileInputs() {
-    let candidates = fileCandidates
+  private func reconcileInputs(_ attachments: [String]) async {
+    guard let candidates = try? await GuidedInputReviewLoader.shared.catalogFiles(in: attachments),
+          !Task.isCancelled, attachments == store.inputPaths else { return }
     if !candidates.contains(leftPath) {
       leftPath = candidates.first ?? ""
     }
@@ -213,35 +264,15 @@ struct CatalogCrossmatchView: View {
     }
     coordinateUnitsConfirmed = false
     runError = nil
-    reviewLeftCatalog()
-    reviewRightCatalog()
+    inspectedAttachments = (attachments, candidates)
   }
 
-  private func reviewLeftCatalog() {
-    leftReview = nil
-    leftError = nil
-    leftRAColumn = nil
-    leftDecColumn = nil
-    coordinateUnitsConfirmed = false
-    guard !leftPath.isEmpty else { return }
+  private func inspect(_ request: ReviewRequest) async -> Result<CatalogCrossmatchTableReview, any Error>? {
     do {
-      leftReview = try inspectionService.inspect(path: leftPath)
+      let review = try await GuidedInputReviewLoader.shared.inspectCatalog(at: request.path)
+      return Task.isCancelled ? nil : .success(review)
     } catch {
-      leftError = error.localizedDescription
-    }
-  }
-
-  private func reviewRightCatalog() {
-    rightReview = nil
-    rightError = nil
-    rightRAColumn = nil
-    rightDecColumn = nil
-    coordinateUnitsConfirmed = false
-    guard !rightPath.isEmpty else { return }
-    do {
-      rightReview = try inspectionService.inspect(path: rightPath)
-    } catch {
-      rightError = error.localizedDescription
+      return Task.isCancelled ? nil : .failure(error)
     }
   }
 

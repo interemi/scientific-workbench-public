@@ -51,10 +51,27 @@ struct LegacyReportEvidenceService {
     )
   }
 
+  func scaffoldIssue(at path: String) -> String? {
+    var projectIsDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(
+      atPath: path,
+      isDirectory: &projectIsDirectory
+    ), projectIsDirectory.boolValue else {
+      return "The selected report scaffold is not a readable directory."
+    }
+    let mainTeX = URL(fileURLWithPath: path)
+      .appendingPathComponent("main.tex").path
+    guard FileManager.default.fileExists(atPath: mainTeX) else {
+      return "The selected folder is not a legacy report scaffold because main.tex is missing."
+    }
+    return nil
+  }
+
   func validate(
     selection: LegacyReportPopulateSelection,
     attachedInputPaths: [String],
-    reviews: [String: LegacyReportEvidenceReview]
+    reviews: [String: LegacyReportEvidenceReview],
+    scaffoldIssue: String?
   ) -> LegacyReportPopulateValidation {
     guard !selection.projectPath.isEmpty else {
       return blocked("Select the legacy report scaffold project.")
@@ -62,17 +79,8 @@ struct LegacyReportEvidenceService {
     guard attachedInputPaths.contains(selection.projectPath) else {
       return blocked("The selected report scaffold must remain attached as an input.")
     }
-    var projectIsDirectory: ObjCBool = false
-    guard FileManager.default.fileExists(
-      atPath: selection.projectPath,
-      isDirectory: &projectIsDirectory
-    ), projectIsDirectory.boolValue else {
-      return blocked("The selected report scaffold is not a readable directory.")
-    }
-    let mainTeX = URL(fileURLWithPath: selection.projectPath)
-      .appendingPathComponent("main.tex").path
-    guard FileManager.default.fileExists(atPath: mainTeX) else {
-      return blocked("The selected folder is not a legacy report scaffold because main.tex is missing.")
+    if let scaffoldIssue {
+      return blocked(scaffoldIssue)
     }
 
     let used = selection.assignments.filter { $0.role != .unused }
@@ -141,7 +149,9 @@ struct LegacyReportEvidenceService {
     let validation = validate(
       selection: selection,
       attachedInputPaths: attachedInputPaths,
-      reviews: reviews
+      reviews: reviews,
+      scaffoldIssue: attachedInputPaths.contains(selection.projectPath)
+        ? scaffoldIssue(at: selection.projectPath) : nil
     )
     guard validation.canRun else {
       throw LegacyReportEvidenceError.invalidSelection(

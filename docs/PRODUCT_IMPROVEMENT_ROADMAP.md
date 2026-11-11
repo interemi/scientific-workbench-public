@@ -315,6 +315,10 @@ records a PERF.02 improvement for artifact metadata, PDF thumbnails,
 and comparisons. It includes a main-actor responsiveness measurement
 and an isolated app check.
 
+The [guided input review verification](PHASE5_GUIDED_INPUT_IO_2026-11-11.md)
+records the PERF.02 changes for Sky Crossmatch and Legacy Report
+Evidence Mapping, including the checks after detaching an input.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine. Each performance budget
 names its representative workload, reference machine, and tolerance.
