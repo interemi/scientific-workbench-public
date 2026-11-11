@@ -280,6 +280,11 @@ search metadata. The [large history graphical verification](PHASE5_HISTORY_GUI_2
 completes the local PERF.09 checks for 10,000 jobs. The full-index write
 cost informs PERF.14.
 
+The [idle and active application measurements](PHASE5_IDLE_ACTIVITY_2026-11-11.md)
+record PERF.11 on the available Mac. They establish the settled idle
+behavior, the active process checks and the observed transition after
+completion. The measured scope supports retaining the current cadence.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.
 
