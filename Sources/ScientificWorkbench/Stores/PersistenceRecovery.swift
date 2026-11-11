@@ -8,6 +8,7 @@ enum PersistenceStoreError: LocalizedError, Equatable {
   case oversizedFile(String)
   case unsafeFileType(String)
   case recoveryWriteNotApproved(String)
+  case changedDuringRecovery(String)
 
   var errorDescription: String? {
     switch self {
@@ -23,6 +24,8 @@ enum PersistenceStoreError: LocalizedError, Equatable {
       return "The persisted state must be a regular file and cannot be a symbolic link: \(path)"
     case .recoveryWriteNotApproved(let path):
       return "Persisted state was read but cannot be migrated until the output root is approved: \(path)"
+    case .changedDuringRecovery(let path):
+      return "Persisted state changed during recovery. Reload it to try again: \(path)"
     }
   }
 
@@ -30,7 +33,7 @@ enum PersistenceStoreError: LocalizedError, Equatable {
     switch self {
     case .invalidDocument, .missingCollection:
       return true
-    case .unsupportedVersion, .oversizedFile, .unsafeFileType, .recoveryWriteNotApproved:
+    case .unsupportedVersion, .oversizedFile, .unsafeFileType, .recoveryWriteNotApproved, .changedDuringRecovery:
       return false
     }
   }
@@ -77,7 +80,7 @@ struct PersistenceLoadDiagnostics: Equatable, Sendable {
 enum PersistenceFileAccess {
   private static let maximumBytes: Int64 = 128 * 1_024 * 1_024
 
-  static func readData(from url: URL) throws -> Data? {
+  static func readData(from url: URL, options: Data.ReadingOptions = [.mappedIfSafe]) throws -> Data? {
     var isDirectory: ObjCBool = false
     guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
       return nil
@@ -94,7 +97,7 @@ enum PersistenceFileAccess {
       throw PersistenceStoreError.unsafeFileType(url.path)
     }
     if let fileSize = values.fileSize { try validateSize(fileSize, at: url) }
-    return try Data(contentsOf: url, options: [.mappedIfSafe])
+    return try Data(contentsOf: url, options: options)
   }
 
   static func validateSize(_ bytes: Int, at url: URL) throws {

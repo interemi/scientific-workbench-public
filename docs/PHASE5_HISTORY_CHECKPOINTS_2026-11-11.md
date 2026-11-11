@@ -39,6 +39,55 @@ were preserved, then restored permissions and verified the clear
 on retry. Recovery tests also verified schema-1 migration and
 retention of the exact original bytes for malformed history.
 
-PERF.14 remains open for measuring agent state and run manifests,
-timing large recovery rewrites, and determining whether batching or
-compaction is justified.
+## Large recovery rewrites
+
+The graphical restore path now encodes, archives and replaces a
+recoverable history off the main actor. It compares the source bytes
+with the file before replacement and verifies the archive matches.
+If the file changed after the read, recovery leaves it in place and
+reports that the history should be reloaded.
+
+Three paired component observations used a 5,470,059-byte schema-1
+copy of the same 10,000-job fixture. The reference was `1c9c292`.
+
+| Path | Median time to restore | Largest main-actor heartbeat gap |
+| --- | ---: | ---: |
+| Reference migration | 2,169.4 ms | 194.4 ms |
+| Background migration | 2,151.2 ms | 18.6 ms |
+
+Every migrated index reopened with 10,000 records and the archive
+matched the input bytes. A separate malformed-index variant also
+kept an exact archive before starting an empty history. That variant
+took approximately 42 ms to recover with a maximum 8.0 ms heartbeat
+gap across the reference and candidate. The 408 Swift tests passed,
+including graphical-path migration and protection for a newer file
+written after the migration read.
+
+## Other persisted state
+
+The active plan and step outcomes are saved on plan changes and
+workflow progress. A successful step checkpoints its outcome, and
+workflow summary generation checkpoints the final state. Seven
+repeated writes and reads per synthetic plan measured the current
+agent state store:
+
+| Steps with outcomes | Bytes | Median atomic save | Median decode |
+| --- | ---: | ---: | ---: |
+| 4 | 2,989 | 0.33 ms | 0.17 ms |
+| 32 | 20,819 | 0.77 ms | 0.62 ms |
+| 250 | 159,835 | 2.69 ms | 4.20 ms |
+
+Run-bundle finalization writes a manifest for the run and includes
+the child tool's provenance when available. The backend builds and
+writes that manifest in its subprocess. Three known-answer Core
+manifests were 1,869 to 2,000 bytes. In seven runs per synthetic
+case, building and writing manifests for 4, 64 and 512 generated
+artifacts took median times of 1.2, 8.0 and 54.3 ms. Those manifest
+files were 4,109, 25,840 and 188,535 bytes. The measurements include
+hashing the small fixture artifacts.
+
+The agent state and manifest measurements support keeping the
+current checkpoint schedule for the observed workloads. The job
+history retains its queue, start and terminal checkpoints. Batching
+or compacting those writes would need measurements of workflow start
+latency and a recovery test for the proposed checkpoint boundaries.

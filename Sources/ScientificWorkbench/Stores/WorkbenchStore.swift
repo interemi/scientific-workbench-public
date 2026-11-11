@@ -3074,9 +3074,17 @@ final class WorkbenchStore: ObservableObject {
         guard self.jobHistoryURL == url, self.jobsRevision == revision else { return }
         do {
           guard let (result, records, deferCapture) = try outcome.get() else { return }
-          if result.diagnostics.requiresRewrite { try self.preserveAndRewriteJobHistory(result, at: url) }
+          if let source = result.recoverySource {
+            try self.requireHistoryRecoveryWriteApproval(at: url)
+            let archiveURL = try await Task.detached(priority: .userInitiated) {
+              try JobHistoryStore().rewriteRecovered(result, source: source, at: url)
+            }.value
+            guard self.jobHistoryURL == url, self.jobsRevision == revision else { return }
+            self.recordJobHistoryRecovery(result, archiveURL: archiveURL)
+          }
           self.installRestoredJobHistory(records, deferCapture: deferCapture)
         } catch {
+          guard self.jobHistoryURL == url, self.jobsRevision == revision else { return }
           self.handleJobHistoryLoadError(error, at: url)
         }
       }
@@ -3084,8 +3092,10 @@ final class WorkbenchStore: ObservableObject {
     }
     do {
       guard let result = try jobHistoryStore.loadRecovering(from: url) else { return }
-      if result.diagnostics.requiresRewrite {
-        try preserveAndRewriteJobHistory(result, at: url)
+      if let source = result.recoverySource {
+        try requireHistoryRecoveryWriteApproval(at: url)
+        let archiveURL = try jobHistoryStore.rewriteRecovered(result, source: source, at: url)
+        recordJobHistoryRecovery(result, archiveURL: archiveURL)
       }
       installRestoredJobHistory(Self.hydratedJobHistory(result.jobs, secrets: secrets))
     } catch {
@@ -3159,20 +3169,13 @@ final class WorkbenchStore: ObservableObject {
     }
   }
 
-  private func preserveAndRewriteJobHistory(
-    _ result: JobHistoryLoadResult,
-    at url: URL
-  ) throws {
+  private func requireHistoryRecoveryWriteApproval(at url: URL) throws {
     guard outputRootWriteIsApproved(inputPaths: inputPaths) else {
       throw PersistenceStoreError.recoveryWriteNotApproved(url.path)
     }
-    let archiveURL = try persistenceRecoveryArchive.preserveOriginal(
-      at: url,
-      reason: result.diagnostics.sourceVersion == JobHistoryStore.currentVersion
-        ? "recovery"
-        : "migration-v\(result.diagnostics.sourceVersion)"
-    )
-    try jobHistoryStore.persist(jobs: result.jobs, to: url)
+  }
+
+  private func recordJobHistoryRecovery(_ result: JobHistoryLoadResult, archiveURL: URL) {
     recordPersistenceRecovery(
       "Job history: \(result.diagnostics.summary). Original preserved at \(archiveURL.path).",
       archiveURL: archiveURL

@@ -3,6 +3,7 @@ import Foundation
 struct JobHistoryLoadResult: Sendable {
   var jobs: [JobRecord]
   var diagnostics: PersistenceLoadDiagnostics
+  var recoverySource: Data?
 }
 
 struct JobHistoryStore {
@@ -13,7 +14,7 @@ struct JobHistoryStore {
   }
 
   func loadRecovering(from url: URL) throws -> JobHistoryLoadResult? {
-    guard let data = try PersistenceFileAccess.readData(from: url) else { return nil }
+    guard let data = try PersistenceFileAccess.readData(from: url, options: []) else { return nil }
     let object = try PersistenceFileAccess.jsonObject(from: data, kind: "job history")
     let version = try PersistenceFileAccess.schemaVersion(
       in: object,
@@ -62,15 +63,40 @@ struct JobHistoryStore {
 
     jobs.sort { $0.createdAt > $1.createdAt }
     diagnostics.recoveredItemCount = jobs.count
-    return JobHistoryLoadResult(jobs: jobs, diagnostics: diagnostics)
+    return JobHistoryLoadResult(jobs: jobs, diagnostics: diagnostics,
+                                recoverySource: diagnostics.requiresRewrite ? data : nil)
   }
 
   func persist(jobs: [JobRecord], to url: URL) throws {
     try PersistenceFileAccess.validateWriteTarget(url)
+    let data = try encodedHistory(jobs, for: url)
     try FileManager.default.createDirectory(
       at: url.deletingLastPathComponent(),
       withIntermediateDirectories: true
     )
+    try data.write(to: url, options: [.atomic])
+  }
+
+  func rewriteRecovered(_ result: JobHistoryLoadResult, source: Data, at url: URL) throws -> URL {
+    let replacement = try encodedHistory(result.jobs, for: url)
+    guard try PersistenceFileAccess.readData(from: url) == source else {
+      throw PersistenceStoreError.changedDuringRecovery(url.path)
+    }
+    let archiveURL = try PersistenceRecoveryArchive().preserveOriginal(
+      at: url,
+      reason: result.diagnostics.sourceVersion == Self.currentVersion
+        ? "recovery"
+        : "migration-v\(result.diagnostics.sourceVersion)"
+    )
+    guard try PersistenceFileAccess.readData(from: archiveURL) == source,
+          try PersistenceFileAccess.readData(from: url) == source else {
+      throw PersistenceStoreError.changedDuringRecovery(url.path)
+    }
+    try replacement.write(to: url, options: [.atomic])
+    return archiveURL
+  }
+
+  private func encodedHistory(_ jobs: [JobRecord], for url: URL) throws -> Data {
     let normalized = Self.uniqueJobs(jobs).map(\.job)
     let payload = JobHistoryPayload(
       version: Self.currentVersion,
@@ -79,7 +105,7 @@ struct JobHistoryStore {
     )
     let data = try JSONEncoder.scientificWorkbench.encode(payload)
     try PersistenceFileAccess.validateSize(data.count, at: url)
-    try data.write(to: url, options: [.atomic])
+    return data
   }
 
   private static func uniqueJobs(_ jobs: [JobRecord]) -> [(job: JobRecord, index: Int)] {

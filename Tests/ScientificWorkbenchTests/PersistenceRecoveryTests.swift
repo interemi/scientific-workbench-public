@@ -5,7 +5,7 @@ import Testing
 extension ScientificWorkbenchTests {
   @Test
   @MainActor
-  func jobHistoryMigrationRecoversValidRecordsAndPreservesExactOriginal() throws {
+  func jobHistoryMigrationRecoversValidRecordsAndPreservesExactOriginal() async throws {
     let root = FileManager.default.temporaryDirectory
       .appendingPathComponent("Scientific-Workbench-Job-Recovery-\(UUID().uuidString)", isDirectory: true)
     let stateDirectory = root.appendingPathComponent(".scientificworkbench", isDirectory: true)
@@ -46,7 +46,8 @@ extension ScientificWorkbenchTests {
     )
     try original.write(to: historyURL)
 
-    let store = WorkbenchStore(loadSecrets: false, defaults: defaults)
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, deferJobHistoryHydration: true)
+    await store.waitForJobHistoryRestore()
 
     let recovered = try #require(store.jobs.first)
     #expect(store.jobs.count == 1)
@@ -65,6 +66,27 @@ extension ScientificWorkbenchTests {
     )
     #expect(activeObject["version"] as? Int == JobHistoryStore.currentVersion)
     #expect((activeObject["jobs"] as? [Any])?.count == 1)
+  }
+
+  @Test
+  func jobHistoryMigrationLeavesANewerSnapshotInPlace() throws {
+    let root = FileManager.default.temporaryDirectory
+      .appendingPathComponent("Scientific-Workbench-Changed-History-\(UUID().uuidString)", isDirectory: true)
+    let historyURL = root.appendingPathComponent("jobs.json")
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try Data(#"{"version":1,"jobs":[]}"#.utf8).write(to: historyURL)
+    let store = JobHistoryStore()
+    let migration = try #require(try store.loadRecovering(from: historyURL))
+    let source = try #require(migration.recoverySource)
+    let newerSnapshot = Data(#"{"version":2,"jobs":[]}"#.utf8)
+    try newerSnapshot.write(to: historyURL)
+
+    #expect(throws: PersistenceStoreError.changedDuringRecovery(historyURL.path)) {
+      try store.rewriteRecovered(migration, source: source, at: historyURL)
+    }
+    #expect(try Data(contentsOf: historyURL) == newerSnapshot)
+    #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("recovery").path))
   }
 
   @Test
