@@ -337,6 +337,7 @@ extension ScientificWorkbenchTests {
     }
     #expect(thumbnail.width == 800)
     #expect(thumbnail.height == 1_600)
+    #expect(thumbnail.bytesPerRow * thumbnail.height <= 12 * 1024 * 1024)
     func redDominates(atY y: Int) throws -> Bool {
       let sample = try #require(thumbnail.cropping(to: CGRect(x: thumbnail.width / 2, y: y, width: 1, height: 1)))
       let context = try #require(CGContext(
@@ -418,7 +419,7 @@ extension ScientificWorkbenchTests {
     #expect(firstImage === cachedImage)
     let reviewed = await loader.cacheUsage()
     #expect(reviewed.bytes == cachedImage.bytesPerRow * cachedImage.height)
-    #expect(reviewed.bytes <= RasterPreviewLoader.maximumCacheBytes)
+    #expect(RasterPreviewLoader.maximumCacheBytes <= 12 * 1024 * 1024)
     #expect(try Data(contentsOf: imageURL) == original)
 
     let replacement = root.appendingPathComponent("replacement.png")

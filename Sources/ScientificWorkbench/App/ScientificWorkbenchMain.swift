@@ -4,6 +4,9 @@ import Dispatch
 @main
 enum ScientificWorkbenchMain {
   static func main() {
+    #if SWB_STARTUP_BUDGET
+    StartupBudgetProbe.record("swift_entry", value: String(ProcessInfo.processInfo.processIdentifier))
+    #endif
     if let smokeOptions = ProcessGroupSmokeOptions.parse(CommandLine.arguments) {
       Task {
         let exitCode = await ProcessGroupSmokeService().run(options: smokeOptions)
@@ -13,6 +16,9 @@ enum ScientificWorkbenchMain {
     }
 
     let launchOptions = LaunchAutomationOptions.parse(CommandLine.arguments)
+    #if SWB_STARTUP_BUDGET
+    StartupBudgetProbe.validate(launchOptions)
+    #endif
     if launchOptions.exitAfterRun, launchOptions.shouldRun {
       DispatchQueue.main.async {
         Task { @MainActor in

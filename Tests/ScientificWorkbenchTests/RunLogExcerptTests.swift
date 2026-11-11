@@ -21,7 +21,7 @@ extension ScientificWorkbenchTests {
     let longLine = String(repeating: "x🔬", count: 20_000) + " tail"
     let bounded = RunLogExcerpt(longLine)
     #expect(bounded.isTruncated)
-    #expect(bounded.text.utf8.count <= RunLogExcerpt.maximumBytes)
+    #expect(bounded.text.utf8.count <= 16 * 1024)
     #expect(bounded.text.hasSuffix(" tail"))
     #expect(!bounded.text.contains("�"))
   }
