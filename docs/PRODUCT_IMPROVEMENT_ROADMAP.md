@@ -303,6 +303,11 @@ The [output storage verification](PHASE5_OUTPUT_STORAGE_2026-11-11.md)
 records PERF.15 file-size measurement, capture limits, and confirmed
 cleanup of the regenerable in-memory preview cache.
 
+The [reference performance budgets](PHASE5_PERFORMANCE_BUDGETS_2026-11-11.md)
+record PERF.17 startup, preview, log, and search limits, and identify the
+open navigation target. The startup check is reproducible from a clean
+checkout and uses its own synthetic history.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine. Each performance budget
 names its representative workload, reference machine, and tolerance.

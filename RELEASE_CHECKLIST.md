@@ -142,6 +142,10 @@ For local unsigned builds, `spctl` and `stapler` are not expected to pass.
 - Git publication readiness passes before any GitHub push or release upload:
   `./script/check_git_publication_readiness.sh`
 - `./script/run_quality_gate.sh` passes.
+- Keep the thumbnail and log resource checks in the Swift suite. For changes
+  affecting startup, run the isolated
+  [reference startup check](docs/PHASE5_PERFORMANCE_BUDGETS_2026-11-11.md#startup-and-release-checks)
+  on the reference Mac and retain its summary for the tested source.
 - `./script/run_first_run_smoke.sh` passes against the packaged app with
   isolated preferences.
 - `./script/verify_release_manifest.sh dist/release/<version>/Scientific_Workbench_<version>_<build>_manifest.json`
