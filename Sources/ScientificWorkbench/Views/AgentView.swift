@@ -17,9 +17,9 @@ struct AgentView: View {
     .sheet(item: $store.pendingCloudConsentRequest) { request in
       CloudConsentSheet(
         request: request,
-        cancel: store.cancelPendingCloudRequest,
+        cancel: { store.cancelPendingCloudRequest(requestID: request.id) },
         approve: { scope in
-          Task { await store.confirmPendingCloudRequest(approvalScope: scope) }
+          Task { await store.confirmPendingCloudRequest(requestID: request.id, approvalScope: scope) }
         }
       )
       .id(request.id)
@@ -102,11 +102,10 @@ struct AgentView: View {
         Button {
           Task { await store.submitAgentChatPrompt() }
         } label: {
-          Label(store.isPlanningAgentWorkflow ? "Thinking..." : "Send", systemImage: "paperplane.fill")
+          Label(store.isSubmittingAgentPrompt ? "Sending..." : "Send", systemImage: "paperplane.fill")
         }
         .buttonStyle(.borderedProminent)
-        .disabled(store.isPlanningAgentWorkflow || store.isRunningAgentWorkflow
-          || store.agentPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .disabled(!store.canSubmitAgentChatPrompt)
       }
     }
     .padding(.horizontal, 36)

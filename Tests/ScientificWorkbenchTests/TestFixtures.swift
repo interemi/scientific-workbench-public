@@ -121,12 +121,15 @@ extension ScientificWorkbenchTests {
 
   actor RequestRecorder {
     private var recordedRequests: [URLRequest] = []
+    private var responsesHeld: Bool
+    private var heldResponses: [CheckedContinuation<Void, Never>] = []
     let statusCode: Int
     let responseBody: String
 
-    init(responseBody: String, statusCode: Int = 200) {
+    init(responseBody: String, statusCode: Int = 200, holdResponses: Bool = false) {
       self.responseBody = responseBody
       self.statusCode = statusCode
+      responsesHeld = holdResponses
     }
 
     var requests: [URLRequest] {
@@ -135,6 +138,9 @@ extension ScientificWorkbenchTests {
 
     func load(_ request: URLRequest) async throws -> (Data, URLResponse) {
       recordedRequests.append(request)
+      if responsesHeld {
+        await withCheckedContinuation { heldResponses.append($0) }
+      }
       let response = HTTPURLResponse(
         url: request.url!,
         statusCode: statusCode,
@@ -143,6 +149,21 @@ extension ScientificWorkbenchTests {
       )!
       return (Data(responseBody.utf8), response)
     }
+
+    func releaseResponses() {
+      responsesHeld = false
+      for response in heldResponses { response.resume() }
+      heldResponses.removeAll()
+    }
+  }
+
+  func waitForRecordedRequest(_ recorder: RequestRecorder) async throws -> Bool {
+    let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+    while ContinuousClock.now < deadline {
+      if await !recorder.requests.isEmpty { return true }
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    return false
   }
 
   func jsonBody(from request: URLRequest) throws -> [String: Any] {

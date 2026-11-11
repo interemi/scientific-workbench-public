@@ -44,7 +44,7 @@ extension ScientificWorkbenchTests {
     let messages = store.agentChatMessages
 
     await store.submitAgentChatPrompt()
-    try #require(store.pendingCloudConsentRequest != nil)
+    let review = try #require(store.pendingCloudConsentRequest)
     store.isRunningAgentWorkflow = true
 
     store.updateAgentPlanTitle("Unexpected replacement")
@@ -52,7 +52,7 @@ extension ScientificWorkbenchTests {
     store.updateAgentPlanStep(step.id) { $0.isEnabled = false }
     #expect(await store.planAgentWorkflow(prompt: "Replace the active plan") == nil)
     #expect(store.importAgentPlan(from: "/unused-while-running.json") == nil)
-    await store.confirmPendingCloudRequest(approvalScope: .appSession)
+    await store.confirmPendingCloudRequest(requestID: review.id, approvalScope: .appSession)
     await store.submitAgentChatPrompt()
 
     #expect(store.agentPlan == plan)
@@ -99,7 +99,7 @@ extension ScientificWorkbenchTests {
     #expect(store.agentPrompt == "Explain this result.")
     #expect(store.agentChatMessages.count == messageCountBeforeSubmission)
 
-    await store.confirmPendingCloudRequest()
+    await store.confirmPendingCloudRequest(requestID: request.id)
 
     #expect(await recorder.requests.count == 1)
     #expect(store.pendingCloudConsentRequest == nil)
@@ -158,7 +158,8 @@ extension ScientificWorkbenchTests {
     store.agentPrompt = "First request."
 
     await store.submitAgentChatPrompt()
-    await store.confirmPendingCloudRequest(approvalScope: .appSession)
+    let review = try #require(store.pendingCloudConsentRequest)
+    await store.confirmPendingCloudRequest(requestID: review.id, approvalScope: .appSession)
     #expect(await recorder.requests.count == 1)
 
     store.agentPrompt = "Second request with the same scope."
@@ -234,7 +235,7 @@ extension ScientificWorkbenchTests {
 
     store.openAIModel = "gpt-after"
     store.agentPrompt = "Updated prompt."
-    await store.confirmPendingCloudRequest()
+    await store.confirmPendingCloudRequest(requestID: firstRequest.id)
 
     let refreshedRequest = try #require(store.pendingCloudConsentRequest)
     #expect(refreshedRequest.id != firstRequest.id)
@@ -244,7 +245,13 @@ extension ScientificWorkbenchTests {
     #expect(store.agentPrompt == "Updated prompt.")
     #expect(store.agentStatusMessage.contains("Nothing was sent"))
 
-    await store.confirmPendingCloudRequest()
+    await store.confirmPendingCloudRequest(requestID: firstRequest.id)
+    store.cancelPendingCloudRequest(requestID: firstRequest.id)
+    #expect(await recorder.requests.isEmpty)
+    #expect(store.pendingCloudConsentRequest?.id == refreshedRequest.id)
+
+    await store.confirmPendingCloudRequest(requestID: refreshedRequest.id)
+    await store.confirmPendingCloudRequest(requestID: refreshedRequest.id)
     #expect(await recorder.requests.count == 1)
   }
 
@@ -283,14 +290,14 @@ extension ScientificWorkbenchTests {
     #expect(firstInput.previewBytes == Data("first preview".utf8))
 
     try "second preview with different bytes".write(to: target, atomically: true, encoding: .utf8)
-    await store.confirmPendingCloudRequest()
+    await store.confirmPendingCloudRequest(requestID: firstRequest.id)
 
     let refreshedRequest = try #require(store.pendingCloudConsentRequest)
     #expect(refreshedRequest.id != firstRequest.id)
     #expect(refreshedRequest.fingerprint.inputs.first?.previewBytes == Data("second preview with different bytes".utf8))
     #expect(await recorder.requests.isEmpty)
 
-    await store.confirmPendingCloudRequest()
+    await store.confirmPendingCloudRequest(requestID: refreshedRequest.id)
     #expect(await recorder.requests.count == 1)
   }
 
@@ -328,7 +335,7 @@ extension ScientificWorkbenchTests {
     #expect(!consent.fingerprint.prompt.contains(geminiSecret))
     #expect(!consent.fingerprint.history.contains { $0.text.contains(grokSecret) })
 
-    await store.confirmPendingCloudRequest()
+    await store.confirmPendingCloudRequest(requestID: consent.id)
 
     let request = try #require(await recorder.requests.first)
     let bodyData = try #require(request.httpBody)
@@ -375,7 +382,7 @@ extension ScientificWorkbenchTests {
     #expect(!consent.fingerprint.prompt.contains(secret))
     #expect(store.agentPrompt == localDraft)
 
-    await store.confirmPendingCloudRequest()
+    await store.confirmPendingCloudRequest(requestID: consent.id)
 
     let request = try #require(await recorder.requests.first)
     let bodyData = try #require(request.httpBody)
@@ -413,6 +420,49 @@ extension ScientificWorkbenchTests {
     #expect(store.pendingCloudConsentRequest == nil)
     #expect(await recorder.requests.count == 1)
     #expect(store.agentChatMessages.last?.text == "local-ok")
+  }
+
+  @Test
+  @MainActor
+  func aPendingChatReplyKeepsTheNextDraftUntilItCanBeSent() async throws {
+    let defaults = try #require(UserDefaults(suiteName: "Scientific-Workbench-Chat-Send-\(UUID())"))
+    let recorder = RequestRecorder(
+      responseBody: #"{"message":{"role":"assistant","content":"local-ok"},"done":true}"#,
+      holdResponses: true
+    )
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false,
+      cloudAIClient: CloudAIClient(dataLoader: recorder.load))
+    store.agentMode = .chat
+    store.aiProvider = .ollama
+    store.ollamaBaseURL = "http://127.0.0.1:11434"
+    store.agentPrompt = "First prompt."
+    let first = Task { await store.submitAgentChatPrompt() }
+    let received = try await waitForRecordedRequest(recorder)
+    guard received else {
+      await recorder.releaseResponses()
+      await first.value
+      Issue.record("The synthetic transport did not receive the first prompt.")
+      return
+    }
+    let release = Task {
+      try? await Task.sleep(for: .seconds(1))
+      await recorder.releaseResponses()
+    }
+
+    store.agentPrompt = "Next draft."
+    #expect(store.isSubmittingAgentPrompt)
+    #expect(!store.canSubmitAgentChatPrompt)
+    await store.submitAgentChatPrompt()
+    release.cancel()
+    await release.value
+    await first.value
+
+    #expect(await recorder.requests.count == 1)
+    #expect(store.agentPrompt == "Next draft.")
+    #expect(store.canSubmitAgentChatPrompt)
+    await store.submitAgentChatPrompt()
+    #expect(await recorder.requests.count == 2)
+    #expect(store.agentChatMessages.filter { $0.role == .user }.map(\.text) == ["First prompt.", "Next draft."])
   }
 
   @Test

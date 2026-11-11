@@ -437,8 +437,9 @@ extension ScientificWorkbenchTests {
     store.agentPrompt = "Answer this in chat mode."
 
     await store.submitAgentChatPrompt()
-    #expect(store.pendingCloudConsentRequest?.provider == .openAI)
-    await store.confirmPendingCloudRequest()
+    let review = try #require(store.pendingCloudConsentRequest)
+    #expect(review.provider == .openAI)
+    await store.confirmPendingCloudRequest(requestID: review.id)
 
     #expect(!FileManager.default.fileExists(atPath: sentinel.path))
     #expect(store.agentChatMessages.last?.role == .assistant)

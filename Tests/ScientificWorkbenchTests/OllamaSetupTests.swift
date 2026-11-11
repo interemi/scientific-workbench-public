@@ -107,6 +107,83 @@ extension ScientificWorkbenchTests {
     #expect(store.ollamaSetupStatus.message.contains("synthetic download failure at http://127.0.0.1:11435"))
     #expect(await recorder.requests.count == 1)
     #expect(await recorder.requests.first?.url?.absoluteString == "http://127.0.0.1:11435/api/tags")
+
+    await store.confirmOllamaModelDownload(request)
+    #expect(await recorder.requests.count == 1)
+    let retry = try #require(store.prepareOllamaModelDownload())
+    await store.confirmOllamaModelDownload(retry)
+    #expect(await recorder.requests.count == 2)
+  }
+
+  @Test
+  @MainActor
+  func simultaneousOllamaSetupChecksShareOneTagsRequest() async throws {
+    let defaults = try #require(UserDefaults(suiteName: "Scientific-Workbench-Ollama-Check-\(UUID())"))
+    let recorder = RequestRecorder(responseBody: #"{"models":[]}"#, holdResponses: true)
+    let service = OllamaSetupService(pathEnvironment: "", dataLoader: recorder.load)
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false,
+      ollamaSetupService: service)
+
+    let first = Task { await store.refreshOllamaSetup() }
+    let received = try await waitForRecordedRequest(recorder)
+    guard received else {
+      await recorder.releaseResponses()
+      await first.value
+      Issue.record("The synthetic transport did not receive the first setup check.")
+      return
+    }
+    let release = Task {
+      try? await Task.sleep(for: .milliseconds(150))
+      await recorder.releaseResponses()
+    }
+    #expect(store.isCheckingOllamaSetup)
+    await store.refreshOllamaSetup()
+    await first.value
+    await release.value
+
+    #expect(await recorder.requests.count == 1)
+    #expect(!store.isCheckingOllamaSetup)
+    #expect(store.ollamaSetupStatus.serverReachable)
+    await store.refreshOllamaSetup()
+    #expect(await recorder.requests.count == 2)
+  }
+
+  @Test
+  @MainActor
+  func modelDownloadReplacesAnEarlierSetupCheck() async throws {
+    let root = try makeFakeOllamaCLI(scriptBody: "#!/bin/sh\nexit 0\n")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let defaults = try #require(UserDefaults(suiteName: "Scientific-Workbench-Ollama-Pull-\(UUID())"))
+    let recorder = RequestRecorder(responseBody: #"{"models":[]}"#, holdResponses: true)
+    let service = OllamaSetupService(pathEnvironment: root.path, dataLoader: { request in
+      try await withTaskCancellationHandler {
+        try await recorder.load(request)
+      } onCancel: {
+        Task { await recorder.releaseResponses() }
+      }
+    })
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false,
+      ollamaSetupService: service)
+    let review = try #require(store.prepareOllamaModelDownload())
+    let earlierCheck = Task { await store.refreshOllamaSetup() }
+    let received = try await waitForRecordedRequest(recorder)
+    guard received else {
+      await recorder.releaseResponses()
+      await earlierCheck.value
+      Issue.record("The synthetic transport did not receive the earlier check.")
+      return
+    }
+    let release = Task {
+      try? await Task.sleep(for: .seconds(2))
+      await recorder.releaseResponses()
+    }
+
+    await store.confirmOllamaModelDownload(review)
+    release.cancel()
+    await release.value
+    await earlierCheck.value
+    #expect(await recorder.requests.count == 2)
+    #expect(store.ollamaSetupStatus.message.contains("Download command completed"))
   }
 
   @Test

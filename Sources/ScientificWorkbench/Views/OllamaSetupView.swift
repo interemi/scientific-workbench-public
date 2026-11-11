@@ -137,7 +137,11 @@ struct OllamaSetupView: View {
           .fixedSize(horizontal: false, vertical: true)
           .textSelection(.enabled)
         HStack {
-          Button("Cancel", role: .cancel) { pendingDownload = nil }
+          Button("Cancel", role: .cancel) {
+            store.cancelOllamaModelDownloadReview(requestID: request.id)
+            pendingDownload = nil
+          }
+          .keyboardShortcut(.cancelAction)
           Spacer()
           Button("Download Model") {
             pendingDownload = nil
@@ -149,6 +153,7 @@ struct OllamaSetupView: View {
       }
       .padding(24)
       .frame(width: 520)
+      .interactiveDismissDisabled()
     }
   }
 

@@ -290,6 +290,10 @@ records the PERF.12 single-job guard, cancellation and evidence
 retention during Quit. The process sample uses a synthetic workload.
 Backend-specific resource limits remain open.
 
+The [repeated request verification](PHASE5_SINGLE_SUBMISSION_2026-11-11.md)
+records PERF.13 for Chat, cloud reviews, and Ollama checks and downloads.
+The earlier environment check verification covers shared Core probes.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine.
 

@@ -9,12 +9,6 @@ private let environmentCheckLogger = Logger(
   category: "EnvironmentChecks"
 )
 
-private struct PendingCloudAgentSubmission {
-  var prompt: String
-  var resolvedMode: AgentRunMode
-  var request: CloudConsentRequest
-}
-
 private actor InterruptedProcessOutputCapture {
   private var output: InterruptedProcessOutput?
 
@@ -119,6 +113,7 @@ final class WorkbenchStore: ObservableObject {
   ]
   @Published var agentAutoRun = false
   @Published var agentMode: AgentRunMode = .auto
+  @Published private(set) var isSubmittingAgentPrompt = false
   @Published var isPlanningAgentWorkflow = false
   @Published var isRunningAgentWorkflow = false
   @Published var isCancellationRequested = false
@@ -231,11 +226,11 @@ final class WorkbenchStore: ObservableObject {
   private var handledLaunchAutomation = false
   private var forceLocalPlanner = false
   private var enableRestrictedStepsForLaunchAutomation = false
-  private var pendingCloudAgentSubmission: PendingCloudAgentSubmission?
   private var rememberedCloudConsentScopes: Set<CloudConsentSessionScope> = []
   private var outputRootRiskApprovalFingerprint: String?
   private var ollamaPullTask: Task<OllamaCommandResult, Error>?
-  private var ollamaSetupCheckID: UUID?
+  private var ollamaSetupCheck: (id: UUID, endpoint: String?, model: String, task: Task<Void, Never>)?
+  private var pendingOllamaModelDownloadID: UUID?
   private var codexBridgeTask: Task<String, Error>?
   private var jobHistoryRestore: Task<Void, Never>?
   @Published private(set) var isPreparingToQuit = false
@@ -420,9 +415,16 @@ final class WorkbenchStore: ObservableObject {
   }
 
   var canChangeWorkflowContext: Bool {
-    !isPreparingToQuit && !canCancelActiveRun && !isPlanningAgentWorkflow && !isReviewingRadialVelocityInput
+    !isPreparingToQuit && !canCancelActiveRun && !isSubmittingAgentPrompt
+      && !isPlanningAgentWorkflow && !isReviewingRadialVelocityInput
       && !isReviewingPhotometricCalibration && !isReviewingDocumentStyles
       && !isCheckingKeynote && !isExportingKeynote
+  }
+
+  var canSubmitAgentChatPrompt: Bool {
+    !isPreparingToQuit && !isSubmittingAgentPrompt && !isRunningAgentWorkflow
+      && !isPlanningAgentWorkflow && pendingCloudConsentRequest == nil
+      && !agentPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var hasAvailableWorkflowSummary: Bool {
@@ -810,9 +812,7 @@ final class WorkbenchStore: ObservableObject {
     switch provider {
     case .ollama:
       ollamaModel = model
-      ollamaSetupCheckID = nil
-      isCheckingOllamaSetup = false
-      ollamaSetupStatus = .unknown(model: self.model(for: .ollama))
+      invalidateOllamaSetupCheck()
     case .openAI: openAIModel = model
     case .grok: grokModel = model
     case .gemini: geminiModel = model
@@ -846,9 +846,7 @@ final class WorkbenchStore: ObservableObject {
     switch provider {
     case .ollama:
       ollamaBaseURL = baseURL
-      ollamaSetupCheckID = nil
-      isCheckingOllamaSetup = false
-      ollamaSetupStatus = .unknown(model: model(for: .ollama))
+      invalidateOllamaSetupCheck()
     case .openAI, .grok, .gemini:
       break
     }
@@ -1008,7 +1006,7 @@ final class WorkbenchStore: ObservableObject {
       if let importedTimeoutMinutes = payload.externalProcessTimeoutMinutes {
         externalProcessTimeoutMinutes = ExternalProcessTimeoutPolicy.normalized(minutes: importedTimeoutMinutes)
       }
-      ollamaSetupStatus = .unknown(model: model(for: .ollama))
+      invalidateOllamaSetupCheck()
       aiConnectionStatuses = Dictionary(
         uniqueKeysWithValues: AIProvider.allCases.map { ($0, .unknown) }
       )
@@ -1236,20 +1234,46 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func refreshOllamaSetup() async {
-    let checkID = UUID()
+    await refreshOllamaSetup(replacingActiveCheck: false)
+  }
+
+  private func refreshOllamaSetup(replacingActiveCheck: Bool) async {
+    guard !isPreparingToQuit, !Task.isCancelled else { return }
     let endpoint = baseURL(for: .ollama)
     let checkedModel = model(for: .ollama)
-    ollamaSetupCheckID = checkID
+    if !replacingActiveCheck, let active = ollamaSetupCheck,
+       active.endpoint == endpoint, active.model == checkedModel,
+       !active.task.isCancelled {
+      await active.task.value
+      return
+    }
+
+    let superseded = ollamaSetupCheck?.task
+    superseded?.cancel()
+    let checkID = UUID()
     isCheckingOllamaSetup = true
-    let status = await ollamaSetupService.status(
-      baseURL: endpoint,
-      model: checkedModel
-    )
-    guard ollamaSetupCheckID == checkID else { return }
-    ollamaSetupCheckID = nil
+    let task = Task { [weak self, ollamaSetupService] in
+      defer {
+        if let self, self.ollamaSetupCheck?.id == checkID {
+          self.ollamaSetupCheck = nil
+          self.isCheckingOllamaSetup = false
+        }
+      }
+      await superseded?.value
+      guard !Task.isCancelled else { return }
+      let status = await ollamaSetupService.status(baseURL: endpoint, model: checkedModel)
+      guard !Task.isCancelled, let self, self.ollamaSetupCheck?.id == checkID,
+            endpoint == self.baseURL(for: .ollama), checkedModel == self.model(for: .ollama) else { return }
+      self.ollamaSetupStatus = status
+    }
+    ollamaSetupCheck = (checkID, endpoint, checkedModel, task)
+    await task.value
+  }
+
+  private func invalidateOllamaSetupCheck() {
+    ollamaSetupCheck?.task.cancel()
     isCheckingOllamaSetup = false
-    guard endpoint == baseURL(for: .ollama), checkedModel == model(for: .ollama) else { return }
-    ollamaSetupStatus = status
+    ollamaSetupStatus = .unknown(model: model(for: .ollama))
   }
 
   func openOllamaDownloadPage() {
@@ -1267,15 +1291,25 @@ final class WorkbenchStore: ObservableObject {
 
   func prepareOllamaModelDownload() -> OllamaModelDownloadRequest? {
     do {
-      return try OllamaModelDownloadRequest(model: model(for: .ollama), baseURL: baseURL(for: .ollama))
+      let request = try OllamaModelDownloadRequest(model: model(for: .ollama), baseURL: baseURL(for: .ollama))
+      pendingOllamaModelDownloadID = request.id
+      return request
     } catch {
+      pendingOllamaModelDownloadID = nil
       ollamaSetupStatus.message = "Cannot prepare model download: \(error.localizedDescription)"
       return nil
     }
   }
 
+  func cancelOllamaModelDownloadReview(requestID: UUID) {
+    guard pendingOllamaModelDownloadID == requestID else { return }
+    pendingOllamaModelDownloadID = nil
+  }
+
   func confirmOllamaModelDownload(_ request: OllamaModelDownloadRequest) async {
-    guard let current = prepareOllamaModelDownload(),
+    guard pendingOllamaModelDownloadID == request.id else { return }
+    pendingOllamaModelDownloadID = nil
+    guard let current = try? OllamaModelDownloadRequest(model: model(for: .ollama), baseURL: baseURL(for: .ollama)),
           current.model == request.model, current.baseURL == request.baseURL else {
       ollamaSetupStatus.message = "The model or endpoint changed. Review the download again; nothing was downloaded."
       return
@@ -1297,7 +1331,8 @@ final class WorkbenchStore: ObservableObject {
     }
     do {
       let result = try await task.value
-      await refreshOllamaSetup()
+      // A check started before the pull finished could report the old model list.
+      await refreshOllamaSetup(replacingActiveCheck: true)
       ollamaSetupStatus.message = result.succeeded
         ? "Download command completed for \(model). \(ollamaSetupStatus.message)"
         : "Ollama pull exited with \(result.exitCode): \(result.userMessage)"
@@ -1574,6 +1609,7 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func refreshOptionalAstronomyBackends() async {
+    guard !isPreparingToQuit, !isCheckingOptionalAstronomyBackends else { return }
     persistSettings()
     isCheckingOptionalAstronomyBackends = true
     defer { isCheckingOptionalAstronomyBackends = false }
@@ -2201,6 +2237,7 @@ final class WorkbenchStore: ObservableObject {
     isPreparingToQuit = true
     if canCancelActiveRun { requestActiveRunCancellation() }
     invalidateEnvironmentCheck()
+    ollamaSetupCheck?.task.cancel()
     async let jobsStopped: Void = runner.shutdown()
     async let supportStopped: Void = supportRunner.shutdown()
     _ = await (jobsStopped, supportStopped)
@@ -2278,10 +2315,8 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func submitAgentChatPrompt() async {
-    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else { return }
+    guard canSubmitAgentChatPrompt else { return }
     let prompt = agentPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !prompt.isEmpty else { return }
-    guard pendingCloudAgentSubmission == nil else { return }
 
     let resolvedMode = agentRoutingService.resolvedMode(
       configuredMode: agentMode,
@@ -2292,11 +2327,6 @@ final class WorkbenchStore: ObservableObject {
       loadSavedSecretIfNeeded(for: aiProvider)
     }
     if let request = cloudConsentRequest(for: resolvedMode, prompt: prompt), requiresCloudConsent(request) {
-      pendingCloudAgentSubmission = PendingCloudAgentSubmission(
-        prompt: prompt,
-        resolvedMode: resolvedMode,
-        request: request
-      )
       pendingCloudConsentRequest = request
       agentStatusMessage = "Review what will be sent to \(request.provider.title) before continuing."
       return
@@ -2306,16 +2336,12 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func confirmPendingCloudRequest(
+    requestID: UUID,
     approvalScope: CloudConsentApprovalScope = .requestOnly
   ) async {
-    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else {
+    guard let reviewedRequest = pendingCloudConsentRequest, reviewedRequest.id == requestID else { return }
+    guard !isPreparingToQuit, !isSubmittingAgentPrompt, !isRunningAgentWorkflow, !isPlanningAgentWorkflow else {
       cancelPendingCloudRequest(message: "Finish or cancel the active workflow operation before submitting this request. Nothing was sent.")
-      return
-    }
-    guard let pendingCloudAgentSubmission,
-          pendingCloudConsentRequest?.id == pendingCloudAgentSubmission.request.id else {
-      pendingCloudConsentRequest = nil
-      self.pendingCloudAgentSubmission = nil
       return
     }
 
@@ -2344,12 +2370,7 @@ final class WorkbenchStore: ObservableObject {
       return
     }
 
-    guard refreshedRequest.fingerprint == pendingCloudAgentSubmission.request.fingerprint else {
-      self.pendingCloudAgentSubmission = PendingCloudAgentSubmission(
-        prompt: currentPrompt,
-        resolvedMode: currentResolvedMode,
-        request: refreshedRequest
-      )
+    guard refreshedRequest.fingerprint == reviewedRequest.fingerprint else {
       pendingCloudConsentRequest = refreshedRequest
       agentStatusMessage = "The cloud request changed. Nothing was sent; review the updated provider, model, context, and privacy scope."
       return
@@ -2358,7 +2379,6 @@ final class WorkbenchStore: ObservableObject {
     if approvalScope == .appSession {
       rememberedCloudConsentScopes.insert(refreshedRequest.sessionScope)
     }
-    self.pendingCloudAgentSubmission = nil
     pendingCloudConsentRequest = nil
     await performAgentSubmission(
       prompt: currentPrompt,
@@ -2366,19 +2386,21 @@ final class WorkbenchStore: ObservableObject {
     )
   }
 
-  func cancelPendingCloudRequest() {
+  func cancelPendingCloudRequest(requestID: UUID? = nil) {
+    guard requestID == nil || pendingCloudConsentRequest?.id == requestID else { return }
     cancelPendingCloudRequest(
       message: "Cloud request cancelled. Nothing was sent; your message remains in the composer."
     )
   }
 
   private func cancelPendingCloudRequest(message: String) {
-    pendingCloudAgentSubmission = nil
     pendingCloudConsentRequest = nil
     agentStatusMessage = message
   }
 
   private func performAgentSubmission(prompt: String, resolvedMode: AgentRunMode) async {
+    isSubmittingAgentPrompt = true
+    defer { isSubmittingAgentPrompt = false }
 
     agentChatMessages.append(AgentChatMessage(role: .user, text: prompt))
     if agentPrompt.trimmingCharacters(in: .whitespacesAndNewlines) == prompt {
