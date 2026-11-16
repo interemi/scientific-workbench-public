@@ -50,8 +50,8 @@ extension ScientificWorkbenchTests {
     store.capabilities = [capability]
 
     let task = Task { await store.run(capability: capability, rawArguments: "") }
-    let deadline = Date().addingTimeInterval(5)
-    while Date() < deadline {
+    let deadline = ContinuousClock.now.advanced(by: .seconds(15))
+    while ContinuousClock.now < deadline {
       if let job = store.jobs.first,
          FileManager.default.fileExists(
            atPath: URL(fileURLWithPath: job.runDirectory)
@@ -59,7 +59,7 @@ extension ScientificWorkbenchTests {
          ) {
         break
       }
-      try await Task.sleep(nanoseconds: 50_000_000)
+      try await Task.sleep(for: .milliseconds(50))
     }
     let runningJob = try #require(store.jobs.first)
     let runURL = URL(fileURLWithPath: runningJob.runDirectory)

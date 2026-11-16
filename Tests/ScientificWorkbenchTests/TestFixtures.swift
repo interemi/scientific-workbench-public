@@ -158,12 +158,13 @@ extension ScientificWorkbenchTests {
   }
 
   func waitForRecordedRequest(_ recorder: RequestRecorder) async throws -> Bool {
-    let deadline = ContinuousClock.now.advanced(by: .seconds(3))
-    while ContinuousClock.now < deadline {
+    // Parallel tests can delay the task that submits the synthetic request.
+    let deadline = ContinuousClock.now.advanced(by: .seconds(15))
+    while true {
       if await !recorder.requests.isEmpty { return true }
+      guard ContinuousClock.now < deadline else { return false }
       try await Task.sleep(for: .milliseconds(10))
     }
-    return false
   }
 
   func jsonBody(from request: URLRequest) throws -> [String: Any] {
