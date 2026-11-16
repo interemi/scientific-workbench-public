@@ -38,6 +38,8 @@ of `(150°, −30°)` at pixel `(4.5, 4.5)` in FITS convention. Its signed axes
 are −1 and +1 arcsec/pixel. Astropy reads the generated header and checks
 these known values; the bundled `inspect_fits` command must then report the
 same structure and produce a display-only WCS PNG plus a summary and manifest.
+The crop check compares preview pixel `(0, 0)` with full-image pixel `(2, 1)`
+in zero-based coordinates using the WCS applied to the rendered PNG.
 The input hash must remain unchanged. The PNG is a visual orientation aid,
 not a calibrated image or an astrometric accuracy measurement.
 

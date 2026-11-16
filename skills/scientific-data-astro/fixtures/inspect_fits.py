@@ -252,21 +252,23 @@ def save_preview(np, WCS, hdus, extension, output_path, crop=None):
     if vmin == vmax:
         vmax = vmin + 1.0
 
-    figure = None
+    figure = plt.figure(figsize=(7, 6))
     try:
         header = hdu.header
         if "CTYPE1" in header or "CTYPE2" in header:
             try:
                 projection = WCS(header)
-                figure = plt.figure(figsize=(7, 6))
+                if crop is not None and projection.pixel_n_dim == 2:
+                    x0, y0, _, _ = crop
+                    height, width = image.shape
+                    projection = projection.slice((slice(y0, y0 + height), slice(x0, x0 + width)))
                 axis = figure.add_subplot(111, projection=projection)
+            except Exception:
+                axis = figure.add_subplot(111)
+            else:
                 axis.set_xlabel("World axis 1")
                 axis.set_ylabel("World axis 2")
-            except Exception:
-                figure = plt.figure(figsize=(7, 6))
-                axis = figure.add_subplot(111)
         else:
-            figure = plt.figure(figsize=(7, 6))
             axis = figure.add_subplot(111)
 
         image_artist = axis.imshow(image, origin="lower", cmap="gray", vmin=vmin, vmax=vmax)
@@ -276,8 +278,7 @@ def save_preview(np, WCS, hdus, extension, output_path, crop=None):
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         figure.savefig(output_path, dpi=160)
     finally:
-        if figure is not None:
-            plt.close(figure)
+        plt.close(figure)
     return preview_index
 
 

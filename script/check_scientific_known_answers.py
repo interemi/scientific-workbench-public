@@ -8,14 +8,17 @@ Run this with the prepared Python 3.11 Core environment.
 from __future__ import annotations
 
 import argparse
+from contextlib import redirect_stderr, redirect_stdout
 import hashlib
 import json
 import math
 import os
 from pathlib import Path
+import runpy
 import struct
 import subprocess
 import sys
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -106,6 +109,50 @@ def check_manifest(path: Path, inputs: list[Path], outputs: list[Path]) -> None:
         require(recorded.get("sha256") == sha256(artifact), "manifest output hash differs")
 
 
+def check_fits_crop(source: Path, case: Path, original_wcs, environment: dict[str, str]) -> float:
+    from astropy.wcs import WCS
+
+    case.mkdir()
+    summary = case / "summary.json"
+    manifest = case / "manifest.json"
+    preview = case / "cropped_wcs.png"
+    script = ROOT / "skills/scientific-data-astro/scripts/inspect_fits.py"
+    x, y = 2, 1
+    expected = original_wcs.pixel_to_world(x, y)
+    arguments = [str(script), str(source), "--crop", f"{x},{y},4,4",
+                 "--preview", str(preview), "--summary-json", str(summary),
+                 "--manifest-json", str(manifest)]
+
+    with patch.dict(os.environ, {**environment, "DATAANALYSIS_PYTHON": sys.executable}):
+        from matplotlib.figure import Figure
+
+        add_subplot = Figure.add_subplot
+        errors = []
+
+        def record_subplot(figure, *args, **kwargs):
+            projection = kwargs.get("projection")
+            axis = add_subplot(figure, *args, **kwargs)
+            if isinstance(projection, WCS):
+                errors.append(float(projection.pixel_to_world(0, 0).separation(expected).arcsec))
+            return axis
+
+        # Inspect the projection used for the actual PNG rather than the full-HDU header.
+        with ((case / "stdout.log").open("x") as stdout, (case / "stderr.log").open("x") as stderr,
+              redirect_stdout(stdout), redirect_stderr(stderr),
+              patch.object(Figure, "add_subplot", record_subplot),
+              patch.object(sys, "argv", arguments),
+              patch.object(sys, "path", [str(script.parent), *sys.path])):
+            try:
+                runpy.run_path(str(script), run_name="__main__")
+            except SystemExit as exit_status:
+                require(exit_status.code == 0, "FITS crop command failed; inspect retained logs")
+
+    require(len(errors) == 1 and errors[0] < 1e-8, "FITS crop WCS origin differs")
+    require(read_json(summary).get("app_status") == "PASS", "FITS crop did not pass its app contract")
+    check_manifest(manifest, [source], [summary, preview])
+    return errors[0]
+
+
 def inspect_fits_case(root: Path, environment: dict[str, str]) -> dict:
     from astropy.io import fits
     from astropy.wcs import WCS
@@ -166,12 +213,14 @@ def inspect_fits_case(root: Path, environment: dict[str, str]) -> dict:
     require(preview.is_file() and preview.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"),
             "FITS display-only preview is absent or invalid")
     check_manifest(manifest, [source], [summary, preview])
+    crop_origin_error = check_fits_crop(source, root / "fits-crop", wcs, environment)
     require(sha256(source) == original_hash, "FITS input changed")
     return {
         "input_sha256": original_hash, "shape_pixels": [8, 8],
         "finite_pixels": 63, "nonfinite_pixels": 1,
         "reference_deg": [float(ra), float(dec)],
         "pixel_scale_arcsec": [float(scale) for scale in scales],
+        "crop_origin_error_arcsec": crop_origin_error,
         "preview": "display_only",
     }
 

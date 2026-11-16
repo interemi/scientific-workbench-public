@@ -4911,8 +4911,8 @@
     "scientific-data-astro/fixtures/inspect_fits.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "c145889e0dcf3b7410e1d7bfe7dada7c2b7e9bdfba6ab7c37aa39be8770ba23c",
-      "size": 24812
+      "sha256": "09328e6082871a46eac2e083d324209ccfe2ec6ac9743a0cbc145711849a8458",
+      "size": 24921
     },
     "scientific-data-astro/fixtures/istarmod_workbench.py": {
       "executable": false,
