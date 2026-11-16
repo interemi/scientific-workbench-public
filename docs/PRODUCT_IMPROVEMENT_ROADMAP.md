@@ -324,6 +324,10 @@ extends PERF.03 to the title bar, workflow journey bar, and inspector.
 It checks unrelated log updates as well as job status and navigation
 changes that still need to update the window.
 
+The [scaled catalog I/O comparison](PHASE5_SCALED_CATALOG_IO_2026-11-16.md)
+records larger Core and optional STILTS observations for PERF.12 and
+PERF.17. It also records a STILTS summary-manifest discrepancy for P2.08.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine. Each performance budget
 names its representative workload, reference machine, and tolerance.
