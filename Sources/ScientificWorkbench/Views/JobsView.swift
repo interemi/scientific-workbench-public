@@ -315,7 +315,10 @@ struct JobDetailView: View {
           StatusBadge(status: job.displaySeverity)
         }
 
-        if job.status == .queued || job.status == .running {
+        if (job.status == .queued || job.status == .running), store.isFinalizingJobEvidence {
+          ProgressView("Saving run evidence…")
+            .controlSize(.small)
+        } else if job.status == .queued || job.status == .running {
           Button(role: .cancel) {
             store.cancelActiveRun()
           } label: {
@@ -334,7 +337,7 @@ struct JobDetailView: View {
             } label: {
               Label("Retry Job", systemImage: "arrow.counterclockwise")
             }
-            .disabled(store.hasActiveJob)
+            .disabled(store.hasActiveJob || store.isFinalizingJobEvidence)
           }
 
           if store.workflowRecoveryState?.stoppedJobID == job.id, store.canResumeAgentPlan {

@@ -54,6 +54,7 @@ final class WorkbenchStore: ObservableObject {
   private var deferredJobCaptureIDs: Set<JobRecord.ID> = []
   @Published private(set) var isRestoringJobHistory = false
   @Published private(set) var isSavingJobHistory = false
+  @Published private(set) var isFinalizingJobEvidence = false
   @Published private(set) var isRefreshingRunBundle = false
   @Published private(set) var jobHistorySaveError: String?
   @Published var recentJobFilter = RecentJobFilter()
@@ -192,7 +193,6 @@ final class WorkbenchStore: ObservableObject {
   private let runner = ProcessRunner()
   private let supportRunner: ProcessRunner
   private let runBundleService = JobRunBundleService()
-  private let envelopeParser = ToolEnvelopeParser()
   private let environmentService: SkillEnvironmentService
   private let environmentCheckLifetime: Duration
   private var environmentRefresh: (id: UUID, task: Task<Void, Never>)?
@@ -415,12 +415,18 @@ final class WorkbenchStore: ObservableObject {
     jobs.contains { $0.status == .queued || $0.status == .running }
   }
 
+  var hasActiveOperation: Bool {
+    isRunningAgentWorkflow || hasActiveJob || isFinalizingJobEvidence
+      || isPullingOllamaModel || isRunningCodexBridge
+  }
+
   var canCancelActiveRun: Bool {
-    isRunningAgentWorkflow || hasActiveJob || isPullingOllamaModel || isRunningCodexBridge
+    isRunningAgentWorkflow || (hasActiveJob && !isFinalizingJobEvidence)
+      || isPullingOllamaModel || isRunningCodexBridge
   }
 
   var canChangeWorkflowContext: Bool {
-    !isPreparingToQuit && !canCancelActiveRun && !isSubmittingAgentPrompt
+    !isPreparingToQuit && !hasActiveOperation && !isSubmittingAgentPrompt
       && !isPlanningAgentWorkflow && !isReviewingRadialVelocityInput
       && !isReviewingPhotometricCalibration && !isReviewingDocumentStyles
       && !isCheckingKeynote && !isExportingKeynote
@@ -2251,7 +2257,7 @@ final class WorkbenchStore: ObservableObject {
     _ = await (jobsStopped, supportStopped)
 
     // The runner releases subprocesses first. The store still has to retain the job and workflow evidence.
-    while canCancelActiveRun || isSavingJobHistory || isRestoringJobHistory {
+    while hasActiveOperation || isSavingJobHistory || isRestoringJobHistory {
       try? await Task.sleep(for: .milliseconds(50))
     }
   }
@@ -2659,7 +2665,7 @@ final class WorkbenchStore: ObservableObject {
         return nil
       }
     }
-    guard !isPreparingToQuit, !hasActiveJob, !isSavingJobHistory,
+    guard !isPreparingToQuit, !hasActiveJob, !isFinalizingJobEvidence, !isSavingJobHistory,
           allowDuringAgentWorkflow || !isRunningAgentWorkflow else {
       agentStatusMessage = "Wait for the active Scientific Workbench run to finish or cancel it first."
       return nil
@@ -2710,6 +2716,7 @@ final class WorkbenchStore: ObservableObject {
       selectedSection = .jobs
     }
 
+    let completion: JobRunBundleService.Completion
     do {
       if isCancellationRequested || Task.isCancelled { throw CancellationError() }
       try FileManager.default.createDirectory(
@@ -2754,56 +2761,9 @@ final class WorkbenchStore: ObservableObject {
         onInterrupted: { output in await interruptedOutput.record(output) },
         cancellationRequested: { await self.isCancellationRequested }
       )
-      let stdoutEnvelope = envelopeParser.parse(result.stdout)
-      job.stdout = redactSecrets(result.stdout)
-      job.stderr = redactSecrets(result.stderr)
-      job.exitCode = result.exitCode
-      job.finishedAt = result.finishedAt
-      runBundleService.writeCaptureFiles(
-        runDirectory: runDirectory,
-        command: job.command,
-        stdout: job.stdout,
-        stderr: job.stderr,
-        retaining: result.retainedLogs
-      )
-      runBundleService.hydrate(
-        &job,
-        fallbackEnvelope: stdoutEnvelope,
-        redact: redactSecrets
-      )
-      if isCancellationRequested {
-        job.status = .cancelled
-        job.message = "Run cancelled by user."
-      } else {
-        job.status = JobStatus.resolved(
-          exitCode: result.exitCode,
-          envelopeStatus: job.parsedStatus,
-          appStatus: job.appStatus
-        )
-      }
-      if result.exitCode != 0, job.status != .cancelled {
-        job.message = redactSecrets(result.stderr.isEmpty ? "Process exited with \(result.exitCode)." : result.stderr)
-      }
-      if job.message == nil, let firstError = job.structuredErrors.first {
-        job.message = firstError.message
-      }
-      runBundleService.writeNextStepsIfMissing(for: job)
-      runBundleService.hydrate(
-        &job,
-        fallbackEnvelope: stdoutEnvelope,
-        redact: redactSecrets
-      )
-      await replace(job)
-      if ownsCancellationState {
-        isCancellationRequested = false
-      }
-      return job
+      completion = .finished(result, cancellationRequested: isCancellationRequested)
     } catch {
       let partial = await interruptedOutput.snapshot()
-      if let partial {
-        job.stdout = redactSecrets(partial.stdout)
-        job.stderr = redactSecrets(partial.stderr)
-      }
       if isCancellationRequested || error is CancellationError || isProcessRunnerCancellation(error) {
         job.status = .cancelled
         job.message = "Run cancelled by user."
@@ -2815,22 +2775,16 @@ final class WorkbenchStore: ObservableObject {
         job.message = redactSecrets(error.localizedDescription)
       }
       job.finishedAt = Date()
-      runBundleService.writeCaptureFiles(
-        runDirectory: runDirectory,
-        command: job.command,
-        stdout: job.stdout,
-        stderr: job.stderr.isEmpty ? (job.message ?? "") : job.stderr,
-        retaining: partial?.retainedLogs ?? []
-      )
-      runBundleService.hydrate(&job, redact: redactSecrets)
-      runBundleService.writeNextStepsIfMissing(for: job)
-      runBundleService.hydrate(&job, redact: redactSecrets)
-      await replace(job)
-      if ownsCancellationState {
-        isCancellationRequested = false
-      }
-      return job
+      completion = .interrupted(partial)
     }
+    isFinalizingJobEvidence = true
+    defer { isFinalizingJobEvidence = false }
+    job = await runBundleService.finalize(job, completion: completion, secrets: configuredSecrets)
+    await replace(job)
+    if ownsCancellationState {
+      isCancellationRequested = false
+    }
+    return job
   }
 
   @discardableResult

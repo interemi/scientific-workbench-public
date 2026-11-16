@@ -328,6 +328,10 @@ The [scaled catalog I/O comparison](PHASE5_SCALED_CATALOG_IO_2026-11-16.md)
 records larger Core and optional STILTS observations for PERF.12 and
 PERF.17. It also records a STILTS summary-manifest discrepancy for P2.08.
 
+The [run completion comparison](PHASE5_RUN_COMPLETION_2026-11-16.md)
+extends PERF.02 to capture, run-bundle hydration and recovery writes
+after the subprocess returns or is interrupted.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine. Each performance budget
 names its representative workload, reference machine, and tolerance.

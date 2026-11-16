@@ -24,9 +24,70 @@ struct JobRunCapture: Sendable {
 }
 
 struct JobRunBundleService {
+  enum Completion: Sendable {
+    case finished(ProcessResult, cancellationRequested: Bool)
+    case interrupted(InterruptedProcessOutput?)
+  }
+
   private let maximumSidecarBytes = 512_000
   private let parser = ToolEnvelopeParser()
   private let artifactDiscovery = ArtifactDiscovery()
+
+  func finalize(_ record: JobRecord, completion: Completion, secrets: [String]) async -> JobRecord {
+    // An interrupted or cancelled caller still needs its captured evidence.
+    await Task.detached(priority: .userInitiated) {
+      autoreleasepool {
+        let redact: (String) -> String = { SecretsRedactor.redact($0, secrets: secrets) }
+        var job = record
+        var fallbackEnvelope: ToolEnvelope?
+        let retainedLogs: Set<RunLogStream>
+
+        switch completion {
+        case let .finished(result, _):
+          fallbackEnvelope = parser.parse(result.stdout)
+          job.stdout = redact(result.stdout)
+          job.stderr = redact(result.stderr)
+          job.exitCode = result.exitCode
+          job.finishedAt = result.finishedAt
+          retainedLogs = result.retainedLogs
+        case .interrupted(let partial):
+          if let partial {
+            job.stdout = redact(partial.stdout)
+            job.stderr = redact(partial.stderr)
+          }
+          retainedLogs = partial?.retainedLogs ?? []
+        }
+
+        writeCaptureFiles(
+          runDirectory: job.runDirectory,
+          command: job.command,
+          stdout: job.stdout,
+          stderr: job.stderr.isEmpty ? (job.message ?? "") : job.stderr,
+          retaining: retainedLogs
+        )
+        hydrate(&job, fallbackEnvelope: fallbackEnvelope, redact: redact)
+        if case let .finished(result, cancellationRequested) = completion {
+          if cancellationRequested {
+            job.status = .cancelled
+            job.message = "Run cancelled by user."
+          } else {
+            job.status = JobStatus.resolved(
+              exitCode: result.exitCode, envelopeStatus: job.parsedStatus, appStatus: job.appStatus
+            )
+            if result.exitCode != 0 {
+              job.message = redact(result.stderr.isEmpty ? "Process exited with \(result.exitCode)." : result.stderr)
+            }
+          }
+          if job.message == nil {
+            job.message = job.structuredErrors.first?.message
+          }
+        }
+        writeNextStepsIfMissing(for: job)
+        hydrate(&job, fallbackEnvelope: fallbackEnvelope, redact: redact)
+        return job
+      }
+    }.value
+  }
 
   func load(
     runDirectory: String, stdoutFallback: String = "", includingCapture: Bool = true

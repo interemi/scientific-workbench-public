@@ -512,7 +512,7 @@ struct CapabilityDetailPanel: View {
   }
 
   private func canRun(_ capability: CapabilityEntry) -> Bool {
-    guard !store.canCancelActiveRun else { return false }
+    guard !store.hasActiveOperation else { return false }
     guard !requiresAccessConfirmation(capability) || accessConfirmed else { return false }
     if !rawArguments.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       return true
@@ -521,7 +521,7 @@ struct CapabilityDetailPanel: View {
   }
 
   private func runReadinessMessage(for capability: CapabilityEntry) -> String {
-    if store.canCancelActiveRun {
+    if store.hasActiveOperation {
       return "A Scientific Workbench operation is already active."
     }
     if !rawArguments.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -618,7 +618,7 @@ struct CapabilityDetailPanel: View {
             prepareSyntheticExample(kind)
           }
         }
-        .disabled(store.canCancelActiveRun)
+        .disabled(store.hasActiveOperation)
         .accessibilityIdentifier("capability.prepare-example")
       }
       if let error = store.firstRunExampleError {
