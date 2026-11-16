@@ -319,6 +319,11 @@ The [guided input review verification](PHASE5_GUIDED_INPUT_IO_2026-11-11.md)
 records the PERF.02 changes for Sky Crossmatch and Legacy Report
 Evidence Mapping, including the checks after detaching an input.
 
+The [window update comparison](PHASE5_WINDOW_INVALIDATION_2026-11-11.md)
+extends PERF.03 to the title bar, workflow journey bar, and inspector.
+It checks unrelated log updates as well as job status and navigation
+changes that still need to update the window.
+
 Exit: each optimization shows a measured gain without losing results, evidence,
 responsiveness, or cancellation on the tested machine. Each performance budget
 names its representative workload, reference machine, and tolerance.
