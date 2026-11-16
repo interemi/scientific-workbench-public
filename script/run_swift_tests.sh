@@ -5,6 +5,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TESTS_DIR="$ROOT_DIR/Tests/ScientificWorkbenchTests"
 RUNNER_DIR="${SCIENTIFIC_WORKBENCH_SWIFT_TEST_RUNNER_DIR:-$ROOT_DIR/.build/scientific-workbench-swift-testing-runner}"
 SWIFT_OPTIONS=(--package-path "$ROOT_DIR")
+SWIFT_TEST_OPTIONS=(--enable-swift-testing --disable-xctest)
+if [[ "${SCIENTIFIC_WORKBENCH_SWIFT_TEST_SERIAL:-0}" == "1" ]]; then
+  SWIFT_TEST_OPTIONS+=(--no-parallel)
+fi
 if [[ -n "${SCIENTIFIC_WORKBENCH_SWIFT_BUILD_SYSTEM:-}" ]]; then
   SWIFT_OPTIONS+=(--build-system "$SCIENTIFIC_WORKBENCH_SWIFT_BUILD_SYSTEM")
 fi
@@ -115,12 +119,15 @@ echo "Swift toolchain:"
 swift --version | sed 's/^/  /'
 echo "Developer directory: $(xcode-select -p)"
 echo "Expected Swift Testing tests in target: $EXPECTED_COUNT"
+if [[ "${SCIENTIFIC_WORKBENCH_SWIFT_TEST_SERIAL:-0}" == "1" ]]; then
+  echo "Swift Testing execution: serial"
+fi
 
 # Use SwiftPM's supported runner where discovery works (including Xcode CI).
 # A failing build/test must never be hidden by a successful fallback run.
 NATIVE_LOG_PATH="$RUNNER_DIR/native-output.log"
 set +e
-swift test "${SWIFT_OPTIONS[@]}" --enable-swift-testing --disable-xctest "$@" 2>&1 | tee "$NATIVE_LOG_PATH"
+swift test "${SWIFT_OPTIONS[@]}" "${SWIFT_TEST_OPTIONS[@]}" "$@" 2>&1 | tee "$NATIVE_LOG_PATH"
 native_status="${PIPESTATUS[0]}"
 set -e
 [[ "$native_status" -eq 0 ]] || exit "$native_status"
@@ -189,6 +196,9 @@ swiftc \
   -o "$RUNNER_DIR/ScientificWorkbenchSwiftTestingRunner"
 
 runner_args=()
+if [[ "${SCIENTIFIC_WORKBENCH_SWIFT_TEST_SERIAL:-0}" == "1" ]]; then
+  runner_args+=(--no-parallel)
+fi
 if [[ "$#" -gt 0 ]]; then
   while IFS= read -r -d '' arg; do
     runner_args+=("$arg")
