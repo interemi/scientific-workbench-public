@@ -77,6 +77,7 @@ entries:
     requires_datanalysis: false
     preflight_mode: none
     smoke_tier: core
+    supports_bounded_fits_preview: true
     short_description: First-pass FITS inspection with HDU, header, WCS, quicklook, and simple-image fallback.
   - id: fits_rgb_batch
     label: fits_rgb_batch.py

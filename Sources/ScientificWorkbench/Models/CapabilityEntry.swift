@@ -158,6 +158,7 @@ struct CapabilityEntry: Identifiable, Hashable, Sendable {
   let smokeTier: String
   let shortDescription: String
   let allowedEnvironmentKeys: Set<String>
+  let supportsBoundedFITSPreview: Bool
   let owningSkillRoot: String?
   let owningSkillRole: String?
   let registrySourcePath: String?
@@ -176,6 +177,7 @@ struct CapabilityEntry: Identifiable, Hashable, Sendable {
     smokeTier: String,
     shortDescription: String,
     allowedEnvironmentKeys: Set<String> = [],
+    supportsBoundedFITSPreview: Bool = false,
     owningSkillRoot: String? = nil,
     owningSkillRole: String? = nil,
     registrySourcePath: String? = nil,
@@ -193,6 +195,7 @@ struct CapabilityEntry: Identifiable, Hashable, Sendable {
     self.smokeTier = smokeTier
     self.shortDescription = shortDescription
     self.allowedEnvironmentKeys = allowedEnvironmentKeys
+    self.supportsBoundedFITSPreview = supportsBoundedFITSPreview
     self.owningSkillRoot = owningSkillRoot
     self.owningSkillRole = owningSkillRole
     self.registrySourcePath = registrySourcePath

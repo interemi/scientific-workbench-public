@@ -426,6 +426,38 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func fitsInspectionReadsRetainedSummaryThroughArtifactLoader() async throws {
+    let summaryText = """
+    {"tool":"inspect_fits","results":{"hdus":[
+      {"index":0,"name":"PRIMARY","type":"PrimaryHDU","has_data":false,"header":{},"wcs":null},
+      {"index":1,"name":"SCI","type":"ImageHDU","has_data":true,"data_kind":"image",
+       "header":{"BUNIT":"adu","BLANK":-32768},
+       "wcs":{"ctype":["RA---TAN","DEC--TAN"],"axis_units":["deg","deg"],"reference_frame":"ICRS",
+              "crpix":[5,4],"crval":[150,-30],"projection_plane_scale_arcsec":[1,1]},
+       "data_summary":{"shape":[8,10],"dtype":"float32","sampled_pixels":80,"nonfinite_sampled_pixels":1}},
+      {"index":2,"name":"DQ","type":"ImageHDU","has_data":true,"header":{},"wcs":null}
+    ],"preview_extension":1,"preview":{"status":"rendered","hdu_index":1,"region_xywh":[2,1,5,4],
+      "plane_indices":[],"coordinates":"wcs","display_only":true}}}
+    """
+    let root = try makeScenarioFixture(name: "fits-inspection-summary", files: ["summary.json": summaryText])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let file = root.appendingPathComponent("summary.json")
+    let artifact = Artifact(path: file.path, relativePath: "summary.json", byteCount: Int64(summaryText.utf8.count),
+                            artifactType: "summary_json")
+    let job = JobRecord(capability: expertFITSCapability(), runDirectory: root.path)
+    let snapshot = await ArtifactPreviewLoader().load(artifact, in: job, includePreview: true, redact: { $0 })
+    let inspection = try #require(snapshot?.fitsInspection)
+    #expect(snapshot?.payload?.text?.contains("inspect_fits") == true)
+    #expect(inspection.hdus.map(\.name) == ["PRIMARY", "SCI", "DQ"])
+    #expect(inspection.hdus[1].dataSummary?.nonfiniteSampledPixels == 1)
+    #expect(inspection.hdus[1].wcs?.projectionPlaneScaleArcsec == [1, 1])
+    #expect(inspection.hdus[1].header["BLANK"]?.text == "-32768")
+    #expect(inspection.preview?.hduIndex == 1)
+    #expect(inspection.preview?.regionXywh == [2, 1, 5, 4])
+    #expect(try String(contentsOf: file, encoding: .utf8) == summaryText)
+  }
+
+  @Test
   func rasterPreviewCacheReusesOnlyTheCurrentVersionAndClearsOnlyTheReviewedEntry() async throws {
     let root = try makeScenarioFixture(name: "raster-preview-cache", files: ["stderr.txt": "failure evidence"])
     defer { try? FileManager.default.removeItem(at: root) }

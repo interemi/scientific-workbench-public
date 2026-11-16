@@ -336,6 +336,7 @@ struct ArtifactPreview: View {
   let artifact: Artifact
   @State private var loadedPreview: (id: RequestID, snapshot: ArtifactPreviewSnapshot)?
   @State private var showTableText = false
+  @State private var showFITSJSON = false
   private var isTable: Bool { TablePreviewService.supports(artifact) }
   private var requestID: RequestID {
     RequestID(job: job.id, runDirectory: job.runDirectory, artifact: artifact,
@@ -382,6 +383,16 @@ struct ArtifactPreview: View {
       if isTable && !showTableText {
         TableArtifactPreview(store: store, job: job, artifact: artifact)
           .id(requestID)
+      } else if let fits = snapshot?.fitsInspection {
+        Toggle("Raw JSON", isOn: $showFITSJSON)
+          .controlSize(.small)
+          .accessibilityIdentifier("results.fits.raw-json")
+        if showFITSJSON {
+          preview(snapshot)
+        } else {
+          FITSInspectionView(summary: fits, redact: store.redactedPreviewText)
+            .id(requestID)
+        }
       } else {
         preview(snapshot)
       }
@@ -391,6 +402,7 @@ struct ArtifactPreview: View {
       guard !Task.isCancelled else { return }
       let id = requestID
       loadedPreview = nil
+      showFITSJSON = false
       guard var result = await ArtifactPreviewLoader.shared.load(
         artifact, in: job, includePreview: !isTable || id.showTableText, redact: store.previewRedactor()
       ), !Task.isCancelled else { return }
@@ -440,6 +452,12 @@ struct ArtifactPreview: View {
           Text("Display-scaled quicklook only. Check summary.json for WCS and units when present; this image does not establish astrometric calibration.")
             .font(.caption)
             .foregroundStyle(.secondary)
+          if let summary = job.artifacts.first(where: { $0.relativePath == "summary.json" }) {
+            Button("Inspect FITS summary") {
+              store.selectResultArtifact(summary.id, for: job)
+            }
+            .accessibilityIdentifier("results.fits.open-summary")
+          }
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

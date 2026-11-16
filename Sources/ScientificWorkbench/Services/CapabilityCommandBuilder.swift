@@ -130,15 +130,20 @@ struct CapabilityCommandBuilder {
         "--summary-json", summary,
         "--manifest-json", manifest
       ]
-      if FirstRunExampleService.isGeneratedFITS(at: input) {
+      let isSynthetic = FirstRunExampleService.isGeneratedFITS(at: input)
+      if isSynthetic || capability.supportsBoundedFITSPreview {
+        let previewName = isSynthetic ? "previews/synthetic_wcs.png" : "previews/fits_quicklook.png"
         arguments += [
-          "--preview", runURL.appendingPathComponent("previews/synthetic_wcs.png").path,
+          "--preview", runURL.appendingPathComponent(previewName).path,
           "--header-key", "CUNIT1",
           "--header-key", "CUNIT2",
           "--header-key", "RADESYS",
           "--header-key", "CDELT1",
           "--header-key", "CDELT2",
         ]
+      }
+      if capability.supportsBoundedFITSPreview {
+        arguments.append("--preview-if-available")
       }
       return arguments
     case "document_intake_workbench":

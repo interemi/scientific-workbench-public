@@ -59,6 +59,16 @@ A display region does not change the statistics of the source HDU. Tiled
 images with a tile larger than the quicklook budget retain their metadata
 and report the sampling limit.
 
+In Scientific Workbench, **Results** opens the quicklook when a PNG was
+produced. Use **Inspect FITS summary** or select `summary.json` to switch
+among HDUs and read dimensions, selected header cards, the sampled
+nonfinite count, and WCS metadata. **Raw JSON** exposes the retained
+summary. The displayed angular scale is the projection-plane increment
+at the reference pixel. The app requests the bounded quicklook when the
+configured skill registry advertises it. Earlier registries keep the
+metadata-only route for ordinary inputs and the generated sample still
+requests its quicklook.
+
 ## Two-catalog sky crossmatch
 
 The generated CSVs declare `source_id`, `ra_deg`, and `dec_deg` in decimal

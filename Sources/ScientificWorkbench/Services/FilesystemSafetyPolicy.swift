@@ -458,6 +458,9 @@ struct FilesystemSafetyPolicy {
     if normalized == "--report-md", capabilityID == "echelle_multispec_inventory" {
       return .flag
     }
+    if normalized == "--preview-if-available", capabilityID == "inspect_fits" {
+      return .flag
+    }
     if Self.outputPathOptions.contains(normalized) {
       return .outputPath
     }

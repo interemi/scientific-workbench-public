@@ -4527,8 +4527,8 @@
     "scientific-data-astro/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "5321adbfc162143782237e9b6d9e44f98efda9abf3fa235b864331cffd4c1e87",
-      "size": 26356
+      "sha256": "bd9ae19ffde1f55a8ab4eb970c6474c47465ea153cc8acb724e701ac49ffe671",
+      "size": 26396
     },
     "scientific-data-astro/.cache/archived_references/references/astro-transferable-patterns.md": {
       "executable": false,
@@ -4911,8 +4911,8 @@
     "scientific-data-astro/fixtures/inspect_fits.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "15c7a0ce6ca8b972eb7063126f4ff5c3cea4808235d0bffa35bfaf471de3f743",
-      "size": 30206
+      "sha256": "b90991a87cf80b36c0c707f507a60db6aff0d77cc4328f39486aaf11b063464e",
+      "size": 30793
     },
     "scientific-data-astro/fixtures/istarmod_workbench.py": {
       "executable": false,
@@ -5667,8 +5667,8 @@
     "scientific-data-documents/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "5321adbfc162143782237e9b6d9e44f98efda9abf3fa235b864331cffd4c1e87",
-      "size": 26356
+      "sha256": "bd9ae19ffde1f55a8ab4eb970c6474c47465ea153cc8acb724e701ac49ffe671",
+      "size": 26396
     },
     "scientific-data-documents/.cache/archived_references/references/academic-reporting.md": {
       "executable": false,
@@ -7199,8 +7199,8 @@
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "5321adbfc162143782237e9b6d9e44f98efda9abf3fa235b864331cffd4c1e87",
-      "size": 26356
+      "sha256": "bd9ae19ffde1f55a8ab4eb970c6474c47465ea153cc8acb724e701ac49ffe671",
+      "size": 26396
     },
     "scientific-data-maintainer/.cache/archived_references/real-world-capability-classification-v1-7.md": {
       "executable": false,
@@ -10053,8 +10053,8 @@
     "scientific-data-notebooks/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "5321adbfc162143782237e9b6d9e44f98efda9abf3fa235b864331cffd4c1e87",
-      "size": 26356
+      "sha256": "bd9ae19ffde1f55a8ab4eb970c6474c47465ea153cc8acb724e701ac49ffe671",
+      "size": 26396
     },
     "scientific-data-notebooks/.cache/archived_references/references/coursework-notebook-comparison.md": {
       "executable": false,

@@ -210,6 +210,11 @@ def inspect_fits_case(root: Path, environment: dict[str, str]) -> dict:
             "FITS backend lost declared units or frame")
     require(backend_wcs.get("crval") == [150, -30] and backend_wcs.get("crpix") == [4.5, 4.5],
             "FITS backend WCS reference differs")
+    require(backend_wcs.get("reference_frame") == "ICRS" and backend_wcs.get("axis_units") == ["deg", "deg"],
+            "FITS backend WCS frame or axis units differ")
+    measured_scales = backend_wcs.get("projection_plane_scale_arcsec", [])
+    require(len(measured_scales) == 2 and all(abs(scale - 1) < 1e-6 for scale in measured_scales),
+            "FITS backend projection-plane scales differ")
     require(preview.is_file() and preview.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"),
             "FITS display-only preview is absent or invalid")
     check_manifest(manifest, [source], [summary, preview])

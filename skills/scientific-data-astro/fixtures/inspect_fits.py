@@ -28,6 +28,9 @@ DEFAULT_HEADER_KEYS = [
     "EXPTIME",
     "FILTER",
     "BUNIT",
+    "BSCALE",
+    "BZERO",
+    "BLANK",
     "CTYPE1",
     "CTYPE2",
     "CRVAL1",
@@ -249,13 +252,28 @@ def wcs_summary(WCS, header):
         return None
     try:
         wcs = WCS(header)
-        return {
-            "ctype": [str(item) for item in getattr(wcs.wcs, "ctype", []) if item],
-            "crval": [float(item) for item in getattr(wcs.wcs, "crval", [])[:2]],
-            "crpix": [float(item) for item in getattr(wcs.wcs, "crpix", [])[:2]],
-        }
     except Exception:
         return {"status": "present but could not parse"}
+
+    summary = {
+        "ctype": [str(item) for item in wcs.wcs.ctype if item],
+        "crval": [float(item) for item in wcs.wcs.crval],
+        "crpix": [float(item) for item in wcs.wcs.crpix],
+        "axis_units": list(wcs.world_axis_units),
+    }
+    if wcs.wcs.radesys:
+        summary["reference_frame"] = wcs.wcs.radesys
+    if wcs.has_celestial:
+        try:
+            from astropy.units import arcsec
+
+            scales = [float(scale.to_value(arcsec)) for scale in wcs.celestial.proj_plane_pixel_scales()]
+            if all(math.isfinite(scale) and scale > 0 for scale in scales):
+                summary["projection_plane_scale_arcsec"] = scales
+        except ValueError:
+            # Coupled celestial and noncelestial axes do not define a separate celestial scale.
+            pass
+    return summary
 
 
 def choose_preview_hdu(hdus, extension):

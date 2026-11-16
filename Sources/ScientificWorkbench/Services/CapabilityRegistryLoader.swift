@@ -14,6 +14,7 @@ struct CapabilityRegistryRawEntry: Hashable, Sendable {
   var smokeTier: String
   var shortDescription: String
   var allowedEnvironmentKeys: Set<String>
+  var supportsBoundedFITSPreview: Bool
 }
 
 struct CapabilityRegistryResolution: Hashable, Sendable {
@@ -409,6 +410,11 @@ struct CapabilityRegistryLoader {
       raw["allowed_environment_keys"] ?? "",
       entryID: id
     )
+    let boundedPreview = raw["supports_bounded_fits_preview"] ?? "false"
+    try validateRegistryValue(
+      boundedPreview, field: "supports_bounded_fits_preview", entryID: id,
+      allowed: allowedBooleanValues
+    )
 
     return CapabilityRegistryRawEntry(
       id: id,
@@ -422,7 +428,8 @@ struct CapabilityRegistryLoader {
       preflightMode: preflightMode,
       smokeTier: smokeTier,
       shortDescription: shortDescription,
-      allowedEnvironmentKeys: allowedEnvironmentKeys
+      allowedEnvironmentKeys: allowedEnvironmentKeys,
+      supportsBoundedFITSPreview: boundedPreview == "true"
     )
   }
 
@@ -460,6 +467,7 @@ struct CapabilityRegistryLoader {
       smokeTier: raw.smokeTier,
       shortDescription: raw.shortDescription,
       allowedEnvironmentKeys: raw.allowedEnvironmentKeys,
+      supportsBoundedFITSPreview: raw.supportsBoundedFITSPreview,
       owningSkillRoot: owningRoot?.path,
       owningSkillRole: owningRoot?.role.rawValue,
       registrySourcePath: registryResolution?.resolvedPath,
