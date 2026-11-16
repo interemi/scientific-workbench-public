@@ -225,6 +225,63 @@ def inspect_fits_case(root: Path, environment: dict[str, str]) -> dict:
     }
 
 
+def check_bounded_fits(root: Path, environment: dict[str, str]) -> dict:
+    from astropy.io import fits
+    import numpy as np
+
+    values = np.full((1028, 1030), 3, dtype=np.int16)
+    values[0, 0] = -32768
+    image = fits.ImageHDU(values, name="SCI")
+    image.header.update({"BSCALE": 0.5, "BZERO": 4.0, "BLANK": -32768, "BUNIT": "adu"})
+    table = fits.BinTableHDU.from_columns([fits.Column(name="ID", format="J", array=[1, 2])], name="CAT")
+    sources = {
+        "scaled_image": [fits.PrimaryHDU(), image, table],
+        "table_only": [fits.PrimaryHDU(), table],
+    }
+    verified = {}
+    for name, hdus in sources.items():
+        source = root / "input" / f"{name}.fits"
+        fits.HDUList(hdus).writeto(source)
+        original_hash = sha256(source)
+        case = root / name
+        summary, manifest, preview = (case / name for name in ("summary.json", "manifest.json", "quicklook.png"))
+        command = [
+            sys.executable, str(ROOT / "skills/scientific-data-astro/scripts/inspect_fits.py"),
+            str(source), "--summary-json", str(summary), "--manifest-json", str(manifest),
+            "--preview", str(preview), "--preview-if-available", "--sample-size", "4096",
+        ]
+        completed = run(command, case, environment)
+        require(completed.returncode == 0, f"{name} FITS check failed; inspect retained logs")
+        payload = read_json(summary)
+        result = payload["results"]
+        require(result["hdus"][-1]["data_summary"] == {"rows": 2, "columns": 1, "column_names": ["ID"]},
+                "FITS table header summary differs")
+        details = result["preview"]
+        require(details["display_only"] is True, "FITS quicklook lost its visual-only classification")
+        if name == "scaled_image":
+            stats = result["hdus"][1]["data_summary"]
+            require(result["hdus"][1]["header"]["BUNIT"] == "adu", "FITS scaled image lost its BUNIT")
+            require(stats["shape"] == [1028, 1030] and stats["sampling"] == "distributed_sections"
+                    and 1 < stats["sampled_pixels"] <= 4096, "FITS sampling scope differs")
+            require(stats["nonfinite_sampled_pixels"] == 1 and stats["min"] == stats["max"] == 5.5,
+                    "FITS section scaling or BLANK handling differs")
+            require(details["status"] == "rendered" and details["hdu_index"] == 1
+                    and details["region_xywh"] == [3, 2, 1024, 1024] and details["coordinates"] == "pixel",
+                    "FITS automatic quicklook crop differs")
+            require(preview.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"), "FITS quicklook PNG is invalid")
+            check_manifest(manifest, [source], [summary, preview])
+            verified["scaled_image"] = {"sampled_pixels": stats["sampled_pixels"],
+                                        "region_xywh": details["region_xywh"]}
+        else:
+            require(payload["app_status"] == "WARNING" and details["status"] == "unavailable"
+                    and not preview.exists() and not payload["artifacts"].get("preview_png"),
+                    "FITS table-only inspection should retain the summary without a quicklook")
+            check_manifest(manifest, [source], [summary])
+            verified["table_only"] = "summary_retained"
+        require(sha256(source) == original_hash, f"{name} FITS input changed")
+    return verified
+
+
 def crossmatch_command(left: Path, right: Path, output: Path, summary: Path,
                        manifest: Path, radius: str = "1") -> list[str]:
     return [
@@ -375,6 +432,7 @@ def main() -> int:
             cwd=ROOT, text=True, capture_output=True, check=True,
         ).stdout.strip())
         evidence["fits"] = inspect_fits_case(output, environment)
+        evidence["fits_bounded"] = check_bounded_fits(output, environment)
         evidence["crossmatch"] = crossmatch_cases(output, environment)
         evidence["status"] = "PASS"
     except Exception as error:

@@ -43,6 +43,22 @@ in zero-based coordinates using the WCS applied to the rendered PNG.
 The input hash must remain unchanged. The PNG is a visual orientation aid,
 not a calibrated image or an astrometric accuracy measurement.
 
+A second FITS fixture contains a 1,030 × 1,028 scaled integer image and a
+binary table. The distributed image sample must preserve the physical value
+of 5.5 adu and count the sampled `BLANK` as nonfinite. The automatic quicklook
+must record the centered 1,024 × 1,024 region in zero-based coordinates. A
+table-only fixture must still expose its column and row counts, with the
+summary and provenance preserved when a PNG is unavailable. The checks
+verify the input and output hashes in both cases.
+
+The backend CLI requests this mode with `--preview <output.png>
+--preview-if-available`. A large image uses the centered region unless an
+explicit `--crop x0,y0,width,height` is supplied. The summary labels sampled
+statistics and records the preview HDU, region, plane indices, and axes.
+A display region does not change the statistics of the source HDU. Tiled
+images with a tile larger than the quicklook budget retain their metadata
+and report the sampling limit.
+
 ## Two-catalog sky crossmatch
 
 The generated CSVs declare `source_id`, `ra_deg`, and `dec_deg` in decimal
