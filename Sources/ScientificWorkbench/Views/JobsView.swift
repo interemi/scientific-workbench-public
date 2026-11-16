@@ -315,17 +315,20 @@ struct JobDetailView: View {
           StatusBadge(status: job.displaySeverity)
         }
 
-        if (job.status == .queued || job.status == .running), store.isFinalizingJobEvidence {
-          ProgressView("Saving run evidence…")
-            .controlSize(.small)
-        } else if job.status == .queued || job.status == .running {
-          Button(role: .cancel) {
-            store.cancelActiveRun()
-          } label: {
-            Label(store.isCancellationRequested ? "Cancelling..." : "Cancel Run", systemImage: "xmark.circle")
+        if job.status == .queued || job.status == .running {
+          if store.isFinalizingJobEvidence {
+            ProgressView("Saving run evidence…")
+              .controlSize(.small)
           }
-          .disabled(store.isCancellationRequested)
-          .accessibilityIdentifier("jobs.cancel-run")
+          if store.canCancelActiveRun {
+            Button(role: .cancel) {
+              store.cancelActiveRun()
+            } label: {
+              Label(store.isCancellationRequested ? "Cancelling..." : "Cancel Run", systemImage: "xmark.circle")
+            }
+            .disabled(store.isCancellationRequested)
+            .accessibilityIdentifier("jobs.cancel-run")
+          }
         }
 
         JobJourneyView(store: store, job: job)

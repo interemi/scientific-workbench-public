@@ -8,7 +8,9 @@ while that evidence is being prepared. Quit waits for capture and
 job history persistence. The single-job guard also covers this work.
 
 Cancellation can still stop an active subprocess or the remaining
-steps of a workflow. Once the subprocess finishes, a standalone
+steps of a workflow. Jobs keeps the workflow cancellation control
+available while the current step saves evidence. Once the
+subprocess finishes, a standalone
 job saves its evidence with the outcome known at completion. Any
 cancelled or interrupted process retains the logs and files it
 produced before stopping.
