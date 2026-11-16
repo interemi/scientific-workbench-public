@@ -1,7 +1,24 @@
 import SwiftUI
 
-struct SidebarView: View {
-  @ObservedObject var store: WorkbenchStore
+struct SidebarView: View, Equatable {
+  private let store: WorkbenchStore
+  private let selectedSection: AppSection?
+  private let userCapabilityCount: Int
+  private let maintainerCapabilityCount: Int
+
+  init(store: WorkbenchStore) {
+    self.store = store
+    selectedSection = store.selectedSection
+    userCapabilityCount = store.userCapabilities.count
+    maintainerCapabilityCount = store.maintainerCapabilities.count
+  }
+
+  nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.store === rhs.store
+      && lhs.selectedSection == rhs.selectedSection
+      && lhs.userCapabilityCount == rhs.userCapabilityCount
+      && lhs.maintainerCapabilityCount == rhs.maintainerCapabilityCount
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -22,14 +39,14 @@ struct SidebarView: View {
               SidebarRow(
                 section: section,
                 detail: detail(for: section),
-                isSelected: store.selectedSection == section
+                isSelected: selectedSection == section
               )
             }
             .buttonStyle(.plain)
             .accessibilityLabel(section.title)
             .accessibilityHint(detail(for: section))
             .accessibilityIdentifier("sidebar.section.\(section.rawValue)")
-            .accessibilityAddTraits(store.selectedSection == section ? .isSelected : [])
+            .accessibilityAddTraits(selectedSection == section ? .isSelected : [])
           }
         }
         .padding(.horizontal, 10)
@@ -44,9 +61,9 @@ struct SidebarView: View {
   private func detail(for section: AppSection) -> String {
     switch section {
     case .capabilities:
-      return "Browse \(store.userCapabilities.count) tools"
+      return "Browse \(userCapabilityCount) tools"
     case .maintenance:
-      return "\(store.maintainerCapabilities.count) advanced gates"
+      return "\(maintainerCapabilityCount) advanced gates"
     default:
       return section.detail
     }

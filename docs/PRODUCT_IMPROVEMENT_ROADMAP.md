@@ -231,10 +231,110 @@ and artifacts. This is an internal functional criterion, not a user-success rate
 | PERF.13 | Deduplicate repeated submissions and refreshes. |
 | PERF.14 | Improve persistence only against measured size, latency, and recovery cases. |
 | PERF.15 | Explain derived-data quotas and clean only reviewed, regenerable material. |
-| PERF.17 | Set fluency budgets against the recorded local baseline and representative fixtures. |
+| PERF.17 | Set trace-based budgets for interaction latency, preview memory, in-memory logs, search, and p95 startup on the reference Mac. Turn the most important budgets into release checks. |
+
+The [startup history measurement](PHASE5_STARTUP_HISTORY_2026-11-06.md)
+records the PERF.02 component result for run-bundle reads. The
+[paired graphical launch measurement](PHASE5_WINDOW_TIMING_2026-11-06.md)
+verifies PERF.04 for the configured Core launch and defines one local
+startup target for PERF.17. Other main-thread paths, workloads and
+performance targets remain open.
+
+The [raster preview measurement](PHASE5_RASTER_PREVIEWS_2026-11-06.md)
+records PERF.06 for supported image previews and generated FITS
+quicklooks. It documents the input limits, the PNG/TIFF memory
+reduction and the longer decode times. Raster decoding also advances
+PERF.02.
+
+The [environment check verification](PHASE5_ENVIRONMENT_REFRESH_2026-11-06.md)
+records PERF.05 and the environment-refresh portion of PERF.13. It
+compares subprocess counts, session expiry, path invalidation and
+explicit recheck behavior.
+
+The [navigation and catalog comparison](PHASE5_VIEW_INVALIDATION_2026-11-06.md)
+records partial PERF.03 and PERF.10 results. The sidebar and catalog
+list no longer reevaluated in the measured unrelated updates, and the
+catalog reused its filter result within a body evaluation. The
+[catalog search comparison](PHASE5_CATALOG_SEARCH_2026-11-09.md) records
+the index, cancellation tests and settled graphical results for PERF.10.
+Broader invalidation and frame timing remain open.
+
+The [table preview verification](PHASE5_TABLE_PREVIEWS_2026-11-06.md)
+records PERF.07 for the supported table formats and advances PERF.02.
+It documents record paging, limits, the CRLF comparison and independent
+full workflow counts for the two large fixtures.
+
+The [recent log excerpt verification](PHASE5_LOG_EXCERPTS_2026-11-08.md)
+records bounded restoration and rendering. The later
+[log retention verification](PHASE5_LOG_RETENTION_2026-11-08.md)
+records the PERF.08 reference tests for complete redacted retention
+within the output limit, local memory bounds, UI navigation during
+capture and search from the retained file.
+
+The [history scale checkpoint](PHASE5_HISTORY_SCALE_2026-11-08.md)
+records partial PERF.09 results for history restore, pagination,
+indexed search and retention. It compares 250, 1,000 and 10,000
+records. The [deferred capture comparison](PHASE5_DEFERRED_CAPTURE_2026-11-08.md)
+records demand-loaded command and log details and preservation of
+search metadata. The [large history graphical verification](PHASE5_HISTORY_GUI_2026-11-09.md)
+completes the local PERF.09 checks for 10,000 jobs. The full-index write
+cost informs PERF.14.
+
+The [idle and active application measurements](PHASE5_IDLE_ACTIVITY_2026-11-11.md)
+record PERF.11 on the available Mac. They establish the settled idle
+behavior, the active process checks and the observed transition after
+completion. The measured scope supports retaining the current cadence.
+
+The [process termination verification](PHASE5_PROCESS_TERMINATION_2026-11-11.md)
+records the PERF.12 single-job guard, cancellation and evidence
+retention during Quit. The process sample uses a synthetic workload.
+Backend-specific resource limits remain open.
+
+The [repeated request verification](PHASE5_SINGLE_SUBMISSION_2026-11-11.md)
+records PERF.13 for Chat, cloud reviews, and Ollama checks and downloads.
+The earlier environment check verification covers shared Core probes.
+
+The [job history checkpoint verification](PHASE5_HISTORY_CHECKPOINTS_2026-11-11.md)
+records PERF.14 background saves, recovery of large histories, retention
+after failed writes, and the measured sizes and costs of agent state and
+manifests. The measured workload retains the existing checkpoint schedule.
+
+The [output storage verification](PHASE5_OUTPUT_STORAGE_2026-11-11.md)
+records PERF.15 file-size measurement, capture limits, and confirmed
+cleanup of the regenerable in-memory preview cache.
+
+The [reference performance budgets](PHASE5_PERFORMANCE_BUDGETS_2026-11-11.md)
+record PERF.17 startup, preview, log, and search limits. The startup
+check is reproducible from a clean checkout and uses its own synthetic
+history. The [navigation and backend follow-up](PHASE5_NAVIGATION_AND_BACKEND_IO_2026-11-11.md)
+compares the phase baseline and candidate and records reference I/O
+limits for two small Core fixtures.
+
+The [Results preview verification](PHASE5_ARTIFACT_PREVIEW_IO_2026-11-11.md)
+records a PERF.02 improvement for artifact metadata, PDF thumbnails,
+and comparisons. It includes a main-actor responsiveness measurement
+and an isolated app check.
+
+The [guided input review verification](PHASE5_GUIDED_INPUT_IO_2026-11-11.md)
+records the PERF.02 changes for Sky Crossmatch and Legacy Report
+Evidence Mapping, including the checks after detaching an input.
+
+The [window update comparison](PHASE5_WINDOW_INVALIDATION_2026-11-11.md)
+extends PERF.03 to the title bar, workflow journey bar, and inspector.
+It checks unrelated log updates as well as job status and navigation
+changes that still need to update the window.
+
+The [scaled catalog I/O comparison](PHASE5_SCALED_CATALOG_IO_2026-11-16.md)
+records larger Core and optional STILTS observations for PERF.12 and
+PERF.17. It also records a STILTS summary-manifest discrepancy for P2.08.
+
+The [run completion comparison](PHASE5_RUN_COMPLETION_2026-11-16.md)
+extends PERF.02 to capture, run-bundle hydration and recovery writes
+after the subprocess returns or is interrupted.
 
 Exit: each optimization shows a measured gain without losing results, evidence,
-responsiveness, or cancellation on the tested machine.
+responsiveness, or cancellation on the tested machine. Each performance budget
+names its representative workload, reference machine, and tolerance.
 
 ## Phase 6 — Strengthen scientific rigor and reproducibility
 

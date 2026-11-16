@@ -6,7 +6,9 @@ struct EnvironmentDiagnosisView: View {
   @State private var repairProfile: EnvironmentRepairProfile = .core
   @State private var repairPlan: EnvironmentRepairPlan?
 
-  private var diagnosis: EnvironmentDiagnosis { store.environmentDiagnosis }
+  private var diagnosis: EnvironmentDiagnosis {
+    store.environmentCheckState == .expired ? .unknown : store.environmentDiagnosis
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -19,7 +21,17 @@ struct EnvironmentDiagnosisView: View {
             .controlSize(.small)
             .accessibilityLabel("Checking Python environment")
         } else {
-          StatusBadge(status: diagnosis.status)
+          StatusBadge(status: store.environmentCheckState == .expired ? "expired" : diagnosis.status)
+        }
+      }
+
+      Text(store.environmentCheckState.detail)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .accessibilityIdentifier("settings.environment-check-state")
+      if let checkedAt = store.environmentDiagnosis.checkedAt ?? store.environmentStatus.refreshedAt {
+        LabeledContent("Last checked") {
+          Text(checkedAt, format: .dateTime.hour().minute())
         }
       }
 
@@ -138,6 +150,7 @@ struct EnvironmentDiagnosisView: View {
         }
         .disabled(store.isCheckingEnvironment)
         .accessibilityIdentifier("settings.environment-recheck")
+        .help("Run fresh Python discovery and package checks for the configured skill root.")
 
         Button("Open Installation Guide") {
           store.openUserGuide()

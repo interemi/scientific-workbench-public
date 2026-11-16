@@ -32,6 +32,56 @@ private final class InMemoryCloudCredentialStore: CloudCredentialStoring {
 extension ScientificWorkbenchTests {
   @Test
   @MainActor
+  func deferredJobHistoryPreservesEvidenceWhenAnEarlyRunPersists() async throws {
+    let syntheticKey = "synthetic-history-key"
+    let root = try makeScenarioFixture(name: "deferred-job-history", files: [
+      "Documents/saved-run/stdout.txt": "Diagnostic \(syntheticKey)",
+      "Documents/saved-run/result.csv": "source_id,flux\n1,4.2\n",
+    ])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let output = root.appendingPathComponent("Documents")
+    let savedRun = output.appendingPathComponent("saved-run")
+    let history = output.appendingPathComponent(".scientificworkbench/jobs.json")
+    var priorJob = JobRecord(capability: sampleCapability(), runDirectory: savedRun.path)
+    priorJob.status = .succeeded
+    try JobHistoryStore().persist(jobs: [priorJob], to: history)
+    let historyBefore = try Data(contentsOf: history)
+    let suiteName = "Scientific-Workbench-History-Restore-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    defaults.set(AIProvider.openAI.rawValue, forKey: "aiProvider")
+    defaults.set(output.path, forKey: "outputRootPath")
+    defaults.set(root.appendingPathComponent("missing-skill").path, forKey: "skillRootPath")
+    let store = WorkbenchStore(
+      defaults: defaults,
+      deferJobHistoryHydration: true,
+      credentialStore: InMemoryCloudCredentialStore(keys: [.openAI: syntheticKey]),
+      filesystemSafetyPolicy: FilesystemSafetyPolicy(homeDirectory: root)
+    )
+
+    #expect(store.isRestoringJobHistory)
+    #expect(store.jobs.isEmpty)
+    await store.clearJobHistory()
+    store.reloadJobHistory()
+    #expect(try Data(contentsOf: history) == historyBefore)
+
+    store.outputRootRiskApproved = true
+    let submitted = try #require(await store.run(capability: sampleCapability(), rawArguments: ""))
+    #expect(submitted.status == .blocked)
+    #expect(!store.isRestoringJobHistory)
+    #expect(store.selectedJobID == submitted.id)
+    let restored = try #require(store.jobs.first { $0.id == priorJob.id })
+    #expect(restored.stdout == "Diagnostic [REDACTED]")
+    #expect(restored.artifacts.contains { $0.relativePath == "result.csv" })
+    let saved = try #require(try JobHistoryStore().load(from: history))
+    #expect(saved.map(\.id) == [submitted.id, priorJob.id])
+    #expect(saved.last?.stdout == "Diagnostic [REDACTED]")
+    #expect(try String(contentsOf: savedRun.appendingPathComponent("stdout.txt"), encoding: .utf8)
+      == "Diagnostic \(syntheticKey)")
+  }
+
+  @Test
+  @MainActor
   func realKeychainRoundTripUsesAnIsolatedService() {
     let service = "com.emilio.scientific-workbench.test.\(UUID().uuidString)"
     let credentials = KeychainCredentialStore(service: service)

@@ -4,7 +4,7 @@ import Testing
 
 extension ScientificWorkbenchTests {
   @Test
-  func legacyReportEvidenceMappingBuildsReviewedRepeatableArguments() throws {
+  func legacyReportEvidenceMappingBuildsReviewedRepeatableArguments() async throws {
     let root = FileManager.default.temporaryDirectory
       .appendingPathComponent("Scientific-Workbench-Legacy-Evidence-\(UUID().uuidString)", isDirectory: true)
     let project = root.appendingPathComponent("legacy_report", isDirectory: true)
@@ -26,10 +26,8 @@ extension ScientificWorkbenchTests {
     try writeEvidence(tool: "li6708_equivalent_width_workbench.measure", to: lithium)
 
     let service = LegacyReportEvidenceService()
+    let loader = GuidedInputReviewLoader()
     let evidence = [envcheck.path, fxcorOne.path, fxcorTwo.path, lithium.path]
-    let reviews = try Dictionary(uniqueKeysWithValues: evidence.map {
-      ($0, try service.inspect(path: $0))
-    })
     let assignments = [
       LegacyReportEvidenceAssignment(path: envcheck.path, role: .environment),
       LegacyReportEvidenceAssignment(path: fxcorOne.path, role: .fxcor),
@@ -42,17 +40,22 @@ extension ScientificWorkbenchTests {
       mappingConfirmed: true
     )
     let attached = [project.path] + evidence
+    let report = try await loader.inspectReportInputs(attached)
+    #expect(report.directories == [project.path])
+    #expect(report.evidenceFiles == evidence)
+    #expect(report.scaffoldIssues.isEmpty)
 
     #expect(service.validate(
       selection: selection,
       attachedInputPaths: attached,
-      reviews: reviews
+      reviews: report.reviews,
+      scaffoldIssue: report.scaffoldIssues[project.path]
     ).status == .pass)
 
-    let prepared = try service.prepare(
+    let prepared = try await loader.prepareReport(
       selection: selection,
       attachedInputPaths: attached,
-      reviews: reviews
+      reviews: report.reviews
     )
     let arguments = prepared.arguments(runURL: run)
     #expect(arguments.first == project.path)
@@ -101,6 +104,17 @@ extension ScientificWorkbenchTests {
     #expect(command.arguments.contains(run.appendingPathComponent("artifacts/legacy_report").path))
     #expect(command.arguments.contains(envcheck.path))
     #expect(!command.arguments.contains(project.path))
+
+    try FileManager.default.moveItem(
+      at: project.appendingPathComponent("main.tex"),
+      to: project.appendingPathComponent("main.tex.fixture")
+    )
+    let issue = "The selected folder is not a legacy report scaffold because main.tex is missing."
+    await #expect(throws: LegacyReportEvidenceError.invalidSelection(issue)) {
+      try await loader.prepareReport(
+        selection: selection, attachedInputPaths: attached, reviews: report.reviews
+      )
+    }
   }
 
   @Test
@@ -129,7 +143,8 @@ extension ScientificWorkbenchTests {
     let mismatch = service.validate(
       selection: wrongRole,
       attachedInputPaths: attached,
-      reviews: [rv.path: review]
+      reviews: [rv.path: review],
+      scaffoldIssue: service.scaffoldIssue(at: project.path)
     )
     #expect(mismatch.status == .blocked)
     #expect(mismatch.findings.first?.contains("does not match") == true)
@@ -142,7 +157,8 @@ extension ScientificWorkbenchTests {
     let needsReview = service.validate(
       selection: unconfirmed,
       attachedInputPaths: attached,
-      reviews: [rv.path: review]
+      reviews: [rv.path: review],
+      scaffoldIssue: service.scaffoldIssue(at: project.path)
     )
     #expect(needsReview.status == .blocked)
     #expect(needsReview.findings.first?.contains("confirm") == true)

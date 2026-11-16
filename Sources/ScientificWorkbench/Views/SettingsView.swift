@@ -98,6 +98,8 @@ struct SettingsView: View {
       }
       .id(SettingsRecoverySection.paths)
 
+      OutputStorageSection(store: store)
+
       Section("Behavior") {
         CapabilityTimeoutControl(minutes: $store.externalProcessTimeoutMinutes)
         Text("Maximum time for each capability process. The 30-minute default is conservative; long scientific tools may need a higher value.")

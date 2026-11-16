@@ -295,11 +295,11 @@ struct HomeView: View {
       alignment: .leading,
       spacing: 14
     ) {
-      SummaryTile(title: "Environment", value: store.environmentStatus.status.uppercased(), systemImage: "checkmark.seal")
+      SummaryTile(title: "Environment", value: store.environmentSummaryStatus.uppercased(), systemImage: "checkmark.seal")
       SummaryTile(title: "Capabilities", value: "\(store.userCapabilities.count)", systemImage: "square.grid.2x2")
       SummaryTile(title: "Maintenance", value: "\(store.maintainerCapabilities.count)", systemImage: "wrench.and.screwdriver")
       SummaryTile(title: "Output Root", value: URL(fileURLWithPath: store.outputRootPath).lastPathComponent, systemImage: "folder")
-      SummaryTile(title: "Jobs", value: "\(store.jobs.count)", systemImage: "list.bullet.rectangle")
+      SummaryTile(title: "Jobs", value: store.isRestoringJobHistory ? "Loading…" : "\(store.jobs.count)", systemImage: "list.bullet.rectangle")
       SummaryTile(title: "Inputs", value: "\(store.inputPaths.count)", systemImage: "paperclip")
     }
   }
@@ -308,7 +308,10 @@ struct HomeView: View {
     VStack(alignment: .leading, spacing: 10) {
       Text("Recent Jobs")
         .font(.headline)
-      if store.jobs.isEmpty {
+      if store.isRestoringJobHistory {
+        Text("Restoring job history…")
+          .foregroundStyle(.secondary)
+      } else if store.jobs.isEmpty {
         Text("Runs will appear here after you launch a capability.")
           .foregroundStyle(.secondary)
       } else {

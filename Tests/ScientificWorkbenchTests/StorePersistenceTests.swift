@@ -437,8 +437,9 @@ extension ScientificWorkbenchTests {
     store.agentPrompt = "Answer this in chat mode."
 
     await store.submitAgentChatPrompt()
-    #expect(store.pendingCloudConsentRequest?.provider == .openAI)
-    await store.confirmPendingCloudRequest()
+    let review = try #require(store.pendingCloudConsentRequest)
+    #expect(review.provider == .openAI)
+    await store.confirmPendingCloudRequest(requestID: review.id)
 
     #expect(!FileManager.default.fileExists(atPath: sentinel.path))
     #expect(store.agentChatMessages.last?.role == .assistant)
@@ -561,7 +562,7 @@ extension ScientificWorkbenchTests {
 
   @Test
   @MainActor
-  func storeLoadsAndClearsPersistedJobHistory() throws {
+  func storeLoadsAndClearsPersistedJobHistory() async throws {
     let defaults = UserDefaults(suiteName: "Scientific-Workbench-Tests-\(UUID().uuidString)")!
     let outputRoot = FileManager.default.temporaryDirectory
       .appendingPathComponent("Scientific-Workbench-Job-History-\(UUID().uuidString)", isDirectory: true)
@@ -606,9 +607,28 @@ extension ScientificWorkbenchTests {
     #expect(store.jobs.first?.message == "Run was interrupted before the app closed.")
     #expect(store.selectedJobID == jobID)
 
-    store.clearJobHistory()
+    let previousData = try Data(contentsOf: historyURL)
+    let historyDirectory = historyURL.deletingLastPathComponent()
+    let fileManager = FileManager.default
+    let originalPermissions = try #require(
+      try fileManager.attributesOfItem(atPath: historyDirectory.path)[.posixPermissions] as? NSNumber
+    )
+    do {
+      try fileManager.setAttributes([.posixPermissions: 0o500], ofItemAtPath: historyDirectory.path)
+      defer {
+        try? fileManager.setAttributes([.posixPermissions: originalPermissions], ofItemAtPath: historyDirectory.path)
+      }
+      await store.clearJobHistory()
+      #expect(store.jobs.map(\.id) == [jobID])
+      #expect(store.selectedJobID == jobID)
+      #expect(store.jobHistorySaveError?.contains("Could not save job history") == true)
+      #expect(try Data(contentsOf: historyURL) == previousData)
+    }
+
+    await store.clearJobHistory()
 
     #expect(store.jobs.isEmpty)
+    #expect(store.jobHistorySaveError == nil)
     let clearedData = try Data(contentsOf: historyURL)
     let clearedObject = try #require(try JSONSerialization.jsonObject(with: clearedData) as? [String: Any])
     let clearedJobs = try #require(clearedObject["jobs"] as? [Any])

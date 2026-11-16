@@ -5,6 +5,7 @@ struct ResultsView: View {
   @State private var pendingMixedFollowUpJob: JobRecord?
   @State private var isReplacingInputSelection = false
   @State private var comparisonSource: ArtifactComparisonSource?
+  @State private var artifactPageIndex = 0
 
   private let inspectionService = ArtifactInspectionService()
 
@@ -86,28 +87,11 @@ struct ResultsView: View {
               Text("Inspect the job status and logs, or refresh its run bundle after the process stops.")
             }
           } else {
-            List(selection: artifactSelection) {
-              ForEach(job.artifacts) { artifact in
-                HStack {
-                  Image(systemName: icon(for: artifact))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
-                  VStack(alignment: .leading, spacing: 2) {
-                    Text(store.redactedPreviewText(artifact.label ?? artifact.relativePath))
-                      .lineLimit(1)
-                      .truncationMode(.middle)
-                    Text(artifactDetail(for: artifact))
-                      .font(.caption)
-                      .foregroundStyle(.secondary)
-                    Text(inspectionService.role(for: artifact).rawValue)
-                      .font(.caption2)
-                      .foregroundStyle(.secondary)
-                  }
-                }
-                .tag(Optional(artifact.id))
-              }
-            }
+            artifactList(for: job)
           }
+        } else if store.isRestoringJobHistory {
+          ProgressView("Restoring job history")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
           ContentUnavailableView {
             Label("No Results Yet", systemImage: "doc.richtext")
@@ -128,7 +112,13 @@ struct ResultsView: View {
           ArtifactPreview(store: store, job: job, artifact: artifact)
         }
       } else if let job = store.selectedJob {
-        ResultsSummaryView(store: store, job: job)
+        JobCaptureDetail(store: store, job: job) { detailed in
+          ResultsSummaryView(store: store, job: detailed)
+        }
+      } else if store.isRestoringJobHistory {
+        Text("Saved results will appear after job history is restored.")
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
         ContentUnavailableView {
           Label("Run a Capability", systemImage: "play")
@@ -150,7 +140,7 @@ struct ResultsView: View {
       comparisonSource = nil
       selectPreferredArtifact()
     }
-    .onChange(of: store.selectedJob?.artifacts.map(\.id)) {
+    .onChange(of: store.jobsRevision) {
       selectPreferredArtifact()
     }
     .sheet(item: $comparisonSource) { source in
@@ -184,16 +174,51 @@ struct ResultsView: View {
     return job.artifacts.first { $0.id == selectedArtifactID }
   }
 
-  private var artifactSelection: Binding<UUID?> {
-    let job = store.selectedJob
+  private func artifactSelection(for job: JobRecord, page: HistoryPage) -> Binding<UUID?> {
+    let visible = job.artifacts[page.range]
     return Binding(
-      get: { job.flatMap { store.selectedResultArtifactID(for: $0) } },
+      get: {
+        let selected = store.selectedResultArtifactID(for: job)
+        return visible.contains { $0.id == selected } ? selected : nil
+      },
       set: { artifactID in
-        if let job {
+        guard store.selectedJob?.id == job.id, artifactPageIndex == page.index else { return }
+        let selected = store.selectedResultArtifactID(for: job)
+        if artifactID != nil || visible.contains(where: { $0.id == selected }) {
           store.selectResultArtifact(artifactID, for: job)
         }
       }
     )
+  }
+
+  private func artifactList(for job: JobRecord) -> some View {
+    let page = HistoryPage(total: job.artifacts.count, index: artifactPageIndex)
+    return VStack(alignment: .leading, spacing: 6) {
+      HistoryPageControls(page: page, identifier: "results.page", index: $artifactPageIndex)
+        .padding(.horizontal)
+      List(selection: artifactSelection(for: job, page: page)) {
+        ForEach(job.artifacts[page.range]) { artifact in
+          HStack {
+            Image(systemName: icon(for: artifact))
+              .foregroundStyle(.secondary)
+              .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(store.redactedPreviewText(artifact.label ?? artifact.relativePath))
+                .lineLimit(1)
+                .truncationMode(.middle)
+              Text(artifactDetail(for: artifact))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Text(inspectionService.role(for: artifact).rawValue)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+          }
+          .tag(Optional(artifact.id))
+        }
+      }
+      .id(page.index)
+    }
   }
 
   private func icon(for artifact: Artifact) -> String {
@@ -226,8 +251,15 @@ struct ResultsView: View {
   }
 
   private func selectPreferredArtifact() {
-    guard let job = store.selectedJob else { return }
+    guard let job = store.selectedJob else {
+      artifactPageIndex = 0
+      return
+    }
     store.selectPreferredResultArtifact(for: job)
+    let selected = store.selectedResultArtifactID(for: job)
+    artifactPageIndex = HistoryPage.containing(
+      job.artifacts.firstIndex { $0.id == selected }, total: job.artifacts.count
+    )
   }
 }
 
@@ -266,10 +298,11 @@ struct ResultsSummaryView: View {
             Label("Reveal Run Folder", systemImage: "folder")
           }
           Button {
-            store.refreshRunBundle(for: job)
+            Task { await store.refreshRunBundle(for: job) }
           } label: {
             Label("Refresh", systemImage: "arrow.clockwise")
           }
+          .disabled(store.isSavingJobHistory || store.isRefreshingRunBundle)
           Button {
             store.exportJobSupportBundle(job)
           } label: {
@@ -282,8 +315,8 @@ struct ResultsSummaryView: View {
           errors: job.structuredErrors,
           nextActions: job.nextActions
         )
-        LogBlock(title: "stdout", text: job.stdout)
-        LogBlock(title: "stderr", text: job.stderr)
+        LogBlock(store: store, job: job, stream: .stdout)
+        LogBlock(store: store, job: job, stream: .stderr)
       }
       .padding(24)
     }
@@ -291,15 +324,27 @@ struct ResultsSummaryView: View {
 }
 
 struct ArtifactPreview: View {
+  private struct RequestID: Hashable {
+    let job: UUID
+    let runDirectory: String
+    let artifact: Artifact
+    let showTableText: Bool
+  }
+
   @ObservedObject var store: WorkbenchStore
   let job: JobRecord
   let artifact: Artifact
-  @State private var payload: ArtifactPreviewPayload?
-  private let previewService = ArtifactPreviewService()
-  private let inspectionService = ArtifactInspectionService()
+  @State private var loadedPreview: (id: RequestID, snapshot: ArtifactPreviewSnapshot)?
+  @State private var showTableText = false
+  private var isTable: Bool { TablePreviewService.supports(artifact) }
+  private var requestID: RequestID {
+    RequestID(job: job.id, runDirectory: job.runDirectory, artifact: artifact,
+              showTableText: isTable && showTableText)
+  }
 
   var body: some View {
-    let inspection = inspectionService.inspect(artifact, in: job)
+    let snapshot = loadedPreview?.id == requestID ? loadedPreview?.snapshot : nil
+    let inspection = snapshot?.inspection
     return VStack(alignment: .leading, spacing: 12) {
       HStack {
         VStack(alignment: .leading, spacing: 4) {
@@ -317,39 +362,53 @@ struct ArtifactPreview: View {
         }
         Spacer()
         Button {
-          store.revealArtifact(artifact)
+          Task { await store.revealArtifact(artifact) }
         } label: {
           Label("Reveal", systemImage: "folder")
         }
         .accessibilityLabel("Reveal artifact \(store.redactedPreviewText(artifact.relativePath))")
         .accessibilityHint("Shows the selected artifact in Finder.")
-        .disabled(!inspection.canPreview)
+        .disabled(inspection?.canPreview != true)
       }
 
-      ArtifactMetadataView(store: store, job: job, artifact: artifact, inspection: inspection)
-      preview
+      if let inspection {
+        ArtifactMetadataView(store: store, job: job, artifact: artifact, inspection: inspection)
+      }
+      if isTable {
+        Toggle("Text sample", isOn: $showTableText)
+          .controlSize(.small)
+          .accessibilityIdentifier("results.table.text-sample")
+      }
+      if isTable && !showTableText {
+        TableArtifactPreview(store: store, job: job, artifact: artifact)
+          .id(requestID)
+      } else {
+        preview(snapshot)
+      }
     }
     .padding(24)
-    .task(id: artifact.id) {
-      let currentInspection = inspectionService.inspect(artifact, in: job)
-      payload = currentInspection.canPreview
-        ? previewService.load(artifact: artifact, redact: store.redactedPreviewText)
-        : ArtifactPreviewPayload(
-          kind: .unavailable,
-          title: "Preview unavailable",
-          note: "The artifact is missing or resolves outside its recorded run folder."
-        )
+    .task(id: requestID) {
+      guard !Task.isCancelled else { return }
+      let id = requestID
+      loadedPreview = nil
+      guard var result = await ArtifactPreviewLoader.shared.load(
+        artifact, in: job, includePreview: !isTable || id.showTableText, redact: store.previewRedactor()
+      ), !Task.isCancelled else { return }
+      if let text = result.payload?.text {
+        result.payload?.text = store.redactedPreviewText(text)
+      }
+      loadedPreview = (id, result)
     }
   }
 
   @ViewBuilder
-  private var preview: some View {
-    if let payload {
+  private func preview(_ snapshot: ArtifactPreviewSnapshot?) -> some View {
+    if let snapshot, let payload = snapshot.payload {
       VStack(alignment: .leading, spacing: 10) {
         Text(payload.title)
           .font(.headline)
 
-        if let imageData = payload.imageData, let image = NSImage(data: imageData) {
+        if let image = displayImage(payload.image) {
           Image(nsImage: image)
             .resizable()
             .scaledToFit()
@@ -374,8 +433,7 @@ struct ArtifactPreview: View {
 
         if artifact.artifactType == "preview_png",
            job.capabilityID == "inspect_fits" {
-          if let input = job.requestInputPaths.first,
-             FirstRunExampleService.isGeneratedFITS(at: input) {
+          if snapshot.isGeneratedFITS {
             Text("Synthetic TAN WCS: horizontal right ascension and vertical declination in ICRS, one arcsecond per pixel; pixel unit: adu.")
               .font(.caption)
           }
@@ -389,6 +447,13 @@ struct ArtifactPreview: View {
     } else {
       ProgressView("Loading preview...")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+  }
+
+  private func displayImage(_ preview: ArtifactPreviewImage?) -> NSImage? {
+    switch preview {
+    case .raster(let image), .pdfThumbnail(let image): NSImage(cgImage: image, size: .zero)
+    case nil: nil
     }
   }
 }

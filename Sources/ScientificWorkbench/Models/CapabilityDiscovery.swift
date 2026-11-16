@@ -102,7 +102,7 @@ enum CapabilityReadinessFilter: String, CaseIterable, Identifiable {
   }
 }
 
-struct CapabilityDiscovery {
+struct CapabilityDiscovery: Sendable {
   let title: String
   let task: CapabilityTask
   let formats: Set<CapabilityInputFormat>
@@ -195,7 +195,7 @@ struct CapabilityDiscovery {
   ]
 }
 
-struct CapabilityDiscoveryFilters {
+struct CapabilityDiscoveryFilters: Equatable, Sendable {
   var task: CapabilityTask?
   var format: CapabilityInputFormat?
   var profile: CapabilityProfileFilter?
@@ -205,6 +205,14 @@ struct CapabilityDiscoveryFilters {
 
   func matches(_ entry: CapabilityEntry, query: String) -> Bool {
     let discovery = CapabilityDiscovery.forEntry(entry)
+    guard matchesFacets(entry, discovery: discovery) else { return false }
+    let terms = query.split(whereSeparator: \.isWhitespace).map(String.init)
+    guard !terms.isEmpty else { return true }
+    let searchable = Self.searchableText(for: entry, discovery: discovery)
+    return terms.allSatisfy { searchable.localizedCaseInsensitiveContains($0) }
+  }
+
+  func matchesFacets(_ entry: CapabilityEntry, discovery: CapabilityDiscovery) -> Bool {
     if let task, discovery.task != task { return false }
     if let format, !discovery.formats.contains(format) { return false }
     if let profile {
@@ -221,14 +229,15 @@ struct CapabilityDiscoveryFilters {
     if let skill, entry.owningSkillRole != skill.rawValue { return false }
     if let level, entry.catalogMode != level { return false }
 
-    let terms = query.split(whereSeparator: \.isWhitespace).map(String.init)
-    guard !terms.isEmpty else { return true }
-    let searchable = [
+    return true
+  }
+
+  static func searchableText(for entry: CapabilityEntry, discovery: CapabilityDiscovery) -> String {
+    [
       discovery.title, discovery.task.title, discovery.profile.title,
       discovery.formats.map(\.title).joined(separator: " "),
       entry.id, entry.label, entry.shortDescription, entry.visibleBlock,
       entry.owningSkillRole ?? ""
     ].joined(separator: " ")
-    return terms.allSatisfy { searchable.localizedCaseInsensitiveContains($0) }
   }
 }

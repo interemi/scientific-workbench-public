@@ -1,13 +1,13 @@
 import Foundation
 import AppKit
 import Darwin
+import OSLog
 import UniformTypeIdentifiers
 
-private struct PendingCloudAgentSubmission {
-  var prompt: String
-  var resolvedMode: AgentRunMode
-  var request: CloudConsentRequest
-}
+private let environmentCheckLogger = Logger(
+  subsystem: Bundle.main.bundleIdentifier ?? "com.emilio.scientific-workbench",
+  category: "EnvironmentChecks"
+)
 
 private actor InterruptedProcessOutputCapture {
   private var output: InterruptedProcessOutput?
@@ -25,7 +25,16 @@ private actor InterruptedProcessOutputCapture {
 final class WorkbenchStore: ObservableObject {
   @Published var selectedSection: AppSection? = .agent
   @Published var settingsRecoverySection: SettingsRecoverySection?
-  @Published var capabilities: [CapabilityEntry] = []
+  @Published var capabilities: [CapabilityEntry] = [] {
+    didSet {
+      capabilitySearchRevision &+= 1
+      capabilitySearchIndex = CapabilitySearchIndex(entries: capabilities.userFacing)
+      maintenanceSearchIndex = CapabilitySearchIndex(entries: capabilities.maintainerOnly, maintenance: true)
+    }
+  }
+  private(set) var capabilitySearchRevision: UInt64 = 0
+  private(set) var capabilitySearchIndex = CapabilitySearchIndex(entries: [])
+  private(set) var maintenanceSearchIndex = CapabilitySearchIndex(entries: [], maintenance: true)
   @Published var selectedCapabilityID: String?
   @Published var selectedMaintenanceCapabilityID: String?
   @Published var capabilityCatalogMode: CapabilityCatalogMode = .normal
@@ -37,7 +46,17 @@ final class WorkbenchStore: ObservableObject {
   @Published private(set) var workflowExecutionIdentity: WorkflowExecutionIdentity?
   @Published var workflowNavigationNotice: String?
   @Published private(set) var workflowPlanRevealRequest: UUID?
-  @Published var jobs: [JobRecord] = []
+  @Published var jobs: [JobRecord] = [] {
+    didSet { jobsRevision &+= 1 }
+  }
+  private(set) var jobsRevision: UInt64 = 0
+  private(set) var historyCaptureRevision: UInt64 = 0
+  private var deferredJobCaptureIDs: Set<JobRecord.ID> = []
+  @Published private(set) var isRestoringJobHistory = false
+  @Published private(set) var isSavingJobHistory = false
+  @Published private(set) var isFinalizingJobEvidence = false
+  @Published private(set) var isRefreshingRunBundle = false
+  @Published private(set) var jobHistorySaveError: String?
   @Published var recentJobFilter = RecentJobFilter()
   @Published var selectedJobID: UUID?
   @Published var inputPaths: [String] = [] {
@@ -50,11 +69,16 @@ final class WorkbenchStore: ObservableObject {
   @Published var preparedFirstRunExample: PreparedFirstRunExample?
   @Published var firstRunExampleError: String?
   @Published var searchText = ""
-  @Published var skillRootPath: String
+  @Published var skillRootPath: String {
+    didSet {
+      if skillRootPath != oldValue { invalidateEnvironmentCheck() }
+    }
+  }
   @Published var outputRootPath: String {
     didSet {
       if oldValue != outputRootPath {
         outputRootRiskApproved = false
+        jobHistorySaveError = nil
       }
     }
   }
@@ -69,7 +93,11 @@ final class WorkbenchStore: ObservableObject {
       }
     }
   }
-  @Published var pythonExecutable: String
+  @Published var pythonExecutable: String {
+    didSet {
+      if pythonExecutable != oldValue { invalidateEnvironmentCheck() }
+    }
+  }
   @Published var externalProcessTimeoutMinutes: Int
   @Published var registryError: String?
   @Published var registryNotice: String?
@@ -77,7 +105,7 @@ final class WorkbenchStore: ObservableObject {
   @Published var lastPersistenceRecoveryArchivePath: String?
   @Published var environmentStatus: EnvironmentStatus
   @Published var environmentDiagnosis: EnvironmentDiagnosis = .unknown
-  @Published var isCheckingEnvironment = false
+  @Published private(set) var environmentCheckState: EnvironmentCheckState = .notChecked
   @Published var agentPrompt = ""
   @Published var agentPlan: AgentPlan?
   @Published var agentPlanStepExecutions: [AgentPlanStep.ID: AgentPlanStepExecution] = [:]
@@ -90,6 +118,7 @@ final class WorkbenchStore: ObservableObject {
   ]
   @Published var agentAutoRun = false
   @Published var agentMode: AgentRunMode = .auto
+  @Published private(set) var isSubmittingAgentPrompt = false
   @Published var isPlanningAgentWorkflow = false
   @Published var isRunningAgentWorkflow = false
   @Published var isCancellationRequested = false
@@ -162,10 +191,13 @@ final class WorkbenchStore: ObservableObject {
 
   private let registryLoader = CapabilityRegistryLoader()
   private let runner = ProcessRunner()
+  private let supportRunner: ProcessRunner
   private let runBundleService = JobRunBundleService()
-  private let envelopeParser = ToolEnvelopeParser()
-  private let environmentService = SkillEnvironmentService()
-  private var environmentRefreshID: UUID?
+  private let environmentService: SkillEnvironmentService
+  private let environmentCheckLifetime: Duration
+  private var environmentRefresh: (id: UUID, task: Task<Void, Never>)?
+  private var environmentCheckExpiration: ContinuousClock.Instant?
+  private var environmentExpiryTask: Task<Void, Never>?
   private let agentPlanner: AgentPlanner
   private let agentRoutingService = AgentRoutingService()
   private let cloudAIClient: CloudAIClient
@@ -183,7 +215,7 @@ final class WorkbenchStore: ObservableObject {
   private let legacyWorkspacePolicy = LegacyWorkspacePolicy.shared
   private let workflowRecoveryService = WorkflowRecoveryService()
   private let workflowDryRunService = WorkflowDryRunService()
-  private let optionalAstronomyBackendService = OptionalAstronomyBackendService()
+  private let optionalAstronomyBackendService: OptionalAstronomyBackendService
   private let radialVelocityInspectionService = RadialVelocityInspectionService()
   private let photometricCalibrationService = PhotometricCalibrationService()
   private let documentWorkflowService = DocumentWorkflowService()
@@ -198,26 +230,36 @@ final class WorkbenchStore: ObservableObject {
   private var handledLaunchAutomation = false
   private var forceLocalPlanner = false
   private var enableRestrictedStepsForLaunchAutomation = false
-  private var pendingCloudAgentSubmission: PendingCloudAgentSubmission?
   private var rememberedCloudConsentScopes: Set<CloudConsentSessionScope> = []
   private var outputRootRiskApprovalFingerprint: String?
   private var ollamaPullTask: Task<OllamaCommandResult, Error>?
-  private var ollamaSetupCheckID: UUID?
+  private var ollamaSetupCheck: (id: UUID, endpoint: String?, model: String, task: Task<Void, Never>)?
+  private var pendingOllamaModelDownloadID: UUID?
   private var codexBridgeTask: Task<String, Error>?
+  private var jobHistoryRestore: Task<Void, Never>?
+  private var jobHistoryWrite: (id: UUID, task: Task<Result<Void, Error>, Never>)?
+  @Published private(set) var isPreparingToQuit = false
 
   init(
     loadSecrets: Bool = true,
     defaults: UserDefaults = .standard,
     loadPersistedState: Bool = true,
+    deferJobHistoryHydration: Bool = false,
     cloudAIClient: CloudAIClient = CloudAIClient(),
     credentialStore: any CloudCredentialStoring = KeychainCredentialStore(),
     filesystemSafetyPolicy: FilesystemSafetyPolicy = FilesystemSafetyPolicy(),
     firstRunExampleLibraryRoot: URL? = nil,
-    ollamaSetupService: OllamaSetupService = OllamaSetupService()
+    ollamaSetupService: OllamaSetupService? = nil,
+    environmentCheckLifetime: Duration = .seconds(600)
   ) {
     self.defaults = defaults
     self.cloudAIClient = cloudAIClient
-    self.ollamaSetupService = ollamaSetupService
+    let supportRunner = ProcessRunner()
+    self.supportRunner = supportRunner
+    self.environmentService = SkillEnvironmentService(runner: supportRunner)
+    self.optionalAstronomyBackendService = OptionalAstronomyBackendService(runner: supportRunner)
+    self.ollamaSetupService = ollamaSetupService ?? OllamaSetupService(runner: supportRunner)
+    self.environmentCheckLifetime = environmentCheckLifetime
     self.credentialStore = credentialStore
     self.aiConnectionService = AIConnectionService(client: cloudAIClient)
     self.filesystemSafetyPolicy = filesystemSafetyPolicy
@@ -226,7 +268,8 @@ final class WorkbenchStore: ObservableObject {
         .appendingPathComponent("Scientific Workbench", isDirectory: true)
         .appendingPathComponent("Examples", isDirectory: true)
     self.agentPlanner = AgentPlanner(
-      cloudAIClient: CloudAIPlannerClient(client: cloudAIClient)
+      cloudAIClient: CloudAIPlannerClient(client: cloudAIClient),
+      skillRouterClient: SkillWorkflowRouterClient(runner: supportRunner)
     )
     let skillRoot = defaults.string(forKey: "skillRootPath") ?? DefaultPaths.motherSkillRoot
     let persistedOutputRoot = defaults.string(forKey: "outputRootPath") ?? DefaultPaths.outputRoot
@@ -281,7 +324,7 @@ final class WorkbenchStore: ObservableObject {
     environmentStatus = .unknown(skillRoot: skillRoot)
     registryNotice = nil
     if loadPersistedState {
-      loadJobHistory()
+      loadJobHistory(deferHydration: deferJobHistoryHydration)
       loadAgentState()
     }
   }
@@ -372,14 +415,27 @@ final class WorkbenchStore: ObservableObject {
     jobs.contains { $0.status == .queued || $0.status == .running }
   }
 
+  var hasActiveOperation: Bool {
+    isRunningAgentWorkflow || hasActiveJob || isFinalizingJobEvidence
+      || isPullingOllamaModel || isRunningCodexBridge
+  }
+
   var canCancelActiveRun: Bool {
-    isRunningAgentWorkflow || hasActiveJob || isPullingOllamaModel || isRunningCodexBridge
+    isRunningAgentWorkflow || (hasActiveJob && !isFinalizingJobEvidence)
+      || isPullingOllamaModel || isRunningCodexBridge
   }
 
   var canChangeWorkflowContext: Bool {
-    !canCancelActiveRun && !isPlanningAgentWorkflow && !isReviewingRadialVelocityInput
+    !isPreparingToQuit && !hasActiveOperation && !isSubmittingAgentPrompt
+      && !isPlanningAgentWorkflow && !isReviewingRadialVelocityInput
       && !isReviewingPhotometricCalibration && !isReviewingDocumentStyles
       && !isCheckingKeynote && !isExportingKeynote
+  }
+
+  var canSubmitAgentChatPrompt: Bool {
+    !isPreparingToQuit && !isSubmittingAgentPrompt && !isRunningAgentWorkflow
+      && !isPlanningAgentWorkflow && pendingCloudConsentRequest == nil
+      && !agentPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   var hasAvailableWorkflowSummary: Bool {
@@ -629,10 +685,20 @@ final class WorkbenchStore: ObservableObject {
     )
   }
 
+  var isCheckingEnvironment: Bool { environmentCheckState == .checking }
+
+  var environmentSummaryStatus: String {
+    switch environmentCheckState {
+    case .checking: "checking"
+    case .expired: "expired"
+    default: environmentStatus.status
+    }
+  }
+
   private var setupChecklistContext: SetupChecklistContext {
     SetupChecklistContext(
       environmentStatus: environmentStatus,
-      environmentDiagnosis: environmentDiagnosis,
+      environmentDiagnosis: environmentCheckState == .expired ? .unknown : environmentDiagnosis,
       outputRootPath: outputRootPath,
       userCapabilityCount: userCapabilities.count,
       ollamaModel: model(for: .ollama),
@@ -757,9 +823,7 @@ final class WorkbenchStore: ObservableObject {
     switch provider {
     case .ollama:
       ollamaModel = model
-      ollamaSetupCheckID = nil
-      isCheckingOllamaSetup = false
-      ollamaSetupStatus = .unknown(model: self.model(for: .ollama))
+      invalidateOllamaSetupCheck()
     case .openAI: openAIModel = model
     case .grok: grokModel = model
     case .gemini: geminiModel = model
@@ -793,9 +857,7 @@ final class WorkbenchStore: ObservableObject {
     switch provider {
     case .ollama:
       ollamaBaseURL = baseURL
-      ollamaSetupCheckID = nil
-      isCheckingOllamaSetup = false
-      ollamaSetupStatus = .unknown(model: model(for: .ollama))
+      invalidateOllamaSetupCheck()
     case .openAI, .grok, .gemini:
       break
     }
@@ -955,7 +1017,7 @@ final class WorkbenchStore: ObservableObject {
       if let importedTimeoutMinutes = payload.externalProcessTimeoutMinutes {
         externalProcessTimeoutMinutes = ExternalProcessTimeoutPolicy.normalized(minutes: importedTimeoutMinutes)
       }
-      ollamaSetupStatus = .unknown(model: model(for: .ollama))
+      invalidateOllamaSetupCheck()
       aiConnectionStatuses = Dictionary(
         uniqueKeysWithValues: AIProvider.allCases.map { ($0, .unknown) }
       )
@@ -983,7 +1045,7 @@ final class WorkbenchStore: ObservableObject {
       agentStatusMessage = "Could not find the bundled Scientific Workbench guide."
       return
     }
-    openMarkdownDocument(userGuideURL)
+    openTextDocument(userGuideURL)
   }
 
   func openFirstRunGuide(for kind: FirstRunExampleKind) {
@@ -991,7 +1053,7 @@ final class WorkbenchStore: ObservableObject {
       agentStatusMessage = "Could not find the bundled \(kind.launcherTitle) workflow guide."
       return
     }
-    openMarkdownDocument(url)
+    openTextDocument(url)
   }
 
   @discardableResult
@@ -1183,20 +1245,46 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func refreshOllamaSetup() async {
-    let checkID = UUID()
+    await refreshOllamaSetup(replacingActiveCheck: false)
+  }
+
+  private func refreshOllamaSetup(replacingActiveCheck: Bool) async {
+    guard !isPreparingToQuit, !Task.isCancelled else { return }
     let endpoint = baseURL(for: .ollama)
     let checkedModel = model(for: .ollama)
-    ollamaSetupCheckID = checkID
+    if !replacingActiveCheck, let active = ollamaSetupCheck,
+       active.endpoint == endpoint, active.model == checkedModel,
+       !active.task.isCancelled {
+      await active.task.value
+      return
+    }
+
+    let superseded = ollamaSetupCheck?.task
+    superseded?.cancel()
+    let checkID = UUID()
     isCheckingOllamaSetup = true
-    let status = await ollamaSetupService.status(
-      baseURL: endpoint,
-      model: checkedModel
-    )
-    guard ollamaSetupCheckID == checkID else { return }
-    ollamaSetupCheckID = nil
+    let task = Task { [weak self, ollamaSetupService] in
+      defer {
+        if let self, self.ollamaSetupCheck?.id == checkID {
+          self.ollamaSetupCheck = nil
+          self.isCheckingOllamaSetup = false
+        }
+      }
+      await superseded?.value
+      guard !Task.isCancelled else { return }
+      let status = await ollamaSetupService.status(baseURL: endpoint, model: checkedModel)
+      guard !Task.isCancelled, let self, self.ollamaSetupCheck?.id == checkID,
+            endpoint == self.baseURL(for: .ollama), checkedModel == self.model(for: .ollama) else { return }
+      self.ollamaSetupStatus = status
+    }
+    ollamaSetupCheck = (checkID, endpoint, checkedModel, task)
+    await task.value
+  }
+
+  private func invalidateOllamaSetupCheck() {
+    ollamaSetupCheck?.task.cancel()
     isCheckingOllamaSetup = false
-    guard endpoint == baseURL(for: .ollama), checkedModel == model(for: .ollama) else { return }
-    ollamaSetupStatus = status
+    ollamaSetupStatus = .unknown(model: model(for: .ollama))
   }
 
   func openOllamaDownloadPage() {
@@ -1214,15 +1302,25 @@ final class WorkbenchStore: ObservableObject {
 
   func prepareOllamaModelDownload() -> OllamaModelDownloadRequest? {
     do {
-      return try OllamaModelDownloadRequest(model: model(for: .ollama), baseURL: baseURL(for: .ollama))
+      let request = try OllamaModelDownloadRequest(model: model(for: .ollama), baseURL: baseURL(for: .ollama))
+      pendingOllamaModelDownloadID = request.id
+      return request
     } catch {
+      pendingOllamaModelDownloadID = nil
       ollamaSetupStatus.message = "Cannot prepare model download: \(error.localizedDescription)"
       return nil
     }
   }
 
+  func cancelOllamaModelDownloadReview(requestID: UUID) {
+    guard pendingOllamaModelDownloadID == requestID else { return }
+    pendingOllamaModelDownloadID = nil
+  }
+
   func confirmOllamaModelDownload(_ request: OllamaModelDownloadRequest) async {
-    guard let current = prepareOllamaModelDownload(),
+    guard pendingOllamaModelDownloadID == request.id else { return }
+    pendingOllamaModelDownloadID = nil
+    guard let current = try? OllamaModelDownloadRequest(model: model(for: .ollama), baseURL: baseURL(for: .ollama)),
           current.model == request.model, current.baseURL == request.baseURL else {
       ollamaSetupStatus.message = "The model or endpoint changed. Review the download again; nothing was downloaded."
       return
@@ -1244,7 +1342,8 @@ final class WorkbenchStore: ObservableObject {
     }
     do {
       let result = try await task.value
-      await refreshOllamaSetup()
+      // A check started before the pull finished could report the old model list.
+      await refreshOllamaSetup(replacingActiveCheck: true)
       ollamaSetupStatus.message = result.succeeded
         ? "Download command completed for \(model). \(ollamaSetupStatus.message)"
         : "Ollama pull exited with \(result.exitCode): \(result.userMessage)"
@@ -1257,8 +1356,8 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func startupRefresh() async {
-    await reloadRegistry()
-    await refreshEnvironment()
+    await reloadRegistry(invalidateEnvironment: false)
+    await checkEnvironment(reuseFreshResult: true)
   }
 
   func runLaunchAutomationIfNeeded() async {
@@ -1271,6 +1370,7 @@ final class WorkbenchStore: ObservableObject {
 
   func runLaunchAutomation(_ options: LaunchAutomationOptions) async {
     guard options.shouldRun else { return }
+    await waitForJobHistoryRestore()
     let previousRestrictedStepOverride = enableRestrictedStepsForLaunchAutomation
     enableRestrictedStepsForLaunchAutomation = options.enableRestrictedSteps
     defer { enableRestrictedStepsForLaunchAutomation = previousRestrictedStepOverride }
@@ -1368,13 +1468,17 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func reloadJobHistory() {
-    loadJobHistory()
+    guard !isPreparingToQuit, !isRestoringJobHistory, !isSavingJobHistory, !hasActiveJob else { return }
+    loadJobHistory(deferHydration: true)
   }
 
-  func clearJobHistory() {
-    jobs = []
-    selectedJobID = nil
-    persistJobHistory()
+  func clearJobHistory() async {
+    guard !isPreparingToQuit, !isRestoringJobHistory, !isSavingJobHistory,
+          !hasActiveJob, !isRunningAgentWorkflow else { return }
+    let url = jobHistoryURL
+    if await persistJobHistory([]), jobHistoryURL == url {
+      installRestoredJobHistory([])
+    }
   }
 
   func revealJobHistory() {
@@ -1394,7 +1498,8 @@ final class WorkbenchStore: ObservableObject {
     ])
   }
 
-  func reloadRegistry() async {
+  func reloadRegistry(invalidateEnvironment: Bool = true) async {
+    if invalidateEnvironment { invalidateEnvironmentCheck() }
     do {
       let result = try registryLoader.loadWithDiagnostics(skillRoot: skillRootPath)
       capabilities = result.entries
@@ -1423,42 +1528,102 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func refreshEnvironment() async {
+    await checkEnvironment(reuseFreshResult: false)
+  }
+
+  private func checkEnvironment(reuseFreshResult: Bool) async {
+    guard !Task.isCancelled else { return }
+    if reuseFreshResult, let expiration = environmentCheckExpiration, .now < expiration {
+      environmentCheckLogger.info("Reused current environment check")
+      return
+    }
     persistSettings()
-    let refreshID = UUID()
-    environmentRefreshID = refreshID
-    isCheckingEnvironment = true
-    environmentDiagnosis = .unknown
-    defer {
-      if environmentRefreshID == refreshID {
-        isCheckingEnvironment = false
-      }
+    if let active = environmentRefresh, !active.task.isCancelled {
+      environmentCheckLogger.info("Joined active environment check")
+      await active.task.value
+      return
     }
 
+    let id = UUID()
     let skillRoot = skillRootPath
     let python = pythonExecutable
-    let status = await environmentService.refresh(
-      skillRoot: skillRoot,
-      pythonExecutable: python
-    )
-    guard environmentRefreshID == refreshID else { return }
-    if status.status == "ok" {
-      let diagnosis = await environmentService.diagnose(
+    let superseded = environmentRefresh?.task
+    cancelEnvironmentExpiry()
+    environmentDiagnosis = .unknown
+    environmentCheckState = .checking
+    let task = Task { [weak self, environmentService] in
+      defer {
+        if self?.environmentRefresh?.id == id { self?.environmentRefresh = nil }
+      }
+      // Let the cancelled process group finish before opening the new check.
+      await superseded?.value
+      guard !Task.isCancelled else { return }
+      environmentCheckLogger.info("Started environment check")
+      let status = await environmentService.refresh(
         skillRoot: skillRoot,
-        pythonExecutable: python,
-        selectedPython: status.datanalysisPython
+        pythonExecutable: python
       )
-      guard environmentRefreshID == refreshID else { return }
-      environmentDiagnosis = diagnosis
-    } else {
-      environmentDiagnosis = .blocked(
-        "No usable dedicated datanalysis environment was found. Check the Python and skill paths; create a separate new environment if needed.",
-        selectedPython: status.datanalysisPython
-      )
+      guard !Task.isCancelled else { return }
+      let diagnosis: EnvironmentDiagnosis
+      if status.status == "ok" {
+        diagnosis = await environmentService.diagnose(
+          skillRoot: skillRoot,
+          pythonExecutable: python,
+          selectedPython: status.datanalysisPython
+        )
+      } else {
+        diagnosis = .blocked(
+          "No usable dedicated datanalysis environment was found. Check the Python and skill paths; create a separate new environment if needed.",
+          selectedPython: status.datanalysisPython
+        )
+      }
+      guard !Task.isCancelled, let self, self.environmentRefresh?.id == id else { return }
+      self.environmentStatus = status
+      self.environmentDiagnosis = diagnosis
+      self.environmentCheckState = .current
+      self.scheduleEnvironmentExpiry()
+      environmentCheckLogger.info("Completed environment check")
     }
-    environmentStatus = status
+    environmentRefresh = (id, task)
+    await task.value
+  }
+
+  private func invalidateEnvironmentCheck() {
+    environmentRefresh?.task.cancel()
+    cancelEnvironmentExpiry()
+    let unknown = EnvironmentStatus.unknown(skillRoot: skillRootPath)
+    if environmentStatus != unknown { environmentStatus = unknown }
+    if environmentDiagnosis != .unknown { environmentDiagnosis = .unknown }
+    if environmentCheckState != .configurationChanged {
+      environmentCheckState = .configurationChanged
+      environmentCheckLogger.info("Invalidated environment check after configuration change")
+    }
+  }
+
+  private func cancelEnvironmentExpiry() {
+    environmentExpiryTask?.cancel()
+    environmentExpiryTask = nil
+    environmentCheckExpiration = nil
+  }
+
+  private func scheduleEnvironmentExpiry() {
+    let deadline = ContinuousClock.now.advanced(by: environmentCheckLifetime)
+    environmentCheckExpiration = deadline
+    environmentExpiryTask = Task { [weak self] in
+      do {
+        try await Task.sleep(until: deadline, clock: .continuous)
+      } catch {
+        return
+      }
+      guard let self, self.environmentCheckExpiration == deadline else { return }
+      self.environmentCheckState = .expired
+      self.environmentExpiryTask = nil
+      environmentCheckLogger.info("Environment check expired")
+    }
   }
 
   func refreshOptionalAstronomyBackends() async {
+    guard !isPreparingToQuit, !isCheckingOptionalAstronomyBackends else { return }
     persistSettings()
     isCheckingOptionalAstronomyBackends = true
     defer { isCheckingOptionalAstronomyBackends = false }
@@ -2076,13 +2241,32 @@ final class WorkbenchStore: ObservableObject {
 
   func cancelActiveRun() {
     guard canCancelActiveRun else { return }
+    requestActiveRunCancellation()
+    Task {
+      await runner.cancelAll()
+    }
+  }
+
+  func prepareToQuit() async {
+    isPreparingToQuit = true
+    if canCancelActiveRun { requestActiveRunCancellation() }
+    invalidateEnvironmentCheck()
+    ollamaSetupCheck?.task.cancel()
+    async let jobsStopped: Void = runner.shutdown()
+    async let supportStopped: Void = supportRunner.shutdown()
+    _ = await (jobsStopped, supportStopped)
+
+    // The runner releases subprocesses first. The store still has to retain the job and workflow evidence.
+    while hasActiveOperation || isSavingJobHistory || isRestoringJobHistory {
+      try? await Task.sleep(for: .milliseconds(50))
+    }
+  }
+
+  private func requestActiveRunCancellation() {
     isCancellationRequested = true
     agentStatusMessage = "Cancelling the active run..."
     ollamaPullTask?.cancel()
     codexBridgeTask?.cancel()
-    Task {
-      await runner.cancelAll()
-    }
   }
 
   @discardableResult
@@ -2145,10 +2329,8 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func submitAgentChatPrompt() async {
-    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else { return }
+    guard canSubmitAgentChatPrompt else { return }
     let prompt = agentPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !prompt.isEmpty else { return }
-    guard pendingCloudAgentSubmission == nil else { return }
 
     let resolvedMode = agentRoutingService.resolvedMode(
       configuredMode: agentMode,
@@ -2159,11 +2341,6 @@ final class WorkbenchStore: ObservableObject {
       loadSavedSecretIfNeeded(for: aiProvider)
     }
     if let request = cloudConsentRequest(for: resolvedMode, prompt: prompt), requiresCloudConsent(request) {
-      pendingCloudAgentSubmission = PendingCloudAgentSubmission(
-        prompt: prompt,
-        resolvedMode: resolvedMode,
-        request: request
-      )
       pendingCloudConsentRequest = request
       agentStatusMessage = "Review what will be sent to \(request.provider.title) before continuing."
       return
@@ -2173,16 +2350,12 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func confirmPendingCloudRequest(
+    requestID: UUID,
     approvalScope: CloudConsentApprovalScope = .requestOnly
   ) async {
-    guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else {
+    guard let reviewedRequest = pendingCloudConsentRequest, reviewedRequest.id == requestID else { return }
+    guard !isPreparingToQuit, !isSubmittingAgentPrompt, !isRunningAgentWorkflow, !isPlanningAgentWorkflow else {
       cancelPendingCloudRequest(message: "Finish or cancel the active workflow operation before submitting this request. Nothing was sent.")
-      return
-    }
-    guard let pendingCloudAgentSubmission,
-          pendingCloudConsentRequest?.id == pendingCloudAgentSubmission.request.id else {
-      pendingCloudConsentRequest = nil
-      self.pendingCloudAgentSubmission = nil
       return
     }
 
@@ -2211,12 +2384,7 @@ final class WorkbenchStore: ObservableObject {
       return
     }
 
-    guard refreshedRequest.fingerprint == pendingCloudAgentSubmission.request.fingerprint else {
-      self.pendingCloudAgentSubmission = PendingCloudAgentSubmission(
-        prompt: currentPrompt,
-        resolvedMode: currentResolvedMode,
-        request: refreshedRequest
-      )
+    guard refreshedRequest.fingerprint == reviewedRequest.fingerprint else {
       pendingCloudConsentRequest = refreshedRequest
       agentStatusMessage = "The cloud request changed. Nothing was sent; review the updated provider, model, context, and privacy scope."
       return
@@ -2225,7 +2393,6 @@ final class WorkbenchStore: ObservableObject {
     if approvalScope == .appSession {
       rememberedCloudConsentScopes.insert(refreshedRequest.sessionScope)
     }
-    self.pendingCloudAgentSubmission = nil
     pendingCloudConsentRequest = nil
     await performAgentSubmission(
       prompt: currentPrompt,
@@ -2233,19 +2400,21 @@ final class WorkbenchStore: ObservableObject {
     )
   }
 
-  func cancelPendingCloudRequest() {
+  func cancelPendingCloudRequest(requestID: UUID? = nil) {
+    guard requestID == nil || pendingCloudConsentRequest?.id == requestID else { return }
     cancelPendingCloudRequest(
       message: "Cloud request cancelled. Nothing was sent; your message remains in the composer."
     )
   }
 
   private func cancelPendingCloudRequest(message: String) {
-    pendingCloudAgentSubmission = nil
     pendingCloudConsentRequest = nil
     agentStatusMessage = message
   }
 
   private func performAgentSubmission(prompt: String, resolvedMode: AgentRunMode) async {
+    isSubmittingAgentPrompt = true
+    defer { isSubmittingAgentPrompt = false }
 
     agentChatMessages.append(AgentChatMessage(role: .user, text: prompt))
     if agentPrompt.trimmingCharacters(in: .whitespacesAndNewlines) == prompt {
@@ -2334,6 +2503,7 @@ final class WorkbenchStore: ObservableObject {
 
   @discardableResult
   private func runAgentPlan(resumeFromPreviousSuccesses: Bool) async -> String {
+    guard !isPreparingToQuit else { return "Scientific Workbench is closing." }
     guard !isPlanningAgentWorkflow else { return "Wait for planning to finish before running a workflow." }
     guard let plan = agentPlan else {
       agentStatusMessage = "Create a plan before running."
@@ -2483,7 +2653,20 @@ final class WorkbenchStore: ObservableObject {
     outputRootPathOverride: String? = nil,
     workflowExecutionID: UUID? = nil
   ) async -> JobRecord? {
-    guard allowDuringAgentWorkflow || (!isRunningAgentWorkflow && !hasActiveJob) else {
+    if let jobHistoryRestore {
+      let inputSelection = inputPathsOverride ?? inputPaths
+      let runSettings = (outputRootPath, skillRootPath, pythonExecutable, externalProcessTimeoutSeconds)
+      await jobHistoryRestore.value
+      guard !Task.isCancelled else { return nil }
+      guard !allowDuringAgentWorkflow || !isCancellationRequested else { return nil }
+      guard inputSelection == (inputPathsOverride ?? inputPaths),
+            runSettings == (outputRootPath, skillRootPath, pythonExecutable, externalProcessTimeoutSeconds) else {
+        agentStatusMessage = "Inputs or execution settings changed while restoring job history. Review the run before trying again."
+        return nil
+      }
+    }
+    guard !isPreparingToQuit, !hasActiveJob, !isFinalizingJobEvidence, !isSavingJobHistory,
+          allowDuringAgentWorkflow || !isRunningAgentWorkflow else {
       agentStatusMessage = "Wait for the active Scientific Workbench run to finish or cancel it first."
       return nil
     }
@@ -2513,6 +2696,11 @@ final class WorkbenchStore: ObservableObject {
       agentStatusMessage = redactSecrets(error.localizedDescription)
       return nil
     }
+    let requestSkillRoot = skillRootPath
+    let builder = CapabilityCommandBuilder(
+      pythonExecutable: pythonExecutable,
+      timeoutSeconds: externalProcessTimeoutSeconds
+    )
     var job = JobRecord(capability: capability, runDirectory: runDirectory)
     job.requestInputPaths = requestInputPaths
     job.requestRawArguments = rawArguments
@@ -2522,13 +2710,15 @@ final class WorkbenchStore: ObservableObject {
       workflowExecutionIdentity?.jobIDs.insert(job.id)
     }
     selectedJobID = job.id
-    persistJobHistory()
+    await persistJobHistory(jobs)
     let interruptedOutput = InterruptedProcessOutputCapture()
     if selectJobs {
       selectedSection = .jobs
     }
 
+    let completion: JobRunBundleService.Completion
     do {
+      if isCancellationRequested || Task.isCancelled { throw CancellationError() }
       try FileManager.default.createDirectory(
         atPath: runDirectory,
         withIntermediateDirectories: true
@@ -2552,74 +2742,28 @@ final class WorkbenchStore: ObservableObject {
         outputDirectory: runDirectory,
         rawArguments: effectiveRawArguments
       )
-      let builder = CapabilityCommandBuilder(
-        pythonExecutable: pythonExecutable,
-        timeoutSeconds: externalProcessTimeoutSeconds
-      )
       let command = try builder.build(
         capability: capability,
         request: request,
-        skillRoot: skillRootPath
+        skillRoot: requestSkillRoot
       )
 
       job.status = .running
       job.command = redactSecrets(command.pretty)
       job.startedAt = Date()
-      replace(job)
+      await replace(job)
 
       let result = try await runner.run(
         command,
+        retainingLogs: RunLogArchive(runDirectory: runDirectory, secrets: configuredSecrets) {
+          await self.configuredSecrets
+        },
         onInterrupted: { output in await interruptedOutput.record(output) },
         cancellationRequested: { await self.isCancellationRequested }
       )
-      let stdoutEnvelope = envelopeParser.parse(result.stdout)
-      job.stdout = redactSecrets(result.stdout)
-      job.stderr = redactSecrets(result.stderr)
-      job.exitCode = result.exitCode
-      job.finishedAt = result.finishedAt
-      runBundleService.writeCaptureFiles(
-        runDirectory: runDirectory,
-        command: job.command,
-        stdout: job.stdout,
-        stderr: job.stderr
-      )
-      runBundleService.hydrate(
-        &job,
-        fallbackEnvelope: stdoutEnvelope,
-        redact: redactSecrets
-      )
-      if isCancellationRequested {
-        job.status = .cancelled
-        job.message = "Run cancelled by user."
-      } else {
-        job.status = JobStatus.resolved(
-          exitCode: result.exitCode,
-          envelopeStatus: job.parsedStatus,
-          appStatus: job.appStatus
-        )
-      }
-      if result.exitCode != 0, job.status != .cancelled {
-        job.message = redactSecrets(result.stderr.isEmpty ? "Process exited with \(result.exitCode)." : result.stderr)
-      }
-      if job.message == nil, let firstError = job.structuredErrors.first {
-        job.message = firstError.message
-      }
-      runBundleService.writeNextStepsIfMissing(for: job)
-      runBundleService.hydrate(
-        &job,
-        fallbackEnvelope: stdoutEnvelope,
-        redact: redactSecrets
-      )
-      replace(job)
-      if ownsCancellationState {
-        isCancellationRequested = false
-      }
-      return job
+      completion = .finished(result, cancellationRequested: isCancellationRequested)
     } catch {
-      if let partial = await interruptedOutput.snapshot() {
-        job.stdout = redactSecrets(partial.stdout)
-        job.stderr = redactSecrets(partial.stderr)
-      }
+      let partial = await interruptedOutput.snapshot()
       if isCancellationRequested || error is CancellationError || isProcessRunnerCancellation(error) {
         job.status = .cancelled
         job.message = "Run cancelled by user."
@@ -2631,21 +2775,16 @@ final class WorkbenchStore: ObservableObject {
         job.message = redactSecrets(error.localizedDescription)
       }
       job.finishedAt = Date()
-      runBundleService.writeCaptureFiles(
-        runDirectory: runDirectory,
-        command: job.command,
-        stdout: job.stdout,
-        stderr: job.stderr.isEmpty ? (job.message ?? "") : job.stderr
-      )
-      runBundleService.hydrate(&job, redact: redactSecrets)
-      runBundleService.writeNextStepsIfMissing(for: job)
-      runBundleService.hydrate(&job, redact: redactSecrets)
-      replace(job)
-      if ownsCancellationState {
-        isCancellationRequested = false
-      }
-      return job
+      completion = .interrupted(partial)
     }
+    isFinalizingJobEvidence = true
+    defer { isFinalizingJobEvidence = false }
+    job = await runBundleService.finalize(job, completion: completion, secrets: configuredSecrets)
+    await replace(job)
+    if ownsCancellationState {
+      isCancellationRequested = false
+    }
+    return job
   }
 
   @discardableResult
@@ -2677,33 +2816,62 @@ final class WorkbenchStore: ObservableObject {
     return false
   }
 
-  func revealArtifact(_ artifact: Artifact) {
-    guard let url = safeArtifactURL(artifact) else { return }
+  func revealArtifact(_ artifact: Artifact) async {
+    guard let url = await safeArtifactURL(artifact) else { return }
     NSWorkspace.shared.activateFileViewerSelecting([url])
   }
 
-  private func safeArtifactURL(_ artifact: Artifact) -> URL? {
+  func openRunLog(_ artifact: Artifact, stream: RunLogStream) async {
+    guard artifact.relativePath == stream.fileName,
+          let url = await safeArtifactURL(artifact),
+          url.pathExtension.lowercased() == "txt" else { return }
+    openTextDocument(url)
+  }
+
+  private func safeArtifactURL(_ artifact: Artifact) async -> URL? {
     guard let job = jobs.first(where: { job in
       job.artifacts.contains { $0.id == artifact.id }
-    }), ArtifactInspectionService().inspect(artifact, in: job).canPreview else {
-      return nil
-    }
-    return artifact.url.standardizedFileURL.resolvingSymlinksInPath()
+    }) else { return nil }
+    let url = await ArtifactPreviewLoader.shared.previewURL(for: artifact, in: job)
+    return Task.isCancelled ? nil : url
   }
 
   func redactedPreviewText(_ text: String) -> String {
     redactSecrets(text)
   }
 
-  func refreshRunBundle(for job: JobRecord) {
-    var refreshed = job
-    runBundleService.hydrate(&refreshed, redact: redactSecrets)
-    replace(refreshed)
+  func previewRedactor() -> @Sendable (String) -> String {
+    let secrets = configuredSecrets
+    return { SecretsRedactor.redact($0, secrets: secrets) }
+  }
+
+  func refreshRunBundle(for job: JobRecord) async {
+    guard !isPreparingToQuit, !isRestoringJobHistory, !isSavingJobHistory, !isRefreshingRunBundle,
+          let current = jobs.first(where: { $0.id == job.id }) else { return }
+    let revision = jobsRevision
+    let url = jobHistoryURL
+    let secrets = configuredSecrets
+    isRefreshingRunBundle = true
+    defer { isRefreshingRunBundle = false }
+
+    let refreshed = await Task.detached(priority: .userInitiated) {
+      var refreshed = current
+      JobRunBundleService().hydrate(&refreshed) { SecretsRedactor.redact($0, secrets: secrets) }
+      return refreshed
+    }.value
+    guard !Task.isCancelled, !isPreparingToQuit, !isRestoringJobHistory, !isSavingJobHistory,
+          jobsRevision == revision, jobHistoryURL == url, configuredSecrets == secrets else { return }
+    deferredJobCaptureIDs.remove(job.id)
+    await replace(refreshed)
+  }
+
+  func hasDeferredCapture(for job: JobRecord) -> Bool {
+    deferredJobCaptureIDs.contains(job.id)
   }
 
   func openWorkflowSummary() {
     guard let lastWorkflowSummaryPath else { return }
-    openMarkdownDocument(URL(fileURLWithPath: lastWorkflowSummaryPath))
+    openTextDocument(URL(fileURLWithPath: lastWorkflowSummaryPath))
   }
 
   func revealRunDirectory(_ job: JobRecord) {
@@ -2799,10 +2967,10 @@ final class WorkbenchStore: ObservableObject {
     arguments += [option, trimmed]
   }
 
-  private func replace(_ job: JobRecord) {
+  private func replace(_ job: JobRecord) async {
     guard let index = jobs.firstIndex(where: { $0.id == job.id }) else { return }
     jobs[index] = job
-    persistJobHistory()
+    await persistJobHistory(jobs)
   }
 
   private var jobHistoryURL: URL {
@@ -2835,24 +3003,87 @@ final class WorkbenchStore: ObservableObject {
       .appendingPathComponent("agent_state.json")
   }
 
-  private func loadJobHistory() {
+  private func loadJobHistory(deferHydration: Bool = false) {
     guard outputRootReadIsAllowed else { return }
     let url = jobHistoryURL
+    let secrets = configuredSecrets
+    if deferHydration {
+      let revision = jobsRevision
+      isRestoringJobHistory = true
+      let load: Task<(result: JobHistoryLoadResult, records: [JobRecord], deferCapture: Bool)?, Error>
+        = Task.detached(priority: .userInitiated) {
+        guard let result = try JobHistoryStore().loadRecovering(from: url) else { return nil }
+        let deferCapture = result.jobs.count > HistoryPage.pagingThreshold
+        return (result, Self.hydratedJobHistory(result.jobs, secrets: secrets, includingCapture: !deferCapture),
+                deferCapture)
+      }
+      jobHistoryRestore = Task { [weak self] in
+        let outcome = await load.result
+        guard let self else { return }
+        defer {
+          self.isRestoringJobHistory = false
+          self.jobHistoryRestore = nil
+        }
+        guard self.jobHistoryURL == url, self.jobsRevision == revision else { return }
+        do {
+          guard let (result, records, deferCapture) = try outcome.get() else { return }
+          if let source = result.recoverySource {
+            try self.requireHistoryRecoveryWriteApproval(at: url)
+            let archiveURL = try await Task.detached(priority: .userInitiated) {
+              try JobHistoryStore().rewriteRecovered(result, source: source, at: url)
+            }.value
+            guard self.jobHistoryURL == url, self.jobsRevision == revision else { return }
+            self.recordJobHistoryRecovery(result, archiveURL: archiveURL)
+          }
+          self.installRestoredJobHistory(records, deferCapture: deferCapture)
+        } catch {
+          guard self.jobHistoryURL == url, self.jobsRevision == revision else { return }
+          self.handleJobHistoryLoadError(error, at: url)
+        }
+      }
+      return
+    }
     do {
       guard let result = try jobHistoryStore.loadRecovering(from: url) else { return }
-      if result.diagnostics.requiresRewrite {
-        try preserveAndRewriteJobHistory(result, at: url)
+      if let source = result.recoverySource {
+        try requireHistoryRecoveryWriteApproval(at: url)
+        let archiveURL = try jobHistoryStore.rewriteRecovered(result, source: source, at: url)
+        recordJobHistoryRecovery(result, archiveURL: archiveURL)
       }
-      jobs = result.jobs.map { loadedJob in
-        var refreshed = loadedJob
-        runBundleService.hydrate(&refreshed, redact: redactSecrets)
-        return refreshed
-      }
-      selectedJobID = jobs.first?.id
-    } catch let error as PersistenceStoreError where error.canRecoverByArchiving {
-      recoverUnreadableJobHistory(at: url, error: error)
+      installRestoredJobHistory(Self.hydratedJobHistory(result.jobs, secrets: secrets))
     } catch {
+      handleJobHistoryLoadError(error, at: url)
+    }
+  }
+
+  private func handleJobHistoryLoadError(_ error: Error, at url: URL) {
+    if let error = error as? PersistenceStoreError, error.canRecoverByArchiving {
+      recoverUnreadableJobHistory(at: url, error: error)
+    } else {
       registryError = "Could not load job history: \(error.localizedDescription)"
+    }
+  }
+
+  func waitForJobHistoryRestore() async {
+    await jobHistoryRestore?.value
+  }
+
+  private func installRestoredJobHistory(_ records: [JobRecord], deferCapture: Bool = false) {
+    let retainedSelection = records.first { $0.id == selectedJobID }?.id
+    deferredJobCaptureIDs = deferCapture ? Set(records.map(\.id)) : []
+    historyCaptureRevision &+= 1
+    jobs = records
+    selectedJobID = retainedSelection ?? records.first?.id
+  }
+
+  nonisolated private static func hydratedJobHistory(
+    _ records: [JobRecord], secrets: [String], includingCapture: Bool = true
+  ) -> [JobRecord] {
+    let service = JobRunBundleService()
+    return records.map { record in
+      var refreshed = record
+      service.hydrate(&refreshed, includingCapture: includingCapture) { SecretsRedactor.redact($0, secrets: secrets) }
+      return refreshed
     }
   }
 
@@ -2891,20 +3122,13 @@ final class WorkbenchStore: ObservableObject {
     }
   }
 
-  private func preserveAndRewriteJobHistory(
-    _ result: JobHistoryLoadResult,
-    at url: URL
-  ) throws {
+  private func requireHistoryRecoveryWriteApproval(at url: URL) throws {
     guard outputRootWriteIsApproved(inputPaths: inputPaths) else {
       throw PersistenceStoreError.recoveryWriteNotApproved(url.path)
     }
-    let archiveURL = try persistenceRecoveryArchive.preserveOriginal(
-      at: url,
-      reason: result.diagnostics.sourceVersion == JobHistoryStore.currentVersion
-        ? "recovery"
-        : "migration-v\(result.diagnostics.sourceVersion)"
-    )
-    try jobHistoryStore.persist(jobs: result.jobs, to: url)
+  }
+
+  private func recordJobHistoryRecovery(_ result: JobHistoryLoadResult, archiveURL: URL) {
     recordPersistenceRecovery(
       "Job history: \(result.diagnostics.summary). Original preserved at \(archiveURL.path).",
       archiveURL: archiveURL
@@ -2939,8 +3163,7 @@ final class WorkbenchStore: ObservableObject {
     do {
       let archiveURL = try persistenceRecoveryArchive.preserveOriginal(at: url, reason: "corrupt")
       try jobHistoryStore.persist(jobs: [], to: url)
-      jobs = []
-      selectedJobID = nil
+      installRestoredJobHistory([])
       recordPersistenceRecovery(
         "Job history was unreadable. The exact original was preserved at \(archiveURL.path); Scientific Workbench started a clean schema-\(JobHistoryStore.currentVersion) history.",
         archiveURL: archiveURL
@@ -3072,14 +3295,36 @@ final class WorkbenchStore: ObservableObject {
     }
   }
 
-  private func persistJobHistory() {
-    guard outputRootWriteIsApproved(inputPaths: inputPaths) else { return }
-    let url = jobHistoryURL
-    do {
-      try jobHistoryStore.persist(jobs: jobs, to: url)
-    } catch {
-      registryError = "Could not save job history: \(error.localizedDescription)"
+  @discardableResult
+  private func persistJobHistory(_ records: [JobRecord]) async -> Bool {
+    guard outputRootWriteIsApproved(inputPaths: inputPaths) else {
+      jobHistorySaveError = "Could not save job history. Review the output folder in Settings."
+      return false
     }
+    let url = jobHistoryURL
+    let id = UUID()
+    let precedingWrite = jobHistoryWrite?.task
+    let task: Task<Result<Void, Error>, Never> = Task.detached(priority: .userInitiated) {
+      _ = await precedingWrite?.value
+      return Result { try JobHistoryStore().persist(jobs: records, to: url) }
+    }
+    jobHistoryWrite = (id, task)
+    isSavingJobHistory = true
+    let result = await task.value
+    if jobHistoryWrite?.id == id {
+      jobHistoryWrite = nil
+      isSavingJobHistory = false
+      if jobHistoryURL == url {
+        switch result {
+        case .success:
+          jobHistorySaveError = nil
+        case .failure(let error):
+          jobHistorySaveError = "Could not save job history. \(redactSecrets(error.localizedDescription))"
+        }
+      }
+    }
+    if case .success = result { return true }
+    return false
   }
 
   private func launchAutomationPlanWithRestrictedStepsEnabledIfNeeded(_ plan: AgentPlan) -> AgentPlan {
@@ -3097,7 +3342,7 @@ final class WorkbenchStore: ObservableObject {
     return updatedPlan
   }
 
-  private func openMarkdownDocument(_ url: URL) {
+  private func openTextDocument(_ url: URL) {
     let textEditURL = URL(fileURLWithPath: "/System/Applications/TextEdit.app", isDirectory: true)
     let configuration = NSWorkspace.OpenConfiguration()
     if FileManager.default.fileExists(atPath: textEditURL.path) {
@@ -3172,7 +3417,7 @@ final class WorkbenchStore: ObservableObject {
     guard ensureOutputRootWriteApproved(inputPaths: inputPaths) else {
       return agentStatusMessage
     }
-    guard !isRunningCodexBridge, !hasActiveJob, !isRunningAgentWorkflow, !isPullingOllamaModel else {
+    guard !isPreparingToQuit, !isRunningCodexBridge, !hasActiveJob, !isRunningAgentWorkflow, !isPullingOllamaModel else {
       return "A Scientific Workbench operation is already active. Cancel it or wait for it to finish."
     }
     isCancellationRequested = false
@@ -3184,7 +3429,7 @@ final class WorkbenchStore: ObservableObject {
       withIntermediateDirectories: true
     )
     let task = Task {
-      try await CodexBridge(executablePath: codexExecutablePath).run(
+      try await CodexBridge(executablePath: codexExecutablePath, runner: supportRunner).run(
         prompt: prompt,
         inputPaths: inputPaths,
         outputRootPath: outputRootPath,

@@ -10,26 +10,24 @@ struct ContentView: View {
 
       HStack(spacing: 0) {
         SidebarView(store: store)
+          .equatable()
           .frame(width: 260)
 
         Divider()
 
         VStack(spacing: 0) {
           WorkbenchTitleBar(
-            title: (store.selectedSection ?? .agent).title,
+            store: store,
             showInspector: $showInspector,
-            inspectorIsAvailable: proxy.size.width >= 1260,
-            canStartWorkflow: store.canChangeWorkflowContext,
-            newWorkflow: { store.beginNewWorkflow() },
-            refresh: {
-              Task { await store.refreshEnvironment() }
-            }
+            inspectorIsAvailable: proxy.size.width >= 1260
           )
+          .equatable()
 
           Divider()
 
           if let stage = WorkflowJourneyStage.forSection(store.selectedSection) {
             WorkflowJourneyBar(store: store, currentStage: stage)
+              .equatable()
             Divider()
           }
 
@@ -63,6 +61,7 @@ struct ContentView: View {
         if inspectorIsVisible {
           Divider()
           InspectorView(store: store)
+            .equatable()
             .frame(width: 280)
         }
       }
@@ -80,11 +79,11 @@ struct ContentView: View {
     case .capabilities:
       CapabilityCatalogView(
         store: store,
-        entries: store.userCapabilities,
         title: "Capabilities",
-        subtitle: "\(store.userCapabilities.count) user-facing capabilities loaded from the installed skill.",
+        subtitle: "\(store.capabilitySearchIndex.all.entries.count) user-facing capabilities loaded from the installed skill.",
         isMaintenance: false
       )
+      .equatable()
     case .jobs:
       JobsView(store: store)
     case .results:
@@ -92,24 +91,41 @@ struct ContentView: View {
     case .maintenance:
       CapabilityCatalogView(
         store: store,
-        entries: store.maintainerCapabilities,
         title: "Maintenance",
-        subtitle: "\(store.maintainerCapabilities.count) maintainer-only gates kept separate from daily work.",
+        subtitle: "\(store.maintenanceSearchIndex.all.entries.count) maintainer-only gates kept separate from daily work.",
         isMaintenance: true
       )
+      .equatable()
     case .settings:
       SettingsView(store: store)
     }
   }
 }
 
-private struct WorkbenchTitleBar: View {
-  let title: String
-  @Binding var showInspector: Bool
-  let inspectorIsAvailable: Bool
-  let canStartWorkflow: Bool
-  let newWorkflow: () -> Void
-  let refresh: () -> Void
+private struct WorkbenchTitleBar: View, Equatable {
+  private let store: WorkbenchStore
+  @Binding private var showInspector: Bool
+  private let title: String
+  private let inspectorIsShown: Bool
+  private let inspectorIsAvailable: Bool
+  private let canStartWorkflow: Bool
+
+  init(store: WorkbenchStore, showInspector: Binding<Bool>, inspectorIsAvailable: Bool) {
+    self.store = store
+    _showInspector = showInspector
+    title = (store.selectedSection ?? .agent).title
+    inspectorIsShown = showInspector.wrappedValue
+    self.inspectorIsAvailable = inspectorIsAvailable
+    canStartWorkflow = store.canChangeWorkflowContext
+  }
+
+  nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.store === rhs.store
+      && lhs.title == rhs.title
+      && lhs.inspectorIsShown == rhs.inspectorIsShown
+      && lhs.inspectorIsAvailable == rhs.inspectorIsAvailable
+      && lhs.canStartWorkflow == rhs.canStartWorkflow
+  }
 
   var body: some View {
     HStack(spacing: 12) {
@@ -120,13 +136,13 @@ private struct WorkbenchTitleBar: View {
 
       Spacer()
 
-      Button("New Workflow", systemImage: "plus") { newWorkflow() }
+      Button("New Workflow", systemImage: "plus") { store.beginNewWorkflow() }
         .disabled(!canStartWorkflow)
         .accessibilityHint("Archives the current draft before choosing a new task. Keeps originals, jobs, logs, and results.")
         .accessibilityIdentifier("toolbar.new-workflow")
 
       Button {
-        refresh()
+        Task { await store.refreshEnvironment() }
       } label: {
         Label("Refresh", systemImage: "arrow.clockwise")
       }
@@ -143,7 +159,7 @@ private struct WorkbenchTitleBar: View {
       }
       .labelStyle(.iconOnly)
       .disabled(!inspectorIsAvailable)
-      .accessibilityLabel(showInspector ? "Hide inspector" : "Show inspector")
+      .accessibilityLabel(inspectorIsShown ? "Hide inspector" : "Show inspector")
       .accessibilityHint(inspectorIsAvailable ? "Toggles the environment and selection inspector." : "Widen the window to make the inspector available.")
       .accessibilityIdentifier("toolbar.toggle-inspector")
       .help(inspectorIsAvailable ? "Toggle inspector" : "Widen the window to show the inspector")
@@ -155,8 +171,43 @@ private struct WorkbenchTitleBar: View {
   }
 }
 
-struct InspectorView: View {
-  @ObservedObject var store: WorkbenchStore
+private struct InspectorView: View, Equatable {
+  private enum Selection: Equatable {
+    case agent(mode: String, ai: String, autoRun: String, sandbox: String, status: String)
+    case capability(label: String, detail: String)
+    case none
+  }
+
+  private let environmentStatus: String
+  private let python: String?
+  private let userCapabilityCount: Int
+  private let maintainerCapabilityCount: Int
+  private let jobCount: String
+  private let inputCount: Int
+  private let selection: Selection
+
+  init(store: WorkbenchStore) {
+    environmentStatus = store.environmentSummaryStatus
+    python = store.environmentStatus.datanalysisPython
+    userCapabilityCount = store.userCapabilities.count
+    maintainerCapabilityCount = store.maintainerCapabilities.count
+    jobCount = store.isRestoringJobHistory ? "Loading…" : String(store.jobs.count)
+    inputCount = store.inputPaths.count
+    if store.selectedSection == .agent {
+      selection = .agent(
+        mode: store.agentMode.title,
+        ai: store.selectedAIIsConfigured ? store.aiProvider.title : "Local",
+        autoRun: store.agentAutoRun ? "On" : "Off",
+        sandbox: store.codexSandboxMode,
+        status: store.agentStatusMessage
+      )
+    } else if let selected = store.selectedSection == .maintenance
+      ? store.selectedMaintenanceCapability : store.selectedCapability {
+      selection = .capability(label: selected.label, detail: selected.shortDescription)
+    } else {
+      selection = .none
+    }
+  }
 
   var body: some View {
     ScrollView {
@@ -164,8 +215,8 @@ struct InspectorView: View {
         VStack(alignment: .leading, spacing: 8) {
           Text("Environment")
             .font(.headline)
-          StatusBadge(status: store.environmentStatus.status)
-          Text(store.environmentStatus.datanalysisPython ?? "No datanalysis Python resolved yet.")
+          StatusBadge(status: environmentStatus)
+          Text(python ?? "No datanalysis Python resolved yet.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(2)
@@ -178,38 +229,40 @@ struct InspectorView: View {
         VStack(alignment: .leading, spacing: 8) {
           Text("Surface")
             .font(.headline)
-          MetricLine(label: "User capabilities", value: "\(store.userCapabilities.count)")
-          MetricLine(label: "Maintenance gates", value: "\(store.maintainerCapabilities.count)")
-          MetricLine(label: "Jobs", value: "\(store.jobs.count)")
-          MetricLine(label: "Inputs", value: "\(store.inputPaths.count)")
+          MetricLine(label: "User capabilities", value: "\(userCapabilityCount)")
+          MetricLine(label: "Maintenance gates", value: "\(maintainerCapabilityCount)")
+          MetricLine(label: "Jobs", value: jobCount)
+          MetricLine(label: "Inputs", value: "\(inputCount)")
         }
 
-        if store.selectedSection == .agent {
+        switch selection {
+        case let .agent(mode, ai, autoRun, sandbox, status):
           Divider()
           VStack(alignment: .leading, spacing: 8) {
             Text("Agent")
               .font(.headline)
-            MetricLine(label: "Mode", value: store.agentMode.title)
-            MetricLine(label: "AI", value: store.selectedAIIsConfigured ? store.aiProvider.title : "Local")
-            MetricLine(label: "Auto-run", value: store.agentAutoRun ? "On" : "Off")
-            MetricLine(label: "Codex sandbox", value: store.codexSandboxMode)
-            Text(store.agentStatusMessage)
+            MetricLine(label: "Mode", value: mode)
+            MetricLine(label: "AI", value: ai)
+            MetricLine(label: "Auto-run", value: autoRun)
+            MetricLine(label: "Codex sandbox", value: sandbox)
+            Text(status)
               .font(.caption)
               .foregroundStyle(.secondary)
           }
-        } else if let selected = store.selectedSection == .maintenance
-          ? store.selectedMaintenanceCapability : store.selectedCapability {
+        case let .capability(label, detail):
           Divider()
           VStack(alignment: .leading, spacing: 8) {
             Text("Selected Capability")
               .font(.headline)
-            Text(selected.label)
+            Text(label)
               .font(.subheadline)
               .fontWeight(.semibold)
-            Text(selected.shortDescription)
+            Text(detail)
               .font(.caption)
               .foregroundStyle(.secondary)
           }
+        case .none:
+          EmptyView()
         }
 
         Spacer(minLength: 0)

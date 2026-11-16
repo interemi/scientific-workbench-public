@@ -134,6 +134,10 @@ actor ProcessRunner {
   static let defaultMaximumTemporaryOutputBytesPerStream = 256 * 1024 * 1024
 
   private var activeProcesses: [UUID: ProcessGroupProcess] = [:]
+  private var cancellationGeneration: UInt64 = 0
+  private var isShuttingDown = false
+  private var pendingRuns = 0
+  private var shutdownWaiters: [CheckedContinuation<Void, Never>] = []
   private let defaultTimeoutSeconds: TimeInterval
   private let maximumCapturedOutputBytes: Int
   private let maximumTemporaryOutputBytesPerStream: Int
@@ -154,23 +158,44 @@ actor ProcessRunner {
   }
 
   func cancelAll() async {
+    cancellationGeneration &+= 1
     for process in activeProcesses.values {
       await stop(process)
     }
   }
 
+  func shutdown() async {
+    isShuttingDown = true
+    if pendingRuns > 0 {
+      await withCheckedContinuation { shutdownWaiters.append($0) }
+    }
+  }
+
   func run(
     _ command: ProcessCommand,
+    retainingLogs archive: RunLogArchive? = nil,
     onInterrupted: (@Sendable (InterruptedProcessOutput) async -> Void)? = nil,
     cancellationRequested: (@Sendable () async -> Bool)? = nil
   ) async throws -> ProcessResult {
-    if await cancellationRequested?() == true {
+    let generation = cancellationGeneration
+    let shouldCancel = await cancellationRequested?() == true
+    guard !shouldCancel, !Task.isCancelled, !isShuttingDown, generation == cancellationGeneration else {
       throw ProcessRunnerError.cancelled
+    }
+    pendingRuns += 1
+    defer {
+      pendingRuns -= 1
+      if pendingRuns == 0 {
+        for waiter in shutdownWaiters { waiter.resume() }
+        shutdownWaiters.removeAll()
+      }
     }
     let startedAt = Date()
     let tempRoot = FileManager.default.temporaryDirectory
       .appendingPathComponent("Scientific-Workbench-\(UUID().uuidString)", isDirectory: true)
-    try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(
+      at: tempRoot, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700]
+    )
     defer { try? FileManager.default.removeItem(at: tempRoot) }
 
     let stdoutURL = tempRoot.appendingPathComponent("stdout.txt")
@@ -208,98 +233,103 @@ actor ProcessRunner {
     let timeoutSeconds = command.timeoutSeconds ?? defaultTimeoutSeconds
     let deadline = timeoutSeconds > 0 ? startedAt.addingTimeInterval(timeoutSeconds) : nil
 
-    while true {
-      let parentIsRunning = try process.poll()
-      let groupIsAlive = process.groupIsAlive()
-      if let stream = Self.outputStreamExceedingLimit(
-        stdoutURL: stdoutURL,
-        stderrURL: stderrURL,
-        limitBytes: maximumTemporaryOutputBytesPerStream
-      ) {
-        if groupIsAlive {
-          await stop(process)
-        }
-        await reportInterruptedOutput(
+    do {
+      while true {
+        let parentIsRunning = try process.poll()
+        let groupIsAlive = process.groupIsAlive()
+        if let stream = Self.outputStreamExceedingLimit(
           stdoutURL: stdoutURL,
           stderrURL: stderrURL,
-          to: onInterrupted
-        )
-        throw ProcessRunnerError.outputLimitExceeded(
-          stream: stream,
           limitBytes: maximumTemporaryOutputBytesPerStream
-        )
-      }
-      guard parentIsRunning || groupIsAlive else { break }
+        ) {
+          throw ProcessRunnerError.outputLimitExceeded(
+            stream: stream,
+            limitBytes: maximumTemporaryOutputBytesPerStream
+          )
+        }
+        guard parentIsRunning || groupIsAlive else { break }
 
-      if Task.isCancelled {
-        await stop(process)
-        await reportInterruptedOutput(
-          stdoutURL: stdoutURL,
-          stderrURL: stderrURL,
-          to: onInterrupted
-        )
-        throw ProcessRunnerError.cancelled
+        if Task.isCancelled || isShuttingDown {
+          throw ProcessRunnerError.cancelled
+        }
+        if let deadline, Date() >= deadline {
+          throw ProcessRunnerError.timedOut(timeoutSeconds)
+        }
+        do {
+          try await Task.sleep(nanoseconds: 100_000_000)
+        } catch is CancellationError {
+          throw ProcessRunnerError.cancelled
+        }
       }
-      if let deadline, Date() >= deadline {
-        await stop(process)
-        await reportInterruptedOutput(
-          stdoutURL: stdoutURL,
-          stderrURL: stderrURL,
-          to: onInterrupted
-        )
-        throw ProcessRunnerError.timedOut(timeoutSeconds)
+    } catch {
+      await stop(process)
+      activeProcesses[processID] = nil
+      if archive != nil || onInterrupted != nil {
+        let capture = await captureOutput(stdoutURL: stdoutURL, stderrURL: stderrURL, archive: archive)
+        await onInterrupted?(InterruptedProcessOutput(
+          stdout: capture.stdout.text, stderr: capture.stderr.text, retainedLogs: capture.retainedLogs
+        ))
       }
-      do {
-        try await Task.sleep(nanoseconds: 100_000_000)
-      } catch is CancellationError {
-        await stop(process)
-        await reportInterruptedOutput(
-          stdoutURL: stdoutURL,
-          stderrURL: stderrURL,
-          to: onInterrupted
-        )
-        throw ProcessRunnerError.cancelled
-      }
+      throw error
     }
 
     let finishedAt = Date()
-    let stdout = Self.boundedOutput(
-      at: stdoutURL,
-      maximumBytes: maximumCapturedOutputBytes
-    )
-    let stderr = Self.boundedOutput(
-      at: stderrURL,
-      maximumBytes: maximumCapturedOutputBytes
-    )
+    activeProcesses[processID] = nil
+    let capture = await captureOutput(stdoutURL: stdoutURL, stderrURL: stderrURL, archive: archive)
     return ProcessResult(
       exitCode: process.terminationStatus ?? 1,
-      stdout: stdout.text,
-      stderr: stderr.text,
+      stdout: capture.stdout.text,
+      stderr: capture.stderr.text,
       startedAt: startedAt,
       finishedAt: finishedAt,
-      stdoutTotalBytes: stdout.totalBytes,
-      stderrTotalBytes: stderr.totalBytes,
-      stdoutWasTruncated: stdout.wasTruncated,
-      stderrWasTruncated: stderr.wasTruncated
+      stdoutTotalBytes: capture.stdout.totalBytes,
+      stderrTotalBytes: capture.stderr.totalBytes,
+      stdoutWasTruncated: capture.stdout.wasTruncated,
+      stderrWasTruncated: capture.stderr.wasTruncated,
+      retainedLogs: capture.retainedLogs
     )
   }
 
-  private func reportInterruptedOutput(
-    stdoutURL: URL,
-    stderrURL: URL,
-    to callback: (@Sendable (InterruptedProcessOutput) async -> Void)?
-  ) async {
-    guard let callback else { return }
-    await callback(InterruptedProcessOutput(
-      stdout: Self.boundedOutput(
-        at: stdoutURL,
-        maximumBytes: maximumCapturedOutputBytes
-      ).text,
-      stderr: Self.boundedOutput(
-        at: stderrURL,
-        maximumBytes: maximumCapturedOutputBytes
-      ).text
-    ))
+  private func captureOutput(
+    stdoutURL: URL, stderrURL: URL, archive: RunLogArchive?
+  ) async -> (stdout: BoundedProcessOutput, stderr: BoundedProcessOutput, retainedLogs: Set<RunLogStream>) {
+    let excerptLimit = maximumCapturedOutputBytes
+    guard let archive else {
+      return (
+        BoundedProcessOutput.read(at: stdoutURL, maximumBytes: excerptLimit) ?? .empty,
+        BoundedProcessOutput.read(at: stderrURL, maximumBytes: excerptLimit) ?? .empty,
+        []
+      )
+    }
+    let secrets = await archive.currentSecrets()
+    let inputLimit = maximumTemporaryOutputBytesPerStream
+    // A cancelled process still needs to finish retaining its partial output.
+    return await Task.detached(priority: .utility) {
+      let stdout = archive.retain(
+        from: stdoutURL, stream: .stdout, maximumInputBytes: inputLimit,
+        maximumExcerptBytes: excerptLimit, additionalSecrets: secrets
+      )
+      let stderr = archive.retain(
+        from: stderrURL, stream: .stderr, maximumInputBytes: inputLimit,
+        maximumExcerptBytes: excerptLimit, additionalSecrets: secrets
+      )
+      var retained: Set<RunLogStream> = []
+      if stdout != nil { retained.insert(.stdout) }
+      if stderr != nil { retained.insert(.stderr) }
+      return (
+        stdout ?? Self.retentionFailure(at: stdoutURL),
+        stderr ?? Self.retentionFailure(at: stderrURL),
+        retained
+      )
+    }.value
+  }
+
+  private static nonisolated func retentionFailure(at url: URL) -> BoundedProcessOutput {
+    BoundedProcessOutput(
+      text: "[Scientific Workbench could not retain this log.]",
+      totalBytes: fileSize(at: url),
+      wasTruncated: true
+    )
   }
 
   private func stop(_ process: ProcessGroupProcess) async {
@@ -337,58 +367,6 @@ actor ProcessRunner {
     await Task.detached {
       try? await Task.sleep(nanoseconds: nanoseconds)
     }.value
-  }
-
-  private static nonisolated func boundedOutput(
-    at url: URL,
-    maximumBytes: Int
-  ) -> BoundedProcessOutput {
-    guard
-      let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-      let byteCount = (attributes[.size] as? NSNumber)?.intValue,
-      byteCount > 0
-    else {
-      return BoundedProcessOutput(text: "", totalBytes: 0, wasTruncated: false)
-    }
-
-    guard byteCount > maximumBytes else {
-      guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) else {
-        return BoundedProcessOutput(text: "", totalBytes: byteCount, wasTruncated: false)
-      }
-      return BoundedProcessOutput(
-        text: String(decoding: data, as: UTF8.self),
-        totalBytes: byteCount,
-        wasTruncated: false
-      )
-    }
-
-    let headBytes = maximumBytes / 4
-    let tailBytes = maximumBytes - headBytes
-    let omittedBytes = byteCount - maximumBytes
-    guard let handle = try? FileHandle(forReadingFrom: url) else {
-      return BoundedProcessOutput(text: "", totalBytes: byteCount, wasTruncated: true)
-    }
-    defer { try? handle.close() }
-
-    let head = (try? handle.read(upToCount: headBytes)) ?? Data()
-    do {
-      try handle.seek(toOffset: UInt64(byteCount - tailBytes))
-    } catch {
-      return BoundedProcessOutput(
-        text: String(decoding: head, as: UTF8.self),
-        totalBytes: byteCount,
-        wasTruncated: true
-      )
-    }
-    let tail = (try? handle.read(upToCount: tailBytes)) ?? Data()
-    let marker = "\n\n[Scientific Workbench truncated \(omittedBytes) output bytes; showing the beginning and end.]\n\n"
-    return BoundedProcessOutput(
-      text: String(decoding: head, as: UTF8.self)
-        + marker
-        + String(decoding: tail, as: UTF8.self),
-      totalBytes: byteCount,
-      wasTruncated: true
-    )
   }
 
   private static nonisolated func outputStreamExceedingLimit(
@@ -512,15 +490,10 @@ actor ProcessRunner {
   }
 }
 
-private struct BoundedProcessOutput {
-  let text: String
-  let totalBytes: Int
-  let wasTruncated: Bool
-}
-
 struct InterruptedProcessOutput: Sendable {
   let stdout: String
   let stderr: String
+  let retainedLogs: Set<RunLogStream>
 }
 
 enum ProcessRunnerError: LocalizedError, Equatable {

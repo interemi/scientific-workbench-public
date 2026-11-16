@@ -4,7 +4,7 @@ import Testing
 
 extension ScientificWorkbenchTests {
   @Test
-  func catalogCrossmatchReviewRequiresExplicitValidCoordinateMapping() throws {
+  func catalogCrossmatchReviewRequiresExplicitValidCoordinateMapping() async throws {
     let root = FileManager.default.temporaryDirectory
       .appendingPathComponent("Scientific-Workbench-Crossmatch-\(UUID().uuidString)", isDirectory: true)
     let leftPath = root.appendingPathComponent("left.csv")
@@ -17,8 +17,17 @@ extension ScientificWorkbenchTests {
       .write(to: rightPath, atomically: true, encoding: .utf8)
 
     let service = CatalogCrossmatchInspectionService()
-    let left = try service.inspect(path: leftPath.path)
-    let right = try service.inspect(path: rightPath.path)
+    let loader = GuidedInputReviewLoader()
+    let missing = root.appendingPathComponent("missing.csv").path
+    let candidates = try await loader.catalogFiles(in: [root.path, leftPath.path, missing, rightPath.path])
+    #expect(candidates == [leftPath.path, rightPath.path])
+    let left = try await loader.inspectCatalog(at: leftPath.path)
+    let right = try await loader.inspectCatalog(at: rightPath.path)
+    let cancelled = Task {
+      withUnsafeCurrentTask { $0?.cancel() }
+      return try await loader.inspectCatalog(at: missing)
+    }
+    await #expect(throws: CancellationError.self) { try await cancelled.value }
     let reviewed = CatalogCrossmatchSelection(
       leftRAColumn: 0,
       leftDecColumn: 1,

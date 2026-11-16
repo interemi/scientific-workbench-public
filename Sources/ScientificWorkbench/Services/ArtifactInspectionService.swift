@@ -15,6 +15,7 @@ struct ArtifactInspection: Sendable {
   let modifiedAt: Date?
   let recordedByteCount: Int64?
   let recordedSHA256: String?
+  let resolvedPreviewURL: URL?
 
   var canPreview: Bool { isInsideRun && isReadableFile }
 }
@@ -29,9 +30,7 @@ struct ArtifactInspectionService {
   }
 
   func inspect(_ artifact: Artifact, in job: JobRecord) -> ArtifactInspection {
-    let root = URL(fileURLWithPath: job.runDirectory, isDirectory: true)
-      .standardizedFileURL.resolvingSymlinksInPath()
-    let file = artifact.url.standardizedFileURL.resolvingSymlinksInPath()
+    let (root, file) = resolvedLocation(of: artifact, in: job)
     let inside = isInside(file, root: root)
     let values = inside ? try? file.resourceValues(forKeys: [
       .isRegularFileKey, .fileSizeKey, .contentModificationDateKey
@@ -45,8 +44,16 @@ struct ArtifactInspectionService {
       currentByteCount: readable ? values?.fileSize.map(Int64.init) : nil,
       modifiedAt: readable ? values?.contentModificationDate : nil,
       recordedByteCount: recorded?.size,
-      recordedSHA256: recorded?.sha256
+      recordedSHA256: recorded?.sha256,
+      resolvedPreviewURL: readable ? file : nil
     )
+  }
+
+  func previewURL(for artifact: Artifact, in job: JobRecord) -> URL? {
+    let (root, file) = resolvedLocation(of: artifact, in: job)
+    guard isInside(file, root: root),
+          (try? file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return nil }
+    return file
   }
 
   func comparisonSummary(_ first: ArtifactInspection, _ second: ArtifactInspection) -> String {
@@ -81,6 +88,7 @@ struct ArtifactInspectionService {
   private func manifestOutput(for file: URL, root: URL) -> (size: Int64?, sha256: String?)? {
     let manifest = root.appendingPathComponent("manifest.json").resolvingSymlinksInPath()
     guard isInside(manifest, root: root),
+          (try? manifest.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,
           let handle = try? FileHandle(forReadingFrom: manifest) else { return nil }
     defer { try? handle.close() }
     guard let data = try? handle.read(upToCount: maximumManifestBytes + 1),
@@ -107,6 +115,12 @@ struct ArtifactInspectionService {
       return (size: size.flatMap { $0 >= 0 ? $0 : nil }, sha256: hash)
     }
     return nil
+  }
+
+  private func resolvedLocation(of artifact: Artifact, in job: JobRecord) -> (root: URL, file: URL) {
+    let root = URL(fileURLWithPath: job.runDirectory, isDirectory: true)
+      .standardizedFileURL.resolvingSymlinksInPath()
+    return (root, artifact.url.standardizedFileURL.resolvingSymlinksInPath())
   }
 
   private func isInside(_ file: URL, root: URL) -> Bool {

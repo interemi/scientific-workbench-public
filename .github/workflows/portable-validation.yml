@@ -111,6 +111,9 @@ jobs:
           [[ -f "$installed_skills/scientific-data-analysis/public_surface_registry.yaml" ]]
           [[ -f "$installed_skills/scientific-data-maintainer/references/v2-3-mother-router-module-map.json" ]]
       - name: Run Swift tests with discovery checks
+        env:
+          # Shared Intel runners have delayed independent test tasks beyond fixture deadlines.
+          SCIENTIFIC_WORKBENCH_SWIFT_TEST_SERIAL: ${{ matrix.architecture == 'x86_64' && '1' || '0' }}
         run: ./script/run_swift_tests.sh 2>&1 | tee "$CI_EVIDENCE_DIR/swift-tests.log"
       - name: Install core in a new isolated environment
         run: |

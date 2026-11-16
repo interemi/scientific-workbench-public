@@ -58,6 +58,27 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func cancellingDuringPreflightPreventsSpawnAndAllowsNextRun() async throws {
+    let directory = try makeProcessTreeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let marker = directory.appendingPathComponent("launch-marker")
+    let runner = ProcessRunner()
+    let command = ProcessCommand(executable: "/usr/bin/touch", arguments: [marker.path], workingDirectory: nil)
+
+    await #expect(throws: ProcessRunnerError.cancelled) {
+      try await runner.run(command, cancellationRequested: {
+        await runner.cancelAll()
+        return false
+      })
+    }
+    #expect(!FileManager.default.fileExists(atPath: marker.path))
+
+    let result = try await runner.run(command)
+    #expect(result.exitCode == 0)
+    #expect(FileManager.default.fileExists(atPath: marker.path))
+  }
+
+  @Test
   func processRunnerRetainsBoundedPartialLogsWhenTaskIsCancelled() async throws {
     let markerDirectory = try makeProcessTreeTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: markerDirectory) }

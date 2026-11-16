@@ -9,18 +9,92 @@ struct JobRunBundleSnapshot {
   var nextSteps: String?
 }
 
+struct JobRunCapture: Sendable {
+  let command: String
+  let stdout: String
+  let stderr: String
+
+  func applying(to job: JobRecord) -> JobRecord {
+    var detailed = job
+    detailed.command = command
+    detailed.stdout = stdout
+    detailed.stderr = stderr
+    return detailed
+  }
+}
+
 struct JobRunBundleService {
+  enum Completion: Sendable {
+    case finished(ProcessResult, cancellationRequested: Bool)
+    case interrupted(InterruptedProcessOutput?)
+  }
+
   private let maximumSidecarBytes = 512_000
   private let parser = ToolEnvelopeParser()
   private let artifactDiscovery = ArtifactDiscovery()
 
-  func load(runDirectory: String, stdoutFallback: String = "") -> JobRunBundleSnapshot {
+  func finalize(_ record: JobRecord, completion: Completion, secrets: [String]) async -> JobRecord {
+    // An interrupted or cancelled caller still needs its captured evidence.
+    await Task.detached(priority: .userInitiated) {
+      autoreleasepool {
+        let redact: (String) -> String = { SecretsRedactor.redact($0, secrets: secrets) }
+        var job = record
+        var fallbackEnvelope: ToolEnvelope?
+        let retainedLogs: Set<RunLogStream>
+
+        switch completion {
+        case let .finished(result, _):
+          fallbackEnvelope = parser.parse(result.stdout)
+          job.stdout = redact(result.stdout)
+          job.stderr = redact(result.stderr)
+          job.exitCode = result.exitCode
+          job.finishedAt = result.finishedAt
+          retainedLogs = result.retainedLogs
+        case .interrupted(let partial):
+          if let partial {
+            job.stdout = redact(partial.stdout)
+            job.stderr = redact(partial.stderr)
+          }
+          retainedLogs = partial?.retainedLogs ?? []
+        }
+
+        writeCaptureFiles(
+          runDirectory: job.runDirectory,
+          command: job.command,
+          stdout: job.stdout,
+          stderr: job.stderr.isEmpty ? (job.message ?? "") : job.stderr,
+          retaining: retainedLogs
+        )
+        hydrate(&job, fallbackEnvelope: fallbackEnvelope, redact: redact)
+        if case let .finished(result, cancellationRequested) = completion {
+          if cancellationRequested {
+            job.status = .cancelled
+            job.message = "Run cancelled by user."
+          } else {
+            job.status = JobStatus.resolved(
+              exitCode: result.exitCode, envelopeStatus: job.parsedStatus, appStatus: job.appStatus
+            )
+            if result.exitCode != 0 {
+              job.message = redact(result.stderr.isEmpty ? "Process exited with \(result.exitCode)." : result.stderr)
+            }
+          }
+          if job.message == nil {
+            job.message = job.structuredErrors.first?.message
+          }
+        }
+        writeNextStepsIfMissing(for: job)
+        hydrate(&job, fallbackEnvelope: fallbackEnvelope, redact: redact)
+        return job
+      }
+    }.value
+  }
+
+  func load(
+    runDirectory: String, stdoutFallback: String = "", includingCapture: Bool = true
+  ) -> JobRunBundleSnapshot {
     let root = URL(fileURLWithPath: runDirectory, isDirectory: true)
-    let command = readText(root.appendingPathComponent("command.txt"))
-    let stdout = readText(root.appendingPathComponent("stdout.txt"))
-    let stderr = readText(root.appendingPathComponent("stderr.txt"))
     let nextSteps = readText(root.appendingPathComponent("next_steps.md"))
-    let envelope = ["summary.json", "manifest.json"]
+    let sidecarEnvelope = ["summary.json", "manifest.json"]
       .lazy
       .compactMap { fileName -> ToolEnvelope? in
         let url = root.appendingPathComponent(fileName)
@@ -34,15 +108,17 @@ struct JobRunBundleService {
         return envelope
       }
       .first
-      ?? parser.parse(stdout ?? "")
-      ?? parser.parse(stdoutFallback)
+    // Older runs may report their searchable summary only in stdout.
+    let stdout = includingCapture || sidecarEnvelope == nil
+      ? readLog(root.appendingPathComponent(RunLogStream.stdout.fileName)) : nil
+    let envelope = sidecarEnvelope ?? parser.parse(stdout ?? "") ?? parser.parse(stdoutFallback)
 
     return JobRunBundleSnapshot(
       envelope: envelope,
       artifacts: artifactDiscovery.discover(in: runDirectory),
-      command: command,
-      stdout: stdout,
-      stderr: stderr,
+      command: includingCapture ? readText(root.appendingPathComponent("command.txt")) : nil,
+      stdout: includingCapture ? stdout : nil,
+      stderr: includingCapture ? readLog(root.appendingPathComponent(RunLogStream.stderr.fileName)) : nil,
       nextSteps: nextSteps
     )
   }
@@ -50,11 +126,19 @@ struct JobRunBundleService {
   func hydrate(
     _ job: inout JobRecord,
     fallbackEnvelope: ToolEnvelope? = nil,
+    includingCapture: Bool = true,
     redact: (String) -> String = { $0 }
   ) {
-    let snapshot = load(runDirectory: job.runDirectory, stdoutFallback: job.stdout)
+    let snapshot = load(
+      runDirectory: job.runDirectory, stdoutFallback: job.stdout, includingCapture: includingCapture
+    )
     let envelope = snapshot.envelope ?? fallbackEnvelope
     job.artifacts = snapshot.artifacts
+    if !includingCapture {
+      job.command = redact(job.command)
+      job.stdout = redact(job.stdout)
+      job.stderr = redact(job.stderr)
+    }
     if let command = snapshot.command {
       job.command = redact(command)
     }
@@ -103,17 +187,36 @@ struct JobRunBundleService {
     job.tags = envelope.appHints?.tags.map(redact) ?? []
   }
 
+  func capture(for job: JobRecord, redact: (String) -> String) throws -> JobRunCapture {
+    let root = URL(fileURLWithPath: job.runDirectory, isDirectory: true)
+    try Task.checkCancellation()
+    let command = readText(root.appendingPathComponent("command.txt")) ?? job.command
+    try Task.checkCancellation()
+    let stdout = readLog(root.appendingPathComponent(RunLogStream.stdout.fileName)) ?? job.stdout
+    try Task.checkCancellation()
+    return JobRunCapture(
+      command: redact(command),
+      stdout: redact(stdout),
+      stderr: redact(readLog(root.appendingPathComponent(RunLogStream.stderr.fileName)) ?? job.stderr)
+    )
+  }
+
   func writeCaptureFiles(
     runDirectory: String,
     command: String,
     stdout: String,
-    stderr: String
+    stderr: String,
+    retaining retainedLogs: Set<RunLogStream> = []
   ) {
     let root = URL(fileURLWithPath: runDirectory, isDirectory: true)
     try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     write(command, to: root.appendingPathComponent("command.txt"))
-    write(stdout, to: root.appendingPathComponent("stdout.txt"))
-    write(stderr, to: root.appendingPathComponent("stderr.txt"))
+    if !retainedLogs.contains(.stdout) {
+      write(stdout, to: root.appendingPathComponent(RunLogStream.stdout.fileName))
+    }
+    if !retainedLogs.contains(.stderr) {
+      write(stderr, to: root.appendingPathComponent(RunLogStream.stderr.fileName))
+    }
   }
 
   func writeNextStepsIfMissing(for job: JobRecord) {
@@ -144,6 +247,10 @@ struct JobRunBundleService {
       return nil
     }
     return text
+  }
+
+  private func readLog(_ url: URL) -> String? {
+    BoundedProcessOutput.read(at: url, maximumBytes: maximumSidecarBytes)?.text
   }
 
   private func parseNextActions(
