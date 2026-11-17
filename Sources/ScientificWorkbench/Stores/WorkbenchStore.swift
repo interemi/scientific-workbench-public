@@ -157,11 +157,30 @@ final class WorkbenchStore: ObservableObject {
   @Published var radialVelocityReview: RadialVelocityTableReview?
   @Published var radialVelocityReviewError: String?
   @Published var isReviewingRadialVelocityInput = false
-  @Published var radialVelocityTimeColumn: Int?
-  @Published var radialVelocityValueColumn: Int?
-  @Published var radialVelocityUncertaintyColumn: Int?
-  @Published var radialVelocityTimeSystem: RadialVelocityTimeSystem = .jd
-  @Published var radialVelocityUnit: RadialVelocityUnit = .kilometersPerSecond
+  @Published var radialVelocityTimeColumn: Int? {
+    didSet {
+      guard oldValue != radialVelocityTimeColumn else { return }
+      let column = radialVelocityReview?.column(at: radialVelocityTimeColumn)
+      radialVelocityTimeSystem = column?.declaredTimeSystem
+      radialVelocityTimeScale = column?.declaredTimeScale
+    }
+  }
+  @Published var radialVelocityValueColumn: Int? {
+    didSet {
+      guard oldValue != radialVelocityValueColumn else { return }
+      radialVelocityUnit = radialVelocityReview?.column(at: radialVelocityValueColumn)?.declaredVelocityUnit
+    }
+  }
+  @Published var radialVelocityUncertaintyColumn: Int? {
+    didSet {
+      guard oldValue != radialVelocityUncertaintyColumn else { return }
+      radialVelocityUncertaintyUnit = radialVelocityReview?.column(at: radialVelocityUncertaintyColumn)?.declaredVelocityUnit
+    }
+  }
+  @Published var radialVelocityTimeSystem: RadialVelocityTimeSystem?
+  @Published var radialVelocityTimeScale: RadialVelocityTimeScale?
+  @Published var radialVelocityUnit: RadialVelocityUnit?
+  @Published var radialVelocityUncertaintyUnit: RadialVelocityUnit?
   @Published var photometricCalibrationReview: PhotometricCalibrationReview?
   @Published var photometricCalibrationError: String?
   @Published var isReviewingPhotometricCalibration = false
@@ -660,7 +679,9 @@ final class WorkbenchStore: ObservableObject {
       velocityColumn: radialVelocityValueColumn,
       uncertaintyColumn: radialVelocityUncertaintyColumn,
       timeSystem: radialVelocityTimeSystem,
-      velocityUnit: radialVelocityUnit
+      timeScale: radialVelocityTimeScale,
+      velocityUnit: radialVelocityUnit,
+      uncertaintyUnit: radialVelocityUncertaintyUnit
     )
   }
 
@@ -2004,8 +2025,10 @@ final class WorkbenchStore: ObservableObject {
       radialVelocityTimeColumn = review.recommendedTimeColumn
       radialVelocityValueColumn = review.recommendedVelocityColumn
       radialVelocityUncertaintyColumn = review.recommendedUncertaintyColumn
-      radialVelocityTimeSystem = review.inferredTimeSystem ?? .jd
-      radialVelocityUnit = review.inferredVelocityUnit ?? .kilometersPerSecond
+      radialVelocityTimeSystem = review.column(at: radialVelocityTimeColumn)?.declaredTimeSystem
+      radialVelocityTimeScale = review.column(at: radialVelocityTimeColumn)?.declaredTimeScale
+      radialVelocityUnit = review.column(at: radialVelocityValueColumn)?.declaredVelocityUnit
+      radialVelocityUncertaintyUnit = review.column(at: radialVelocityUncertaintyColumn)?.declaredVelocityUnit
     } catch {
       radialVelocityReview = nil
       radialVelocityReviewError = error.localizedDescription

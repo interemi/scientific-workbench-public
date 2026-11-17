@@ -93,9 +93,19 @@ struct RadialVelocityInspectionView: View {
             Text(column.name).tag(Optional(column.index))
           }
         }
-        Picker("Time system", selection: $store.radialVelocityTimeSystem) {
+        Picker("Time format and reference", selection: $store.radialVelocityTimeSystem) {
+          Text("Select").tag(RadialVelocityTimeSystem?.none)
           ForEach(RadialVelocityTimeSystem.allCases) { system in
-            Text(system.title).tag(system)
+            Text(system.title).tag(Optional(system))
+          }
+        }
+      }
+      GridRow {
+        Spacer()
+        Picker("Time scale", selection: $store.radialVelocityTimeScale) {
+          Text("Select").tag(RadialVelocityTimeScale?.none)
+          ForEach(RadialVelocityTimeScale.allCases) { scale in
+            Text(scale.rawValue).tag(Optional(scale))
           }
         }
       }
@@ -107,8 +117,9 @@ struct RadialVelocityInspectionView: View {
           }
         }
         Picker("Velocity units", selection: $store.radialVelocityUnit) {
+          Text("Select").tag(RadialVelocityUnit?.none)
           ForEach(RadialVelocityUnit.allCases) { unit in
-            Text(unit.title).tag(unit)
+            Text(unit.title).tag(Optional(unit))
           }
         }
       }
@@ -119,7 +130,14 @@ struct RadialVelocityInspectionView: View {
             Text(column.name).tag(Optional(column.index))
           }
         }
-        Spacer()
+        if store.radialVelocityUncertaintyColumn != nil {
+          Picker("Uncertainty units", selection: $store.radialVelocityUncertaintyUnit) {
+            Text("Select").tag(RadialVelocityUnit?.none)
+            ForEach(RadialVelocityUnit.allCases) { unit in
+              Text(unit.title).tag(Optional(unit))
+            }
+          }
+        }
       }
     }
     .pickerStyle(.menu)
@@ -133,11 +151,12 @@ struct RadialVelocityInspectionView: View {
             .font(.caption)
             .foregroundStyle(validation.status == .blocked ? Color.red : Color.orange)
         }
-        if !validation.nextActions.isEmpty {
+        let additionalActions = validation.nextActions.filter { !validation.findings.contains($0) }
+        if !additionalActions.isEmpty {
           Text("Next actions")
             .font(.caption)
             .fontWeight(.semibold)
-          ForEach(validation.nextActions, id: \.self) { action in
+          ForEach(additionalActions, id: \.self) { action in
             Label(action, systemImage: "arrow.right")
               .font(.caption)
               .foregroundStyle(.secondary)

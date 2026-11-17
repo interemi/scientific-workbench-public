@@ -205,13 +205,18 @@ in Capabilities:
 1. Add an RV table in text, CSV, TSV, or `.vels` format.
 2. Select `Inspect Columns`.
 3. Review the time, radial-velocity, and uncertainty columns.
-4. Confirm JD/BJD/HJD/MJD and km/s or m/s.
+4. Confirm the date format and reference (JD/BJD/HJD/MJD), its time scale (for
+   example UTC or TDB), and the velocity unit. If you select an uncertainty
+   column, confirm its unit separately. Explicit labels such as `BJD_TDB`
+   and `rv_km_s` prefill these selections.
 5. Select `Run Reviewed Inspection`.
 
-The app creates a normalized `.vels` copy inside the run, converting MJD to JD
-and m/s to km/s. The original table is unchanged. Missing columns, ambiguous
-units, or insufficient numeric data produce next actions; the backend waits
-until the mapping is valid.
+The run retains a normalized `.vels` copy and a column mapping. It converts
+MJD to JD on the declared scale and converts velocities and uncertainties
+independently to km/s. BJD and HJD keep their reference. The user must
+provide full dates and a consistent declaration before the run can start.
+Missing, nonnumeric, and nonfinite dates block preparation with a row count.
+The source table is read-only.
 
 ### Guided photometric calibration
 

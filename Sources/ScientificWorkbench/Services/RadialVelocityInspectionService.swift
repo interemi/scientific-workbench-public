@@ -36,16 +36,30 @@ struct RadialVelocityInspectionService {
       throw RadialVelocityInspectionError.unreadableInput
     }
 
-    let contentLines = text.components(separatedBy: .newlines)
+    let lines = text.components(separatedBy: .newlines)
       .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-      .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+      .filter { !$0.isEmpty }
+    let contentLines = lines.filter { !$0.hasPrefix("#") }
     guard let firstLine = contentLines.first else {
       throw RadialVelocityInspectionError.noDataRows
     }
 
     let separator = detectedSeparator(in: firstLine)
     let firstFields = fields(in: firstLine, separator: separator)
-    let hasHeader = firstFields.contains { finiteNumber($0) == nil }
+    let hasNamedColumn = firstFields.contains { scoreTime($0) > 0 || scoreVelocity($0) > 0 }
+    let hasHeader = hasNamedColumn || firstFields.allSatisfy { Double($0) == nil }
+    let metadata = commentMetadata(lines)
+    let positionalTime = nameTokens(metadata["time_standard"] ?? "")
+    let scaleFromTime = timeScale(positionalTime)
+    let scaleFromComment = timeScale(nameTokens(metadata["time_scale"] ?? ""))
+    if !hasHeader, let scaleFromTime, let scaleFromComment, scaleFromTime != scaleFromComment {
+      throw RadialVelocityInspectionError.invalidSelection("The time standard and time scale comments disagree.")
+    }
+    let positionalScale = scaleFromComment ?? scaleFromTime
+    let positionalUnits = [
+      1: velocityUnit(nameTokens(metadata["value_units"] ?? "")),
+      2: velocityUnit(nameTokens(metadata["uncertainty_units"] ?? ""))
+    ].compactMapValues { $0 }
     let dataLines = hasHeader ? Array(contentLines.dropFirst()) : contentLines
     let parsedRows = dataLines.map { fields(in: $0, separator: separator) }
     let columnCount = max(firstFields.count, parsedRows.map(\.count).max() ?? 0)
@@ -57,6 +71,8 @@ struct RadialVelocityInspectionService {
       ? normalizedHeaders(firstFields, count: columnCount)
       : (0..<columnCount).map { "column_\($0 + 1)" }
     let columns = names.enumerated().map { index, name in
+      let tokens = nameTokens(name)
+      let isPositionalTime = !hasHeader && index == 0
       let numericCount = parsedRows.reduce(into: 0) { count, row in
         guard index < row.count, finiteNumber(row[index]) != nil else { return }
         count += 1
@@ -73,15 +89,19 @@ struct RadialVelocityInspectionService {
         rowCount: parsedRows.count,
         timeScore: hasHeader ? scoreTime(name) : positionalScores.0,
         velocityScore: hasHeader ? scoreVelocity(name) : positionalScores.1,
-        uncertaintyScore: hasHeader ? scoreUncertainty(name) : positionalScores.2
+        uncertaintyScore: hasHeader ? scoreUncertainty(name) : positionalScores.2,
+        declaredTimeSystem: timeSystem(tokens) ?? (isPositionalTime ? timeSystem(positionalTime) : nil),
+        declaredTimeScale: timeScale(tokens) ?? (isPositionalTime ? positionalScale : nil),
+        declaredVelocityUnit: velocityUnit(tokens) ?? (hasHeader ? nil : positionalUnits[index]),
+        usesOffsetTime: usesOffsetTime(tokens) || (isPositionalTime && usesOffsetTime(positionalTime))
       )
     }
 
     let recommendedTime = uniqueRecommendation(columns, score: \.timeScore)
     let recommendedVelocity = uniqueRecommendation(columns, score: \.velocityScore)
     let recommendedUncertainty = uniqueRecommendation(columns, score: \.uncertaintyScore)
-    let inferredTimeSystem = inferTimeSystem(from: recommendedTime.flatMap { columns[safe: $0]?.name })
-    let inferredVelocityUnit = inferVelocityUnit(from: recommendedVelocity.flatMap { columns[safe: $0]?.name })
+    let inferredTimeSystem = recommendedTime.flatMap { columns[safe: $0]?.declaredTimeSystem }
+    let inferredVelocityUnit = recommendedVelocity.flatMap { columns[safe: $0]?.declaredVelocityUnit }
 
     var findings: [String] = []
     var nextActions: [String] = []
@@ -156,28 +176,61 @@ struct RadialVelocityInspectionService {
        uncertaintyColumn == timeColumn || uncertaintyColumn == velocityColumn {
       return blocked("Uncertainty must use a separate column.", findings: findings, nextActions: nextActions)
     }
-    guard review.columns.indices.contains(timeColumn),
-          review.columns.indices.contains(velocityColumn) else {
+    guard let time = review.column(at: timeColumn), let velocity = review.column(at: velocityColumn) else {
       return blocked("The selected columns are outside the table.", findings: findings, nextActions: nextActions)
     }
-    guard review.columns[timeColumn].numericCount > 0 else {
-      return blocked("The selected time column has no finite numeric values.", findings: findings, nextActions: nextActions)
+    guard time.numericCount == time.rowCount else {
+      let invalidRows = time.rowCount - time.numericCount
+      return blocked("The selected time column has \(invalidRows) missing, nonnumeric, or nonfinite rows.",
+                     findings: findings, nextActions: nextActions)
     }
-    guard review.columns[velocityColumn].numericCount > 0 else {
+    guard velocity.numericCount > 0 else {
       return blocked("The selected RV column has no finite numeric values.", findings: findings, nextActions: nextActions)
     }
+    guard !time.usesOffsetTime else {
+      return blocked("The selected column declares offset dates. Provide full JD, BJD, HJD, or MJD values in a reviewed copy.",
+                     findings: findings, nextActions: nextActions)
+    }
+    guard let timeSystem = selection.timeSystem else {
+      return blocked("Select the time format and reference (JD, BJD, HJD, or MJD).",
+                     findings: findings, nextActions: nextActions)
+    }
+    if let declared = time.declaredTimeSystem, declared != timeSystem {
+      return blocked("The selected time column declares \(declared.rawValue). Choose that format or select a different column.",
+                     findings: findings, nextActions: nextActions)
+    }
+    guard let timeScale = selection.timeScale else {
+      return blocked("Select the time scale documented for the selected column, such as UTC or TDB.",
+                     findings: findings, nextActions: nextActions)
+    }
+    if let declared = time.declaredTimeScale, declared != timeScale {
+      return blocked("The selected time column declares the \(declared.rawValue) scale.",
+                     findings: findings, nextActions: nextActions)
+    }
+    guard let velocityUnit = selection.velocityUnit else {
+      return blocked("Select the radial-velocity unit (km/s or m/s).", findings: findings, nextActions: nextActions)
+    }
+    if let declared = velocity.declaredVelocityUnit, declared != velocityUnit {
+      return blocked("The selected radial-velocity column declares \(declared.rawValue).",
+                     findings: findings, nextActions: nextActions)
+    }
 
-    if selection.uncertaintyColumn == nil {
+    if let index = selection.uncertaintyColumn {
+      guard let uncertainty = review.column(at: index), uncertainty.numericCount > 0 else {
+        return blocked("Select an uncertainty column containing finite numbers, or choose None.",
+                       findings: findings, nextActions: nextActions)
+      }
+      guard let uncertaintyUnit = selection.uncertaintyUnit else {
+        return blocked("Select the unit of the uncertainty column (km/s or m/s).",
+                       findings: findings, nextActions: nextActions)
+      }
+      if let declared = uncertainty.declaredVelocityUnit, declared != uncertaintyUnit {
+        return blocked("The selected uncertainty column declares \(declared.rawValue).",
+                       findings: findings, nextActions: nextActions)
+      }
+    } else {
       findings.append("The staged RV table will not include uncertainties.")
       nextActions.append("Add an uncertainty column before fitting when measurement errors are available.")
-    }
-    if review.inferredTimeSystem == nil {
-      findings.append("The time standard was not inferred from the source column.")
-      nextActions.append("Confirm the selected JD, BJD, HJD, or MJD time standard.")
-    }
-    if review.inferredVelocityUnit == nil {
-      findings.append("Velocity units were not inferred from the source column.")
-      nextActions.append("Confirm the selected km/s or m/s velocity unit.")
     }
     if review.usedPositionalColumns {
       findings.append("The source table has no header; the confirmed positional mapping will be recorded.")
@@ -198,7 +251,10 @@ struct RadialVelocityInspectionService {
     let validation = validate(review: review, selection: selection)
     guard validation.canRun,
           let timeColumn = selection.timeColumn,
-          let velocityColumn = selection.velocityColumn else {
+          let velocityColumn = selection.velocityColumn,
+          let timeSystem = selection.timeSystem,
+          let timeScale = selection.timeScale,
+          let velocityUnit = selection.velocityUnit else {
       throw RadialVelocityInspectionError.invalidSelection(
         validation.findings.first ?? "The RV column selection is incomplete."
       )
@@ -206,7 +262,6 @@ struct RadialVelocityInspectionService {
 
     let inputsURL = URL(fileURLWithPath: runDirectory)
       .appendingPathComponent("inputs", isDirectory: true)
-    try FileManager.default.createDirectory(at: inputsURL, withIntermediateDirectories: true)
     let velsURL = inputsURL.appendingPathComponent("selected_columns.vels")
     let mappingURL = inputsURL.appendingPathComponent("rv_column_mapping.json")
 
@@ -221,10 +276,10 @@ struct RadialVelocityInspectionService {
         skippedRows += 1
         continue
       }
-      if selection.timeSystem == .mjd {
+      if timeSystem == .mjd {
         time += 2_400_000.5
       }
-      if selection.velocityUnit == .metersPerSecond {
+      if velocityUnit == .metersPerSecond {
         velocity /= 1_000
       }
 
@@ -236,7 +291,7 @@ struct RadialVelocityInspectionService {
           skippedRows += 1
           continue
         }
-        if selection.velocityUnit == .metersPerSecond {
+        if selection.uncertaintyUnit == .metersPerSecond {
           uncertainty /= 1_000
         }
         values.append(render(uncertainty))
@@ -252,17 +307,20 @@ struct RadialVelocityInspectionService {
 
     let sourceName = URL(fileURLWithPath: review.inputPath).lastPathComponent
     let uncertaintyName = selection.uncertaintyColumn.flatMap { review.columns[safe: $0]?.name }
-    let outputTimeSystem = selection.timeSystem == .mjd ? RadialVelocityTimeSystem.jd : selection.timeSystem
+    let uncertaintyUnit = uncertaintyName == nil ? nil : selection.uncertaintyUnit
+    let outputTimeSystem = timeSystem == .mjd ? RadialVelocityTimeSystem.jd : timeSystem
     let header = [
       "# Source File = \(sourceName)",
       "# Time Column = \(review.columns[timeColumn].name)",
-      "# Input Time Standard = \(selection.timeSystem.rawValue)",
+      "# Input Time Standard = \(timeSystem.rawValue)",
       "# Time Standard = \(outputTimeSystem.rawValue)",
+      "# Time Scale = \(timeScale.rawValue)",
       "# Velocity Column = \(review.columns[velocityColumn].name)",
       "# Uncertainty Column = \(uncertaintyName ?? "none")",
       "# Value Units = km/s",
       "# Original Modified = false"
-    ]
+    ] + (uncertaintyUnit == nil ? [] : ["# Uncertainty Units = km/s"])
+    try FileManager.default.createDirectory(at: inputsURL, withIntermediateDirectories: true)
     try (header + dataLines).joined(separator: "\n")
       .appending("\n")
       .write(to: velsURL, atomically: true, encoding: .utf8)
@@ -271,12 +329,16 @@ struct RadialVelocityInspectionService {
       "source_path": review.inputPath,
       "staged_path": velsURL.path,
       "time_column": review.columns[timeColumn].name,
-      "time_input_system": selection.timeSystem.rawValue,
+      "time_input_system": timeSystem.rawValue,
       "time_output_system": outputTimeSystem.rawValue,
+      "time_scale": timeScale.rawValue,
+      "time_scale_conversion_applied": false,
       "velocity_column": review.columns[velocityColumn].name,
-      "velocity_input_unit": selection.velocityUnit.rawValue,
+      "velocity_input_unit": velocityUnit.rawValue,
       "velocity_output_unit": "km/s",
       "uncertainty_column": uncertaintyName ?? NSNull(),
+      "uncertainty_input_unit": uncertaintyUnit?.rawValue ?? NSNull(),
+      "uncertainty_output_unit": uncertaintyUnit == nil ? NSNull() : "km/s",
       "accepted_rows": acceptedRows,
       "skipped_rows": skippedRows,
       "original_modified": false,
@@ -383,8 +445,9 @@ struct RadialVelocityInspectionService {
 
   private func scoreTime(_ name: String) -> Int {
     let key = normalizedName(name)
-    if ["jd", "bjd", "hjd", "mjd", "time", "epoch"].contains(key) { return 100 }
-    if key.contains("julian") || key.hasSuffix("_jd") || key.hasPrefix("jd_") { return 85 }
+    let tokens = nameTokens(name)
+    if timeSystem(tokens) != nil || usesOffsetTime(tokens) || ["time", "epoch"].contains(key) { return 100 }
+    if key.contains("julian") { return 85 }
     if key.contains("time") || key.contains("epoch") { return 70 }
     return 0
   }
@@ -428,24 +491,47 @@ struct RadialVelocityInspectionService {
     return first.index
   }
 
-  private func inferTimeSystem(from name: String?) -> RadialVelocityTimeSystem? {
-    guard let key = name.map(normalizedName) else { return nil }
-    if key.contains("bjd") { return .bjd }
-    if key.contains("hjd") { return .hjd }
-    if key.contains("mjd") { return .mjd }
-    if key.contains("jd") || key.contains("julian") { return .jd }
-    return nil
+  private func nameTokens(_ value: String) -> [String] {
+    normalizedName(value).split(separator: "_").map(String.init)
   }
 
-  private func inferVelocityUnit(from name: String?) -> RadialVelocityUnit? {
-    guard let key = name.map(normalizedName) else { return nil }
-    if key.contains("km_s") || key.contains("kms") || key.contains("kmps") {
-      return .kilometersPerSecond
+  private func timeSystem(_ tokens: [String]) -> RadialVelocityTimeSystem? {
+    let declarations = Set(tokens.compactMap { RadialVelocityTimeSystem(rawValue: $0.uppercased()) })
+    return declarations.count == 1 ? declarations.first : nil
+  }
+
+  private func timeScale(_ tokens: [String]) -> RadialVelocityTimeScale? {
+    let declarations = Set(tokens.compactMap { RadialVelocityTimeScale(rawValue: $0.uppercased()) })
+    return declarations.count == 1 ? declarations.first : nil
+  }
+
+  private func usesOffsetTime(_ tokens: [String]) -> Bool {
+    if !Set(tokens).isDisjoint(with: ["rjd", "bkjd", "btjd"]) { return true }
+    guard timeSystem(tokens) != nil else { return false }
+    return tokens.contains("offset") || tokens.contains("minus")
+      || tokens.contains { $0.count >= 5 && Int($0) != nil }
+  }
+
+  private func velocityUnit(_ tokens: [String]) -> RadialVelocityUnit? {
+    let pairs = Array(zip(tokens, tokens.dropFirst()))
+    let km = tokens.contains("kms") || tokens.contains("kmps")
+      || pairs.contains { $0 == "km" && $1 == "s" }
+    let m = tokens.contains("mps") || pairs.contains { $0 == "m" && $1 == "s" }
+      || pairs.contains { $0 == "ms" && $1 == "1" }
+    guard km != m else { return nil }
+    return km ? .kilometersPerSecond : .metersPerSecond
+  }
+
+  private func commentMetadata(_ lines: [String]) -> [String: String] {
+    var declarations: [String: Set<String>] = [:]
+    for line in lines.prefix(while: { $0.hasPrefix("#") }) {
+      let pair = line.dropFirst().split(separator: "=", maxSplits: 1)
+      guard pair.count == 2 else { continue }
+      declarations[normalizedName(String(pair[0])), default: []].insert(normalizedName(String(pair[1])))
     }
-    if key.contains("m_s") || key.contains("mps") || key.contains("ms_1") {
-      return .metersPerSecond
+    return declarations.compactMapValues { values in
+      values.count == 1 ? values.first : nil
     }
-    return nil
   }
 
   private func blocked(
@@ -466,7 +552,7 @@ struct RadialVelocityInspectionService {
   }
 
   private func render(_ value: Double) -> String {
-    String(format: "%.12g", locale: Locale(identifier: "en_US_POSIX"), value)
+    String(value)
   }
 }
 
