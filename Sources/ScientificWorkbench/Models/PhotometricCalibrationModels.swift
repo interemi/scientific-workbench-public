@@ -6,6 +6,28 @@ enum PhotometricCalibrationStatus: String, Sendable {
   case blocked = "BLOCKED_CONTROLADO"
 }
 
+enum PhotometricMagnitudeSystem: String, CaseIterable, Identifiable, Sendable {
+  case ab = "AB"
+  case vega = "Vega"
+  case st = "ST"
+  case other = "Other"
+
+  var id: String { rawValue }
+}
+
+enum PhotometricMagnitudeUnit: String, CaseIterable, Identifiable, Sendable {
+  case magnitude = "mag"
+  case millimagnitude = "mmag"
+
+  var id: String { rawValue }
+}
+
+enum PhotometricColumnUnit: Hashable, Sendable {
+  case magnitude(PhotometricMagnitudeUnit)
+  case dimensionless
+  case incompatible
+}
+
 struct PhotometricCalibrationColumn: Identifiable, Hashable, Sendable {
   let index: Int
   let name: String
@@ -17,6 +39,10 @@ struct PhotometricCalibrationColumn: Identifiable, Hashable, Sendable {
   let filterScore: Int
   let uncertaintyScore: Int
   let colorScore: Int
+  let declaredUnit: PhotometricColumnUnit?
+  let declaredMagnitudeSystem: PhotometricMagnitudeSystem?
+  let declaredOffsetUncertaintyUnit: PhotometricMagnitudeUnit?
+  let isIncompatibleUncertainty: Bool
 
   var id: Int { index }
 }
@@ -36,6 +62,11 @@ struct PhotometricCalibrationReview: Sendable {
   let recommendedUncertaintyColumn: Int?
   let recommendedColorColumn: Int?
   let filterValues: [String]
+
+  func column(at index: Int?) -> PhotometricCalibrationColumn? {
+    guard let index, columns.indices.contains(index) else { return nil }
+    return columns[index]
+  }
 }
 
 struct PhotometricCalibrationSelection: Equatable, Sendable {
@@ -47,6 +78,17 @@ struct PhotometricCalibrationSelection: Equatable, Sendable {
   var uncertaintyColumn: Int?
   var colorColumn: Int?
   var includeColorTerm: Bool
+  var inputUnitsConfirmed = false
+  var magnitudeSystem: PhotometricMagnitudeSystem? = nil
+  var customMagnitudeSystem = ""
+  var singlePassband = ""
+  var offsetUncertaintyUnit: PhotometricMagnitudeUnit? = nil
+}
+
+struct PhotometricCalibrationConvention: Equatable, Sendable {
+  let magnitudeSystem: String
+  let passband: String
+  let offsetUncertaintyUnit: PhotometricMagnitudeUnit?
 }
 
 struct PhotometricCalibrationValidation: Equatable, Sendable {
@@ -59,6 +101,7 @@ struct PhotometricCalibrationValidation: Equatable, Sendable {
   let airmassRange: ClosedRange<Double>?
   let catalogMagnitudeRange: ClosedRange<Double>?
   let colorRange: ClosedRange<Double>?
+  var convention: PhotometricCalibrationConvention? = nil
 
   var canRun: Bool {
     status != .blocked

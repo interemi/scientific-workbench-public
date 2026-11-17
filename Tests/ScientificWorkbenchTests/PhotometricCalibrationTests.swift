@@ -77,7 +77,9 @@ extension ScientificWorkbenchTests {
       filterValue: "R",
       uncertaintyColumn: 4,
       colorColumn: nil,
-      includeColorTerm: false
+      includeColorTerm: false,
+      magnitudeSystem: .vega,
+      offsetUncertaintyUnit: .magnitude
     )
 
     let validation = service.validate(review: review, selection: selection)
@@ -140,7 +142,9 @@ extension ScientificWorkbenchTests {
       filterValue: nil,
       uncertaintyColumn: 4,
       colorColumn: nil,
-      includeColorTerm: false
+      includeColorTerm: false,
+      magnitudeSystem: .vega,
+      offsetUncertaintyUnit: .magnitude
     )
 
     #expect(service.validate(review: review, selection: selection).status == .blocked)
@@ -171,7 +175,9 @@ extension ScientificWorkbenchTests {
         filterValue: "R",
         uncertaintyColumn: 4,
         colorColumn: nil,
-        includeColorTerm: false
+        includeColorTerm: false,
+        magnitudeSystem: .vega,
+        offsetUncertaintyUnit: .magnitude
       )
     )
 
@@ -205,7 +211,9 @@ extension ScientificWorkbenchTests {
       filterValue: "R",
       uncertaintyColumn: 5,
       colorColumn: 6,
-      includeColorTerm: true
+      includeColorTerm: true,
+      magnitudeSystem: .vega,
+      offsetUncertaintyUnit: .magnitude
     )
 
     let staged = try service.stage(
@@ -217,13 +225,16 @@ extension ScientificWorkbenchTests {
     let mappingData = try Data(contentsOf: URL(fileURLWithPath: staged.mappingPath))
     let mapping = try #require(JSONSerialization.jsonObject(with: mappingData) as? [String: Any])
 
-    #expect(table.hasPrefix("inst_mag,std_mag,airmass,filter,color_index,offset_err\n"))
+    #expect(table.hasPrefix("inst_mag,std_mag,airmass,filter,color_index,offset_err,catalog_magnitude_system,calibration_passband\n"))
     #expect(!table.contains(",B,"))
+    #expect(table.contains(",Vega,R\n"))
     #expect(staged.acceptedRows == 3)
     #expect(staged.skippedRows == 0)
     #expect(staged.includesUncertainty)
     #expect(staged.includesColorTerm)
     #expect(mapping["filter_value"] as? String == "R")
+    #expect(mapping["catalog_magnitude_system"] as? String == "Vega")
+    #expect(mapping["airmass_unit"] as? String == "dimensionless")
     #expect(mapping["original_modified"] as? Bool == false)
     #expect(try Data(contentsOf: input) == original)
   }
@@ -233,10 +244,10 @@ extension ScientificWorkbenchTests {
   func photometricCalibrationHeadlessReviewInitializesSelection() throws {
     let root = try makeScenarioFixture(name: "photometric-store", files: [
       "standards.csv": """
-      inst_mag,std_mag,airmass,filter,offset_err
-      12.1,11.0,1.1,R,0.02
-      12.3,11.2,1.4,R,0.02
-      12.6,11.4,1.8,R,0.03
+      inst_mag,std_mag_ab,airmass,filter,offset_err_mmag,delta_mmag
+      12.1,11.0,1.1,R,20,15
+      12.3,11.2,1.4,R,20,16
+      12.6,11.4,1.8,R,30,17
       """
     ])
     defer { try? FileManager.default.removeItem(at: root) }
@@ -257,6 +268,74 @@ extension ScientificWorkbenchTests {
     #expect(store.photometricFilterColumn == 3)
     #expect(store.photometricFilterValue == "R")
     #expect(store.photometricUncertaintyColumn == 4)
+    #expect(store.photometricMagnitudeSystem == .ab)
+    #expect(store.photometricOffsetUncertaintyUnit == .millimagnitude)
     #expect(store.photometricCalibrationValidation?.canRun == true)
+    store.photometricUncertaintyColumn = 5
+    #expect(store.photometricOffsetUncertaintyUnit == nil)
+    #expect(store.photometricCalibrationValidation?.canRun == false)
+  }
+
+  @Test
+  func photometricCalibrationBlocksFluxAnglesConflictingSystemsAndComponentErrors() throws {
+    let root = try makeScenarioFixture(name: "photometric-incompatible-units", files: [
+      "standards.csv": """
+      flux_jy,inst_mag,catalog_mag_vega,airmass_deg,airmass,catalog_mag_err,offset_err_mmag,filter
+      12.1,12.1,11.0,10,1.1,0.02,20,R
+      12.3,12.3,11.2,14,1.4,0.03,30,R
+      12.6,12.6,11.4,18,1.8,0.04,40,R
+      """
+    ])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let service = PhotometricCalibrationService()
+    let review = try service.inspect(path: root.appendingPathComponent("standards.csv").path)
+    var selection = PhotometricCalibrationSelection(
+      instrumentalColumn: 0, catalogColumn: 2, airmassColumn: 3, filterColumn: 7, filterValue: nil,
+      uncertaintyColumn: 5, colorColumn: nil, includeColorTerm: false,
+      magnitudeSystem: .ab, offsetUncertaintyUnit: .magnitude
+    )
+    #expect(service.validate(review: review, selection: selection).findings.first?.contains("must be in magnitudes") == true)
+    selection.instrumentalColumn = 1
+    #expect(service.validate(review: review, selection: selection).findings.first?.contains("dimensionless") == true)
+    selection.airmassColumn = 4
+    #expect(service.validate(review: review, selection: selection).findings.first?.contains("Vega") == true)
+    selection.magnitudeSystem = .vega
+    #expect(service.validate(review: review, selection: selection).findings.first?.contains("magnitude offset") == true)
+    selection.uncertaintyColumn = 6
+    #expect(service.validate(review: review, selection: selection).findings.first?.contains("conflicts") == true)
+    selection.offsetUncertaintyUnit = .millimagnitude
+    #expect(service.validate(review: review, selection: selection).canRun)
+    let staged = try service.stage(review: review, selection: selection, runDirectory: root.appendingPathComponent("run").path)
+    let table = try String(contentsOfFile: staged.tablePath, encoding: .utf8)
+    #expect(table.contains(",0.02,Vega,R\n"))
+    #expect(table.contains(",0.04,Vega,R\n"))
+    let mapping = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: staged.mappingPath))) as? [String: Any])
+    #expect(mapping["offset_uncertainty_input_unit"] as? String == "mmag")
+    #expect(mapping["offset_uncertainty_output_unit"] as? String == "mag")
+  }
+
+  @Test
+  func photometricCalibrationRequiresDeclarationsForUnlabeledInputs() throws {
+    let root = try makeScenarioFixture(name: "photometric-unlabeled-units", files: [
+      "standards.csv": "x,y,z,sigma\n12.1,11.0,1.1,0.02\n12.3,11.2,1.4,0.03\n12.6,11.4,1.8,0.04\n"
+    ])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let service = PhotometricCalibrationService()
+    let review = try service.inspect(path: root.appendingPathComponent("standards.csv").path)
+    var selection = PhotometricCalibrationSelection(
+      instrumentalColumn: 0, catalogColumn: 1, airmassColumn: 2, filterColumn: nil, filterValue: nil,
+      uncertaintyColumn: 3, colorColumn: nil, includeColorTerm: false
+    )
+    #expect(service.validate(review: review, selection: selection).findings.first?.contains("unlabeled") == true)
+    selection.inputUnitsConfirmed = true
+    #expect(service.validate(review: review, selection: selection).findings.first?.contains("magnitude system") == true)
+    selection.magnitudeSystem = .other
+    #expect(service.validate(review: review, selection: selection).findings.first?.contains("documented") == true)
+    selection.customMagnitudeSystem = "Survey natural system"
+    #expect(service.validate(review: review, selection: selection).findings.first?.contains("single passband") == true)
+    selection.singlePassband = "Survey r"
+    #expect(service.validate(review: review, selection: selection).findings.first?.contains("offset uncertainty") == true)
+    selection.offsetUncertaintyUnit = .magnitude
+    #expect(service.validate(review: review, selection: selection).canRun)
   }
 }

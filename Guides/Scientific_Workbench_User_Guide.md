@@ -225,15 +225,21 @@ solution from standard stars:
 
 1. Add a CSV, TSV, or delimited text table.
 2. Select `Inspect Columns`.
-3. Confirm `Instrumental mag`, `Catalog mag`, and `Airmass`.
-4. Choose a filter if multiple bands are present.
-5. Select uncertainty and, when applicable, color index.
+3. Confirm the selected magnitudes, dimensionless airmass, and catalog
+   magnitude system (AB, Vega, ST, or another documented system).
+4. Choose one filter value or enter the single passband for a table without
+   a filter column.
+5. If weighting the fit, select the standard deviation of the catalog minus
+   instrumental magnitude offset and declare mag or mmag. An optional color
+   index uses magnitudes.
 6. Review the preview, ranges, and excluded rows.
 7. Select `Fit Reviewed Calibration`.
 
-The app saves a canonical copy and column mapping in the run. NaN, Inf, and
-nonnumeric values are excluded only from the copy, provided at least three
-valid standards remain. Suspicious ranges, narrow airmass/color coverage, and
+The staged table and column mapping retain the passband and catalog magnitude
+system. The fit uses the declared catalog system and preserves the input
+magnitude values. The app converts mmag uncertainties to mag before fitting.
+NaN, Inf, and nonnumeric values are excluded from the copy, provided at least
+three valid standards remain. Suspicious ranges, narrow airmass/color coverage, and
 fits without uncertainties produce warnings. The original table is unchanged;
 `photometric_solution.py` owns the scientific model.
 

@@ -184,15 +184,40 @@ final class WorkbenchStore: ObservableObject {
   @Published var photometricCalibrationReview: PhotometricCalibrationReview?
   @Published var photometricCalibrationError: String?
   @Published var isReviewingPhotometricCalibration = false
-  @Published var photometricInstrumentalColumn: Int?
-  @Published var photometricCatalogColumn: Int?
-  @Published var photometricAirmassColumn: Int?
+  @Published var photometricInstrumentalColumn: Int? {
+    didSet { if oldValue != photometricInstrumentalColumn { photometricInputUnitsConfirmed = false } }
+  }
+  @Published var photometricCatalogColumn: Int? {
+    didSet {
+      guard oldValue != photometricCatalogColumn else { return }
+      photometricInputUnitsConfirmed = false
+      photometricMagnitudeSystem = photometricCalibrationReview?.column(at: photometricCatalogColumn)?.declaredMagnitudeSystem
+      photometricCustomMagnitudeSystem = ""
+    }
+  }
+  @Published var photometricAirmassColumn: Int? {
+    didSet { if oldValue != photometricAirmassColumn { photometricInputUnitsConfirmed = false } }
+  }
   @Published var photometricFilterColumn: Int?
   @Published var photometricFilterValue: String?
   @Published var photometricFilterValues: [String] = []
-  @Published var photometricUncertaintyColumn: Int?
-  @Published var photometricColorColumn: Int?
-  @Published var photometricIncludeColorTerm = false
+  @Published var photometricUncertaintyColumn: Int? {
+    didSet {
+      guard oldValue != photometricUncertaintyColumn else { return }
+      photometricOffsetUncertaintyUnit = photometricCalibrationReview?.column(at: photometricUncertaintyColumn)?.declaredOffsetUncertaintyUnit
+    }
+  }
+  @Published var photometricColorColumn: Int? {
+    didSet { if oldValue != photometricColorColumn { photometricInputUnitsConfirmed = false } }
+  }
+  @Published var photometricIncludeColorTerm = false {
+    didSet { if oldValue != photometricIncludeColorTerm { photometricInputUnitsConfirmed = false } }
+  }
+  @Published var photometricInputUnitsConfirmed = false
+  @Published var photometricMagnitudeSystem: PhotometricMagnitudeSystem?
+  @Published var photometricCustomMagnitudeSystem = ""
+  @Published var photometricSinglePassband = ""
+  @Published var photometricOffsetUncertaintyUnit: PhotometricMagnitudeUnit?
   @Published var documentStyleReview: DOCXStyleReview?
   @Published var documentStyleError: String?
   @Published var isReviewingDocumentStyles = false
@@ -693,6 +718,13 @@ final class WorkbenchStore: ObservableObject {
     )
   }
 
+  var photometricNeedsInputUnitConfirmation: Bool {
+    guard let photometricCalibrationReview else { return false }
+    return photometricCalibrationService.needsInputUnitConfirmation(
+      review: photometricCalibrationReview, selection: photometricCalibrationSelection
+    )
+  }
+
   private var photometricCalibrationSelection: PhotometricCalibrationSelection {
     PhotometricCalibrationSelection(
       instrumentalColumn: photometricInstrumentalColumn,
@@ -702,7 +734,12 @@ final class WorkbenchStore: ObservableObject {
       filterValue: photometricFilterValue,
       uncertaintyColumn: photometricUncertaintyColumn,
       colorColumn: photometricColorColumn,
-      includeColorTerm: photometricIncludeColorTerm
+      includeColorTerm: photometricIncludeColorTerm,
+      inputUnitsConfirmed: photometricInputUnitsConfirmed,
+      magnitudeSystem: photometricMagnitudeSystem,
+      customMagnitudeSystem: photometricCustomMagnitudeSystem,
+      singlePassband: photometricSinglePassband,
+      offsetUncertaintyUnit: photometricOffsetUncertaintyUnit
     )
   }
 
@@ -2096,6 +2133,11 @@ final class WorkbenchStore: ObservableObject {
       photometricUncertaintyColumn = review.recommendedUncertaintyColumn
       photometricColorColumn = review.recommendedColorColumn
       photometricIncludeColorTerm = false
+      photometricInputUnitsConfirmed = false
+      photometricMagnitudeSystem = review.column(at: photometricCatalogColumn)?.declaredMagnitudeSystem
+      photometricCustomMagnitudeSystem = ""
+      photometricSinglePassband = ""
+      photometricOffsetUncertaintyUnit = review.column(at: photometricUncertaintyColumn)?.declaredOffsetUncertaintyUnit
       refreshPhotometricFilterValues()
     } catch {
       photometricCalibrationReview = nil
