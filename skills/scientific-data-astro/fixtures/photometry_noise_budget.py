@@ -15,6 +15,15 @@ from _internal.runtime_common import configure_runtime
 
 configure_runtime("photometry_noise_budget")
 
+METHOD = "Aperture-photometry signal and variance model"
+VARIANCE_LABELS = {
+    "source_shot_variance_e2": "Source shot variance",
+    "sky_variance_e2": "Sky variance in aperture",
+    "dark_variance_e2": "Dark variance in aperture",
+    "read_variance_e2": "Read variance in aperture",
+    "background_estimate_variance_e2": "Background-estimate variance",
+}
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -108,8 +117,8 @@ def emit_blocked(args, message: str) -> int:
         "photometry_noise_budget",
         message,
         notes=[
-            "The noise budget was not computed because the supplied inputs are physically invalid or incomplete.",
-            "Counts and noise terms must be finite; source, sky, dark, and read noise cannot be negative.",
+            "The supplied values did not yield a usable noise budget.",
+            "Counts and noise terms must be finite and non-negative.",
         ],
         artifacts={
             "summary_json": str(output_path) if output_path else None,
@@ -118,6 +127,9 @@ def emit_blocked(args, message: str) -> int:
         },
         results={
             "blocked_reason": message,
+            "measurement_summary": {
+                "method": METHOD, "measurements": [], "diagnostics": [], "assumptions": [],
+            },
             "parameters": {
                 "source": json_safe_number(args.source),
                 "sky_per_pixel": json_safe_number(args.sky_per_pixel),
@@ -158,7 +170,9 @@ def classify_regime(variance_terms: dict[str, float]) -> str:
     return "mixed-regime"
 
 
-def write_report(path: Path, summary: dict):
+def write_report(path: Path, summary: dict, quality_findings: list[str]):
+    snr = f"{summary['snr']:.6g}" if summary["snr"] is not None else "unavailable"
+    dominant = summary["dominant_noise_term"] or "unavailable"
     lines = [
         "# Photometry Noise Budget",
         "",
@@ -173,18 +187,51 @@ def write_report(path: Path, summary: dict):
         "",
         f"- Total source electrons: `{summary['signal_electrons']['source_total_e']:.6f}`",
         f"- Total noise: `{summary['total_noise_e']:.6f}` e-",
-        f"- SNR: `{summary['snr']}`",
-        f"- Dominant noise term: `{summary['dominant_noise_term']}`",
+        f"- SNR: `{snr}`",
+        f"- Dominant noise term: `{dominant}`",
         f"- Regime: `{summary['operating_regime']}`",
         "",
         "## Variance Fractions",
         "",
     ]
     for name, value in summary["variance_fractions"].items():
-        lines.append(f"- `{name}`: `{value:.4f}`")
+        fraction = f"{value:.4f}" if value is not None else "unavailable"
+        lines.append(f"- {VARIANCE_LABELS[name]}: `{fraction}`")
+    if quality_findings:
+        lines.extend(["", "## Quality Findings", ""])
+        lines.extend(f"- {item}" for item in quality_findings)
     lines.extend(["", "## Notes", ""])
     lines.extend([f"- {item}" for item in summary["notes"]])
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def measurement_summary(summary: dict) -> dict:
+    source = summary["signal_electrons"]["source_total_e"]
+    noise = summary["total_noise_e"]
+    measurements = [
+        {"label": "Expected source signal", "value": source, "unit": "e⁻", "uncertainty": noise if noise > 0 else None},
+    ]
+    if summary["snr"] is not None:
+        measurements.append({"label": "Estimated SNR", "value": summary["snr"], "unit": "dimensionless"})
+    diagnostics = [
+        {"label": VARIANCE_LABELS[key], "value": value, "unit": "(e⁻)²"}
+        for key, value in summary["variance_terms_e2"].items()
+        if key != "background_estimate_variance_e2" or summary["sky_estimate_pixels"] is not None
+    ]
+    diagnostics.extend([
+        {"label": "Frames summed", "value": summary["n_frames"], "unit": "dimensionless"},
+        {"label": "Aperture size", "value": summary["n_pixels"], "unit": "pixels"},
+    ])
+    if summary["sky_estimate_pixels"] is not None:
+        diagnostics.append({
+            "label": "Pixels used to estimate the background", "value": summary["sky_estimate_pixels"], "unit": "pixels",
+        })
+    return {
+        "method": METHOD,
+        "measurements": measurements,
+        "diagnostics": diagnostics,
+        "assumptions": summary["notes"],
+    }
 
 
 def run_noise_budget(args) -> int:
@@ -218,7 +265,7 @@ def run_noise_budget(args) -> int:
         "read_variance_e2": read_var_e,
         "background_estimate_variance_e2": background_estimate_var,
     }
-    total_variance = sum(variance_terms.values())
+    total_variance = finite_float(sum(variance_terms.values()), "Total variance")
     total_noise = total_variance**0.5
     snr = source_e / total_noise if total_noise > 0 else None
 
@@ -229,9 +276,10 @@ def run_noise_budget(args) -> int:
         "read_noise_e": read_var_e**0.5,
         "background_estimate_noise_e": background_estimate_var**0.5,
     }
-    dominant = max(noise_terms.items(), key=lambda item: item[1])[0]
-    total_variance_safe = total_variance if total_variance > 0 else 1.0
-    variance_fractions = {name: value / total_variance_safe for name, value in variance_terms.items()}
+    dominant = max(noise_terms, key=noise_terms.get) if total_variance > 0 else None
+    variance_fractions = {
+        name: value / total_variance if total_variance > 0 else None for name, value in variance_terms.items()
+    }
     operating_regime = classify_regime(variance_terms)
 
     summary = {
@@ -253,12 +301,18 @@ def run_noise_budget(args) -> int:
         "dominant_noise_term": dominant,
         "operating_regime": operating_regime,
         "notes": [
-            "This is a standard first-order aperture-photometry/imaging noise budget.",
-            "It assumes source, sky, and dark follow Poisson statistics and that read noise adds in quadrature.",
-            "If --sky-estimate-pixels is omitted, the calculation assumes the background level is known perfectly.",
-            "Use this as a planning or QA calculation, not as a replacement for a full instrument simulator.",
+            "The input source signal is the net signal inside the aperture per frame. Frames and pixels are treated as independent.",
+            "Source, sky and dark counts follow Poisson statistics. Read noise is supplied in electrons per pixel per frame.",
+            "The source-signal uncertainty is the square root of the modeled total variance. Uncertainty in the SNR estimate itself is unavailable.",
+            (
+                "The background contribution assumes a mean over independent sky pixels, multiplied by the aperture size."
+                if args.sky_estimate_pixels is not None
+                else "The calculation treats the background level as known and omits uncertainty in its estimate."
+            ),
         ],
     }
+    if args.units == "adu":
+        summary["notes"].append(f"Source, sky and dark counts were converted from ADU at {args.gain:g} e⁻/ADU.")
 
     print(json.dumps(summary, indent=2, ensure_ascii=True))
     output_summary_path = summary_json_path(args)
@@ -266,7 +320,7 @@ def run_noise_budget(args) -> int:
     if args.sky_estimate_pixels is None:
         qa_findings.append("The background-estimation term was omitted, so the SNR may be optimistic.")
     if operating_regime == "undefined":
-        qa_findings.append("The total variance is undefined or zero for the supplied inputs.")
+        qa_findings.append("The total variance is zero. The SNR and dominant noise contribution are unavailable.")
     payload = build_tool_payload(
         "photometry_noise_budget",
         status="warning" if qa_findings else "ok",
@@ -276,7 +330,7 @@ def run_noise_budget(args) -> int:
             "report_md": args.report_md,
             "manifest_json": args.manifest_json,
         },
-        results=summary,
+        results={**summary, "measurement_summary": measurement_summary(summary)},
         qa={
             "status": "warning" if qa_findings else "ok",
             "findings": qa_findings,
@@ -299,7 +353,7 @@ def run_noise_budget(args) -> int:
     if args.report_md:
         report_path = Path(args.report_md)
         report_path.parent.mkdir(parents=True, exist_ok=True)
-        write_report(report_path, summary)
+        write_report(report_path, summary, qa_findings)
         outputs.append(report_path)
         print(f"Saved report: {public_path(report_path)}")
     if args.manifest_json:
@@ -329,6 +383,8 @@ def main() -> int:
     args = parse_args()
     try:
         return run_noise_budget(args)
+    except OverflowError:
+        return emit_blocked(args, "The supplied values overflow the noise calculation. Check the inputs and their units.")
     except ValueError as exc:
         return emit_blocked(args, str(exc))
 

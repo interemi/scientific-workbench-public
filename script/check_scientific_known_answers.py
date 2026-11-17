@@ -784,6 +784,64 @@ def existing_wcs_cases(root: Path, environment: dict[str, str]) -> dict:
     return checks
 
 
+def photometry_noise_cases(root: Path, environment: dict[str, str]) -> dict:
+    cases = [
+        ("noise_finite_background", True, "100", "10", "1", "3", "PASS", 710),
+        ("noise_background_omitted", False, "100", "10", "1", "3", "WARNING", 648),
+        ("noise_zero_variance", True, "0", "0", "0", "0", "WARNING", 0),
+        ("noise_overflow", True, "100", "10", "1", "1e308", "BLOCKED_CONTROLADO", None),
+    ]
+    evidence = {}
+    for name, background, source, sky, dark, read_noise, status, total_variance in cases:
+        case = root / name
+        summary, report, manifest = (case / filename for filename in ("summary.json", "report.md", "manifest.json"))
+        options = ["--sky-estimate-pixels", "16"] if background else []
+        completed = run(
+            [sys.executable, str(ROOT / "skills/scientific-data-astro/scripts/photometry_noise_budget.py"),
+             "--source", source, "--sky-per-pixel", sky, "--dark-per-pixel", dark, "--read-noise", read_noise,
+             "--units", "adu", "--gain", "2", "--n-pixels", "4", "--n-frames", "2", *options,
+             "--summary-json", str(summary), "--report-md", str(report), "--manifest-json", str(manifest)],
+            case, environment,
+        )
+        payload = read_json(summary)
+        result = payload["results"]
+        measurement = result["measurement_summary"]
+        require(payload["app_status"] == status, f"{name} QA status differs")
+        if total_variance is None:
+            require(completed.returncode == 2 and "overflow" in result["blocked_reason"],
+                    "large read-noise values should block with a numerical explanation")
+            require(not measurement["measurements"] and not report.exists() and not manifest.exists(),
+                    "blocked noise calculation published a result")
+            evidence[name] = {"status": status}
+            continue
+        require(completed.returncode == 0, f"{name} did not finish")
+        # For 100 ADU, 10 ADU sky, 1 ADU dark and 3 electrons read noise:
+        # source 400, sky 160, dark 16, read 72. Estimating the mean over 16 pixels adds 62.
+        offset = result["variance_terms_e2"]["background_estimate_variance_e2"]
+        expected_offset = 62 if background and total_variance > 0 else 0
+        require(offset == expected_offset and sum(result["variance_terms_e2"].values()) == total_variance,
+                "variance terms differ from the independent electron-count calculation")
+        diagnostics = {row["label"]: row for row in measurement["diagnostics"]}
+        require(("Background-estimate variance" in diagnostics) == background, "background term display differs")
+        if background:
+            require(diagnostics["Background-estimate variance"]["unit"] == "(e⁻)²", "variance unit missing")
+        source_measurement = measurement["measurements"][0]
+        if total_variance > 0:
+            expected_noise = math.sqrt(total_variance)
+            expected_snr = 400 / expected_noise
+            require(source_measurement["unit"] == "e⁻" and source_measurement["value"] == 400
+                    and abs(source_measurement["uncertainty"] - expected_noise) < 1e-12
+                    and abs(measurement["measurements"][1]["value"] - expected_snr) < 1e-12,
+                    "source uncertainty or SNR differs from the reference")
+        else:
+            require(result["snr"] is None and result["dominant_noise_term"] is None
+                    and source_measurement["uncertainty"] is None and len(measurement["measurements"]) == 1,
+                    "zero variance reported a numerical SNR or uncertainty")
+        check_manifest(manifest, [], [summary, report])
+        evidence[name] = {"status": status, "snr": result["snr"], "background_variance_e2": offset}
+    return evidence
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -820,6 +878,7 @@ def main() -> int:
         evidence["lithium_equivalent_width"] = lithium_equivalent_width_cases(output, environment)
         evidence["sb2"] = sb2_cases(output, environment)
         evidence["existing_wcs"] = existing_wcs_cases(output, environment)
+        evidence["photometry_noise"] = photometry_noise_cases(output, environment)
         evidence["status"] = "PASS"
     except Exception as error:
         evidence["failure"] = str(error)

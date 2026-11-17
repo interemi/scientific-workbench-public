@@ -4971,8 +4971,8 @@
     "scientific-data-astro/fixtures/photometry_noise_budget.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "2d1fbbaec95921036f45eccfc90e480f134fcc90c9cde2d8b8fdad2e99996fad",
-      "size": 13157
+      "sha256": "234e25d322a8a6f483493ebbe1cf79951ecb905275387444fbea746eb9d394bd",
+      "size": 15939
     },
     "scientific-data-astro/fixtures/radial_velocity_workbench.py": {
       "executable": false,

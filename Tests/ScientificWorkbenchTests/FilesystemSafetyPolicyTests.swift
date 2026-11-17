@@ -5,6 +5,21 @@ import Testing
 @Suite("Filesystem safety policy")
 struct FilesystemSafetyPolicyTests {
   @Test
+  func photometryNoiseSourceIsAFiniteCount() throws {
+    let policy = FilesystemSafetyPolicy()
+    let run = "/tmp/workbench/runs/noise"
+    let capability = "photometry_noise_budget"
+    try policy.validateRawArguments(["--source", "100"], inputPaths: [], runDirectory: run, capabilityID: capability)
+    try policy.validateRawArguments(["--source=100"], inputPaths: [], runDirectory: run, capabilityID: capability)
+    #expect(throws: FilesystemSafetyError.self) {
+      try policy.validateRawArguments(["--source", "not-a-count"], inputPaths: [], runDirectory: run, capabilityID: capability)
+    }
+    #expect(throws: FilesystemSafetyError.self) {
+      try policy.validateRawArguments(["--source=100"], inputPaths: [], runDirectory: run, capabilityID: "document_intake_workbench")
+    }
+  }
+
+  @Test
   func stiltsPositionalDestinationsCannotOverwriteInputsOrEscapeTheRun() throws {
     let policy = FilesystemSafetyPolicy()
     let input = "/tmp/scientific-stilts-input.csv"

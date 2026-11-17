@@ -253,6 +253,20 @@ unavailable. Reduced chi-square is shown only for a weighted fit with positive
 residual degrees of freedom. Systematic calibration errors are outside these
 formal uncertainty estimates.
 
+### Estimate aperture-photometry noise
+
+Enter the net source counts per aperture and frame, and sky and dark counts
+per pixel and frame. The selected units apply to those three inputs. Read
+noise uses electrons per pixel per frame. With ADU inputs, enter the gain in
+electrons per ADU. The estimate assumes independent frames and pixels.
+
+Enable the background-estimate term when using a finite set of independent
+background pixels. Results shows the estimated SNR, the source signal with
+its modeled standard deviation, and the variance terms. Omitting the
+background term gives an optimistic estimate when the background is
+uncertain. At zero total variance, the SNR and dominant noise contribution
+are unavailable.
+
 ### Guided sky crossmatch
 
 `catalog_workbench.crossmatch-sky` requires two distinct text tables. Choose the

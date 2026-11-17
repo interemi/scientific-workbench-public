@@ -9,6 +9,7 @@ struct GuidedCapabilityControls: View {
   @State private var darkPerPixel = 0.1
   @State private var readNoise = 5.0
   @State private var aperturePixels = 20.0
+  @State private var includeBackgroundEstimate = true
   @State private var skyEstimatePixels = 100.0
   @State private var frameCount = 1
   @State private var noiseUnits = "electrons"
@@ -77,16 +78,17 @@ struct GuidedCapabilityControls: View {
 
       Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
         GridRow {
-          numericField("Source signal", value: $sourceSignal)
-          numericField("Sky / pixel", value: $skyPerPixel)
+          noiseField("Net source signal / frame", value: $sourceSignal)
+          noiseField("Sky / pixel / frame", value: $skyPerPixel)
         }
         GridRow {
-          numericField("Dark / pixel", value: $darkPerPixel)
-          numericField("Read noise", value: $readNoise)
+          noiseField("Dark / pixel / frame", value: $darkPerPixel)
+          noiseField("Read noise (e⁻ / pixel / frame)", value: $readNoise)
         }
         GridRow {
-          numericField("Aperture pixels", value: $aperturePixels)
-          numericField("Sky estimate pixels", value: $skyEstimatePixels)
+          noiseField("Aperture pixels", value: $aperturePixels)
+          noiseField("Background-estimate pixels", value: $skyEstimatePixels)
+            .disabled(!includeBackgroundEstimate)
         }
         GridRow {
           Picker("Units", selection: $noiseUnits) {
@@ -97,17 +99,19 @@ struct GuidedCapabilityControls: View {
         }
         if noiseUnits == "adu" {
           GridRow {
-            numericField("Gain (e-/ADU)", value: $gain)
+            noiseField("Gain (e⁻/ADU)", value: $gain)
             Spacer()
           }
         }
       }
       .pickerStyle(.segmented)
 
+      Toggle("Include uncertainty from estimating the background", isOn: $includeBackgroundEstimate)
+
       guidedFooter(
         readiness: noiseBudgetIsValid
-          ? "Ready. Counts are interpreted as \(noiseUnits)."
-          : "Source, read noise, aperture size, frame count, and gain must be physically valid.",
+          ? "Source, sky and dark are in \(noiseUnits)."
+          : "Enter finite counts and read noise, with positive pixel counts and gain where used.",
         canRun: noiseBudgetIsValid
       ) {
         await store.runGuided(capability: capability, inputPathsOverride: []) { runURL in
@@ -117,18 +121,20 @@ struct GuidedCapabilityControls: View {
             "--dark-per-pixel", number(darkPerPixel),
             "--read-noise", number(readNoise),
             "--n-pixels", number(aperturePixels),
-            "--sky-estimate-pixels", number(skyEstimatePixels),
             "--n-frames", String(frameCount),
             "--units", noiseUnits,
           ]
+          if includeBackgroundEstimate {
+            arguments += ["--sky-estimate-pixels", number(skyEstimatePixels)]
+          }
           if noiseUnits == "adu" {
             arguments += ["--gain", number(gain)]
           }
-          return arguments + standardOutputs(
-            runURL,
-            reportName: "noise_budget.md",
-            artifactName: "noise_budget.json"
-          )
+          return arguments + [
+            "--summary-json", runURL.appendingPathComponent("summary.json").path,
+            "--report-md", runURL.appendingPathComponent("reports/noise_budget.md").path,
+            "--manifest-json", runURL.appendingPathComponent("manifest.json").path,
+          ]
         }
       }
     }
@@ -350,14 +356,18 @@ struct GuidedCapabilityControls: View {
   }
 
   private var noiseBudgetIsValid: Bool {
-    sourceSignal >= 0
-      && skyPerPixel >= 0
-      && darkPerPixel >= 0
-      && readNoise >= 0
-      && aperturePixels > 0
-      && skyEstimatePixels > 0
+    [sourceSignal, skyPerPixel, darkPerPixel, readNoise].allSatisfy { $0.isFinite && $0 >= 0 }
+      && aperturePixels.isFinite && aperturePixels > 0
+      && (!includeBackgroundEstimate || (skyEstimatePixels.isFinite && skyEstimatePixels > 0))
       && frameCount > 0
-      && (noiseUnits != "adu" || gain > 0)
+      && (noiseUnits != "adu" || (gain.isFinite && gain > 0))
+  }
+
+  private func noiseField(_ title: String, value: Binding<Double>) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(title).font(.caption).accessibilityHidden(true)
+      numericField(title, value: value)
+    }
   }
 
   private func formHeading(_ title: String, detail: String) -> some View {
@@ -398,19 +408,6 @@ struct GuidedCapabilityControls: View {
       .buttonStyle(.borderedProminent)
       .disabled(!canRun || store.hasActiveJob)
     }
-  }
-
-  private func standardOutputs(
-    _ runURL: URL,
-    reportName: String,
-    artifactName: String
-  ) -> [String] {
-    [
-      "--summary-json", runURL.appendingPathComponent("summary.json").path,
-      "--output-json", runURL.appendingPathComponent("artifacts/\(artifactName)").path,
-      "--report-md", runURL.appendingPathComponent("reports/\(reportName)").path,
-      "--manifest-json", runURL.appendingPathComponent("manifest.json").path,
-    ]
   }
 
   private func number(_ value: Double) -> String {

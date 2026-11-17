@@ -155,7 +155,7 @@ struct FilesystemSafetyPolicy {
             reason: "this option can access or write data outside attached inputs and is disabled in raw arguments"
           )
         case .outputPath, .readPath, .hybridReadPath, .externalReadPath,
-          .hybridExternalReadPath, .safeFileName, .scalar:
+          .hybridExternalReadPath, .safeFileName, .finiteNumber, .scalar:
           let value = try requiredValue(after: token, at: index, in: arguments)
           try validateKnownValue(
             value,
@@ -202,6 +202,7 @@ struct FilesystemSafetyPolicy {
     case externalReadPath
     case hybridExternalReadPath
     case safeFileName
+    case finiteNumber
     case scalar
     case flag
     case blocked
@@ -219,7 +220,7 @@ struct FilesystemSafetyPolicy {
     let kind = optionKind(option, capabilityID: capabilityID)
     switch kind {
     case .outputPath, .readPath, .hybridReadPath, .externalReadPath,
-      .hybridExternalReadPath, .safeFileName, .scalar:
+      .hybridExternalReadPath, .safeFileName, .finiteNumber, .scalar:
       try validateKnownValue(
         value,
         option: option,
@@ -275,6 +276,10 @@ struct FilesystemSafetyPolicy {
       }
     case .safeFileName:
       try validateSafeFileName(value, option: option)
+    case .finiteNumber:
+      guard let number = Double(value), number.isFinite else {
+        throw FilesystemSafetyError.unsafeRawArgument(argument: option, reason: "enter a finite number")
+      }
     case .scalar, .flag, .blocked, .unknown:
       break
     }
@@ -463,6 +468,9 @@ struct FilesystemSafetyPolicy {
     }
     if normalized == "--pixel", capabilityID == "inspect_fits" {
       return .scalar
+    }
+    if normalized == "--source", capabilityID == "photometry_noise_budget" {
+      return .finiteNumber
     }
     if Self.outputPathOptions.contains(normalized) {
       return .outputPath
