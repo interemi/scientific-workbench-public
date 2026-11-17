@@ -461,6 +461,9 @@ struct FilesystemSafetyPolicy {
     if normalized == "--preview-if-available", capabilityID == "inspect_fits" {
       return .flag
     }
+    if normalized == "--pixel", capabilityID == "inspect_fits" {
+      return .scalar
+    }
     if Self.outputPathOptions.contains(normalized) {
       return .outputPath
     }

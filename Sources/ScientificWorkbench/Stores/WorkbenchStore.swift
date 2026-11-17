@@ -2213,6 +2213,28 @@ final class WorkbenchStore: ObservableObject {
     openOptionalCapability("cross_domain_data_workbench")
   }
 
+  func fitsFollowUpCapability(for job: JobRecord) -> CapabilityEntry? {
+    guard job.capabilityID == "inspect_fits", job.status == .succeeded else { return nil }
+    return capabilities.first { $0.id == "inspect_fits" }
+  }
+
+  func runFITSFollowUp(
+    from job: JobRecord, summary: FITSInspectionSummary, hdu: Int, action: FITSInspectionAction
+  ) async -> JobRecord? {
+    guard let capability = fitsFollowUpCapability(for: job),
+          let input = summary.attachedSource(in: job),
+          action.isPixelLookup ? capability.supportsFITSPixelLookup : capability.supportsBoundedFITSPreview else {
+      return nil
+    }
+    return await runGuided(
+      capability: capability, inputPathsOverride: job.requestInputPaths, selectJobs: false
+    ) { run in
+      [input, "--extension", String(hdu),
+       "--summary-json", run.appendingPathComponent("summary.json").path,
+       "--manifest-json", run.appendingPathComponent("manifest.json").path] + action.arguments(in: run)
+    }
+  }
+
   func relatedFirstRunJobs(to job: JobRecord) -> [JobRecord] {
     let relatedCapabilities: Set<String> = [
       "document_intake_workbench", "cross_domain_data_workbench"

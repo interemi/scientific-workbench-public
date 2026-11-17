@@ -55,7 +55,7 @@ def parse_args():
     parser.add_argument("path", help="Path to a FITS file.")
     parser.add_argument(
         "--extension",
-        help="Extension index or EXTNAME to use for preview output. Default: first image HDU.",
+        help="Extension index or EXTNAME for the quicklook or pixel lookup. Default: first image HDU.",
     )
     parser.add_argument(
         "--preview",
@@ -69,6 +69,10 @@ def parse_args():
     parser.add_argument(
         "--crop",
         help="Optional preview crop as x0,y0,width,height in pixel coordinates.",
+    )
+    parser.add_argument(
+        "--pixel",
+        help="Read x,y in zero-based coordinates of the original image, using the first plane of a cube.",
     )
     parser.add_argument(
         "--force-simple-fallback",
@@ -129,6 +133,18 @@ def apply_crop(np, image, crop):
     if x0 < 0 or y0 < 0 or x0 >= array.shape[1] or y0 >= array.shape[0] or x1 <= x0 or y1 <= y0:
         raise SystemExit("--crop is outside the selected image bounds")
     return array[y0:y1, x0:x1]
+
+
+def parse_pixel(value):
+    if value is None:
+        return None
+    try:
+        x, y = (int(part.strip()) for part in value.split(","))
+    except ValueError as error:
+        raise ValueError("--pixel must contain two integers: x,y") from error
+    if x < 0 or y < 0:
+        raise ValueError("--pixel uses nonnegative, zero-based image coordinates")
+    return x, y
 
 
 def safe_scalar(value):
@@ -288,6 +304,53 @@ def choose_preview_hdu(hdus, extension):
         if len(image_shape(hdu)) >= 2:
             return index
     raise SystemExit("No image-like HDU available for preview.")
+
+
+def read_pixel(np, WCS, hdus, extension, pixel):
+    index = choose_preview_hdu(hdus, extension)
+    hdu = hdus[index]
+    shape = image_shape(hdu)
+    if len(shape) < 2:
+        raise ValueError("Selected HDU does not contain a 2D image.")
+    if oversized_tile(hdu):
+        raise ValueError(f"A compression tile exceeds {MAX_TILE_PIXELS:,} pixels.")
+    x, y = pixel
+    if x >= shape[-1] or y >= shape[-2]:
+        raise ValueError("--pixel is outside the selected image bounds.")
+    plane = (0,) * (len(shape) - 2)
+    value = safe_scalar(hdu.section[(*plane, y, x)])
+    finite = math.isfinite(value)
+    result = {
+        "hdu_index": index,
+        "image_xy": [x, y],
+        "plane_indices": list(plane),
+        "pixel_value": value if finite else None,
+        "pixel_unit": str(hdu.header["BUNIT"]) if hdu.header.get("BUNIT") else None,
+        "pixel_status": "finite" if finite else "nonfinite",
+        "world_axes": [],
+    }
+    if not any(f"CTYPE{axis}" in hdu.header for axis in range(1, len(shape) + 1)):
+        result["world_reason"] = "No WCS axes are declared in this HDU."
+        return result
+    try:
+        wcs = WCS(hdu.header, fobj=hdus)
+        if wcs.pixel_n_dim != len(shape):
+            result["world_reason"] = "The WCS pixel axes do not match this image."
+            return result
+        coordinates = [x, y, *reversed(plane)]
+        world = wcs.all_pix2world(np.asarray([coordinates]), 0)[0]
+        if not all(math.isfinite(axis) for axis in world):
+            result["world_reason"] = "The WCS returned nonfinite coordinates at this pixel."
+            return result
+        result["world_axes"] = [
+            {"name": str(axis), "value": float(value), "unit": unit}
+            for axis, value, unit in zip(wcs.wcs.ctype, world, wcs.world_axis_units, strict=True)
+        ]
+        if wcs.wcs.radesys:
+            result["reference_frame"] = wcs.wcs.radesys
+    except Exception:
+        result["world_reason"] = "Astropy could not transform this pixel with the recorded WCS."
+    return result
 
 
 def first_2d_plane(np, data):
@@ -674,8 +737,9 @@ def main():
 
     try:
         crop = parse_crop(args.crop)
-    except SystemExit as exc:
-        return emit_blocked(str(exc) or "Invalid crop argument")
+        pixel = parse_pixel(args.pixel)
+    except (SystemExit, ValueError) as exc:
+        return emit_blocked(str(exc) or "Invalid FITS coordinates")
     force_simple = args.force_simple_fallback or os.environ.get("SDA_INSPECT_FITS_FORCE_SIMPLE") == "1"
     used_simple_fallback = False
     fallback_reason = None
@@ -716,6 +780,16 @@ def main():
     except Exception as exc:
         return emit_blocked(f"Could not inspect FITS input: {exc.__class__.__name__}: {exc}")
     print_summary(summary)
+
+    if pixel is not None:
+        if used_simple_fallback:
+            return emit_blocked("The pixel lookup requires Astropy.")
+        try:
+            with fits.open(path, memmap=False) as hdus:
+                summary["pixel_lookup"] = read_pixel(np, WCS, hdus, args.extension, pixel)
+        except (SystemExit, IndexError, ValueError) as exc:
+            return emit_blocked(str(exc) or "Could not read the requested FITS pixel")
+        print("Pixel lookup: " + json.dumps(summary["pixel_lookup"], ensure_ascii=True))
 
     preview_path = None
     preview_warning = None
@@ -804,6 +878,7 @@ def main():
             inputs=[path],
             outputs=outputs,
             parameters={"extension": args.extension, "sample_size": args.sample_size, "crop": args.crop,
+                        "pixel": args.pixel,
                         "simple_fallback": used_simple_fallback, "preview_if_available": args.preview_if_available},
             command="inspect_fits.py",
             notes=notes,

@@ -119,7 +119,7 @@ def check_fits_crop(source: Path, case: Path, original_wcs, environment: dict[st
     script = ROOT / "skills/scientific-data-astro/scripts/inspect_fits.py"
     x, y = 2, 1
     expected = original_wcs.pixel_to_world(x, y)
-    arguments = [str(script), str(source), "--crop", f"{x},{y},4,4",
+    arguments = [str(script), str(source), "--crop", f"{x},{y},4,4", "--pixel", f"{x},{y}",
                  "--preview", str(preview), "--summary-json", str(summary),
                  "--manifest-json", str(manifest)]
 
@@ -148,8 +148,18 @@ def check_fits_crop(source: Path, case: Path, original_wcs, environment: dict[st
                 require(exit_status.code == 0, "FITS crop command failed; inspect retained logs")
 
     require(len(errors) == 1 and errors[0] < 1e-8, "FITS crop WCS origin differs")
-    require(read_json(summary).get("app_status") == "PASS", "FITS crop did not pass its app contract")
+    outcome = read_json(summary)
+    require(outcome.get("app_status") == "PASS", "FITS crop did not pass its app contract")
+    lookup = outcome["results"]["pixel_lookup"]
+    require(lookup["hdu_index"] == 0 and lookup["image_xy"] == [x, y]
+            and lookup["pixel_value"] == 10 and lookup["pixel_unit"] == "adu",
+            "FITS pixel lookup did not use original, zero-based coordinates")
+    axes = lookup["world_axes"]
+    require(lookup["reference_frame"] == "ICRS" and [axis["unit"] for axis in axes] == ["deg", "deg"]
+            and separation_arcsec(axes[0]["value"], axes[1]["value"], expected.ra.deg, expected.dec.deg) < 1e-8,
+            "FITS pixel lookup world coordinates differ")
     check_manifest(manifest, [source], [summary, preview])
+    require(read_json(manifest)["parameters"]["pixel"] == f"{x},{y}", "FITS manifest lost lookup coordinates")
     return errors[0]
 
 
@@ -255,6 +265,8 @@ def check_bounded_fits(root: Path, environment: dict[str, str]) -> dict:
             str(source), "--summary-json", str(summary), "--manifest-json", str(manifest),
             "--preview", str(preview), "--preview-if-available", "--sample-size", "4096",
         ]
+        if name == "scaled_image":
+            command += ["--extension", "SCI", "--pixel", "0,0"]
         completed = run(command, case, environment)
         require(completed.returncode == 0, f"{name} FITS check failed; inspect retained logs")
         payload = read_json(summary)
@@ -270,6 +282,10 @@ def check_bounded_fits(root: Path, environment: dict[str, str]) -> dict:
                     and 1 < stats["sampled_pixels"] <= 4096, "FITS sampling scope differs")
             require(stats["nonfinite_sampled_pixels"] == 1 and stats["min"] == stats["max"] == 5.5,
                     "FITS section scaling or BLANK handling differs")
+            lookup = result["pixel_lookup"]
+            require(lookup["pixel_value"] is None and lookup["pixel_status"] == "nonfinite"
+                    and lookup["world_axes"] == [] and lookup["world_reason"],
+                    "FITS undefined pixel or missing WCS was not reported")
             require(details["status"] == "rendered" and details["hdu_index"] == 1
                     and details["region_xywh"] == [3, 2, 1024, 1024] and details["coordinates"] == "pixel",
                     "FITS automatic quicklook crop differs")

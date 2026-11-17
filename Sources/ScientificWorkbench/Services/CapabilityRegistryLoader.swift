@@ -15,6 +15,7 @@ struct CapabilityRegistryRawEntry: Hashable, Sendable {
   var shortDescription: String
   var allowedEnvironmentKeys: Set<String>
   var supportsBoundedFITSPreview: Bool
+  var supportsFITSPixelLookup: Bool
 }
 
 struct CapabilityRegistryResolution: Hashable, Sendable {
@@ -415,6 +416,11 @@ struct CapabilityRegistryLoader {
       boundedPreview, field: "supports_bounded_fits_preview", entryID: id,
       allowed: allowedBooleanValues
     )
+    let pixelLookup = raw["supports_fits_pixel_lookup"] ?? "false"
+    try validateRegistryValue(
+      pixelLookup, field: "supports_fits_pixel_lookup", entryID: id,
+      allowed: allowedBooleanValues
+    )
 
     return CapabilityRegistryRawEntry(
       id: id,
@@ -429,7 +435,8 @@ struct CapabilityRegistryLoader {
       smokeTier: smokeTier,
       shortDescription: shortDescription,
       allowedEnvironmentKeys: allowedEnvironmentKeys,
-      supportsBoundedFITSPreview: boundedPreview == "true"
+      supportsBoundedFITSPreview: boundedPreview == "true",
+      supportsFITSPixelLookup: pixelLookup == "true"
     )
   }
 
@@ -468,6 +475,7 @@ struct CapabilityRegistryLoader {
       shortDescription: raw.shortDescription,
       allowedEnvironmentKeys: raw.allowedEnvironmentKeys,
       supportsBoundedFITSPreview: raw.supportsBoundedFITSPreview,
+      supportsFITSPixelLookup: raw.supportsFITSPixelLookup,
       owningSkillRoot: owningRoot?.path,
       owningSkillRole: owningRoot?.role.rawValue,
       registrySourcePath: registryResolution?.resolvedPath,

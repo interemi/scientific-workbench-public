@@ -3,12 +3,21 @@ import SwiftUI
 struct FITSInspectionView: View {
   let summary: FITSInspectionSummary
   let redact: (String) -> String
+  let canLookup: Bool
+  let canCrop: Bool
+  let busy: Bool
+  let onAction: (Int, FITSInspectionAction) -> Void
   @State private var selectedIndex: Int
 
-  init(summary: FITSInspectionSummary, redact: @escaping (String) -> String) {
+  init(summary: FITSInspectionSummary, redact: @escaping (String) -> String, canLookup: Bool,
+       canCrop: Bool, busy: Bool, onAction: @escaping (Int, FITSInspectionAction) -> Void) {
     self.summary = summary
     self.redact = redact
-    _selectedIndex = State(initialValue: summary.preview?.hduIndex ?? summary.previewExtension
+    self.canLookup = canLookup
+    self.canCrop = canCrop
+    self.busy = busy
+    self.onAction = onAction
+    _selectedIndex = State(initialValue: summary.pixelLookup?.hduIndex ?? summary.preview?.hduIndex ?? summary.previewExtension
                            ?? summary.hdus.first?.index ?? 0)
   }
 
@@ -26,6 +35,23 @@ struct FITSInspectionView: View {
             }
           }
           .accessibilityIdentifier("results.fits.hdu")
+
+          if let pixel = summary.pixelLookup, pixel.hduIndex == hdu.index {
+            pixelDetails(pixel)
+          }
+          if (canLookup || canCrop), hdu.dataKind == "image", let shape = hdu.dataSummary?.shape,
+             shape.count >= 2 {
+            let region = summary.preview?.hduIndex == hdu.index ? summary.preview?.regionXywh : nil
+            let lastPixel = summary.pixelLookup?.hduIndex == hdu.index ? summary.pixelLookup?.imageXy : nil
+            FITSInspectionControls(
+              imageWidth: shape[shape.count - 1], imageHeight: shape[shape.count - 2],
+              region: region, lastPixel: lastPixel, canLookup: canLookup, canCrop: canCrop
+            ) { action in
+              onAction(hdu.index, action)
+            }
+            .id(hdu.index)
+            .disabled(busy)
+          }
 
           GroupBox("HDU details") {
             VStack(alignment: .leading, spacing: 6) {
@@ -143,7 +169,123 @@ struct FITSInspectionView: View {
     }
   }
 
+  private func pixelDetails(_ pixel: FITSInspectionSummary.PixelLookup) -> some View {
+    GroupBox("Pixel lookup") {
+      VStack(alignment: .leading, spacing: 6) {
+        LabeledContent("Source pixel (zero-based x, y)", value: pixel.imageXy.map(String.init).joined(separator: ", "))
+        if !pixel.planeIndices.isEmpty {
+          LabeledContent("Leading-axis indices (zero-based)", value: pixel.planeIndices.map(String.init).joined(separator: ", "))
+        }
+        if let value = pixel.pixelValue {
+          let unit = pixel.pixelUnit.map(redact)
+          LabeledContent("Pixel value", value: [redact(value.text), unit].compactMap { $0 }.joined(separator: " "))
+        } else if pixel.pixelStatus == "nonfinite" {
+          LabeledContent("Pixel value", value: "Nonfinite or undefined")
+        }
+        if let frame = pixel.referenceFrame {
+          LabeledContent("Reference frame", value: redact(frame))
+        }
+        ForEach(pixel.worldAxes.indices, id: \.self) { index in
+          let axis = pixel.worldAxes[index]
+          let name = axis.name.isEmpty ? "Axis \(index + 1)" : redact(axis.name)
+          LabeledContent(name, value: [numbers([axis.value]), redact(axis.unit)].filter { !$0.isEmpty }.joined(separator: " "))
+        }
+        if let reason = pixel.worldReason {
+          Text(redact(reason)).foregroundStyle(.secondary)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .accessibilityIdentifier("results.fits.pixel-result")
+  }
+
   private func numbers(_ values: [Double]) -> String {
     values.map { $0.formatted(.number.precision(.significantDigits(1...10))) }.joined(separator: ", ")
+  }
+}
+
+private struct FITSInspectionControls: View {
+  let imageWidth: Int
+  let imageHeight: Int
+  let canLookup: Bool
+  let canCrop: Bool
+  let onAction: (FITSInspectionAction) -> Void
+  @State private var xText: String
+  @State private var yText: String
+  @State private var widthText: String
+  @State private var heightText: String
+
+  init(imageWidth: Int, imageHeight: Int, region: [Int]?, lastPixel: [Int]?, canLookup: Bool, canCrop: Bool,
+       onAction: @escaping (FITSInspectionAction) -> Void) {
+    self.imageWidth = imageWidth
+    self.imageHeight = imageHeight
+    self.canLookup = canLookup
+    self.canCrop = canCrop
+    self.onAction = onAction
+    let initial = region?.count == 4 ? region : nil
+    let coordinates = lastPixel?.count == 2 ? lastPixel : nil
+    _xText = State(initialValue: String(coordinates?[0] ?? initial?[0] ?? 0))
+    _yText = State(initialValue: String(coordinates?[1] ?? initial?[1] ?? 0))
+    _widthText = State(initialValue: String(min(initial?[2] ?? imageWidth, 1_024)))
+    _heightText = State(initialValue: String(min(initial?[3] ?? imageHeight, 1_024)))
+  }
+
+  private var pixel: (x: Int, y: Int)? {
+    guard let x = Int(xText), let y = Int(yText), x >= 0, x < imageWidth, y >= 0, y < imageHeight else {
+      return nil
+    }
+    return (x, y)
+  }
+
+  private var crop: FITSInspectionAction? {
+    guard let pixel, let width = Int(widthText), let height = Int(heightText),
+          (1...1_024).contains(width), (1...1_024).contains(height) else { return nil }
+    return .crop(x: pixel.x, y: pixel.y, width: width, height: height)
+  }
+
+  var body: some View {
+    GroupBox("Inspect source image") {
+      VStack(alignment: .leading, spacing: 8) {
+        Text("Use zero-based coordinates in this HDU. Each action reads the recorded source path and creates a new run.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        HStack(alignment: .bottom) {
+          inputField("X", text: $xText, identifier: "results.fits.x")
+          inputField("Y", text: $yText, identifier: "results.fits.y")
+          if canLookup {
+            Button("Look up pixel") {
+              if let pixel { onAction(.lookup(x: pixel.x, y: pixel.y)) }
+            }
+            .disabled(pixel == nil)
+            .accessibilityIdentifier("results.fits.lookup")
+          }
+        }
+        if canCrop {
+          HStack(alignment: .bottom) {
+            inputField("Width", text: $widthText, identifier: "results.fits.width")
+            inputField("Height", text: $heightText, identifier: "results.fits.height")
+            Button("Render crop") {
+              if let crop { onAction(crop) }
+            }
+            .disabled(crop == nil)
+            .accessibilityIdentifier("results.fits.crop")
+          }
+          Text("Crop size is capped at 1,024 pixels per side and clips at the image edge.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .textFieldStyle(.roundedBorder)
+    }
+  }
+
+  private func inputField(_ title: String, text: Binding<String>, identifier: String) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Text(title).font(.caption)
+        .accessibilityHidden(true)
+      TextField(title, text: text)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier(identifier)
+    }
   }
 }

@@ -1,9 +1,11 @@
 import Foundation
 
 struct FITSInspectionSummary: Decodable, Sendable {
+  let path: String?
   let hdus: [HDU]
   let preview: Preview?
   let previewExtension: Int?
+  let pixelLookup: PixelLookup?
 
   struct HDU: Decodable, Identifiable, Sendable {
     let index: Int
@@ -68,6 +70,40 @@ struct FITSInspectionSummary: Decodable, Sendable {
     let reason: String?
   }
 
+  struct PixelLookup: Decodable, Sendable {
+    struct WorldAxis: Decodable, Sendable {
+      let name: String
+      let value: Double
+      let unit: String
+    }
+
+    let hduIndex: Int
+    let imageXy: [Int]
+    let planeIndices: [Int]
+    let pixelValue: HeaderValue?
+    let pixelUnit: String?
+    let pixelStatus: String
+    let worldAxes: [WorldAxis]
+    let worldReason: String?
+    let referenceFrame: String?
+  }
+
+  func attachedSource(in job: JobRecord) -> String? {
+    guard let path, path.hasPrefix("/") || path.hasPrefix("~/") else { return nil }
+    let source = FilesystemPath.canonicalURL(path)
+    guard (try? source.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return nil }
+    for attachedPath in job.requestInputPaths {
+      let attached = FilesystemPath.canonicalURL(attachedPath)
+      if source.path == attached.path { return source.path }
+      let prefix = attached.path.hasSuffix("/") ? attached.path : attached.path + "/"
+      if source.path.hasPrefix(prefix),
+         (try? attached.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+        return source.path
+      }
+    }
+    return nil
+  }
+
   private struct Envelope: Decodable {
     let tool: String
     let results: FITSInspectionSummary
@@ -87,5 +123,26 @@ struct FITSInspectionSummary: Decodable, Sendable {
       return nil
     }
     return envelope.results
+  }
+}
+
+enum FITSInspectionAction: Sendable {
+  case lookup(x: Int, y: Int)
+  case crop(x: Int, y: Int, width: Int, height: Int)
+
+  var isPixelLookup: Bool {
+    if case .lookup = self { return true }
+    return false
+  }
+
+  func arguments(in run: URL) -> [String] {
+    switch self {
+    case let .lookup(x, y):
+      return ["--pixel", "\(x),\(y)"]
+    case let .crop(x, y, width, height):
+      return ["--crop", "\(x),\(y),\(width),\(height)",
+              "--preview", run.appendingPathComponent("previews/fits_quicklook.png").path,
+              "--preview-if-available"]
+    }
   }
 }

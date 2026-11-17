@@ -390,8 +390,17 @@ struct ArtifactPreview: View {
         if showFITSJSON {
           preview(snapshot)
         } else {
-          FITSInspectionView(summary: fits, redact: store.redactedPreviewText)
-            .id(requestID)
+          let capability = store.fitsFollowUpCapability(for: job)
+          let source = capability == nil ? nil : fits.attachedSource(in: job)
+          FITSInspectionView(
+            summary: fits, redact: store.redactedPreviewText,
+            canLookup: source != nil && capability?.supportsFITSPixelLookup == true,
+            canCrop: source != nil && capability?.supportsBoundedFITSPreview == true,
+            busy: store.hasActiveOperation
+          ) { hdu, action in
+            Task { await runFITSFollowUp(fits, hdu: hdu, action: action) }
+          }
+          .id(requestID)
         }
       } else {
         preview(snapshot)
@@ -473,5 +482,12 @@ struct ArtifactPreview: View {
     case .raster(let image), .pdfThumbnail(let image): NSImage(cgImage: image, size: .zero)
     case nil: nil
     }
+  }
+
+  private func runFITSFollowUp(_ fits: FITSInspectionSummary, hdu: Int, action: FITSInspectionAction) async {
+    let outcome = await store.runFITSFollowUp(from: job, summary: fits, hdu: hdu, action: action)
+    guard action.isPixelLookup, let outcome, store.selectedJobID == outcome.id,
+          let summary = outcome.artifacts.first(where: { $0.relativePath == "summary.json" }) else { return }
+    store.selectResultArtifact(summary.id, for: outcome)
   }
 }

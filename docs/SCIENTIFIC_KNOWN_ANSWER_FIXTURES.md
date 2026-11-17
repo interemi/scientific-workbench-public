@@ -69,6 +69,17 @@ configured skill registry advertises it. Earlier registries keep the
 metadata-only route for ordinary inputs and the generated sample still
 requests its quicklook.
 
+The FITS inspector can render a new crop or look up a pixel in a selected
+image HDU when the configured registry advertises that operation. Enter X
+and Y as zero-based coordinates in the source image. A cube uses the first
+plane along its leading axes. A crop previews up to 1,024 pixels per side.
+Each action creates a separate run with its own provenance. Pixel lookup
+reports the recorded value and unit, plus world axes calculated using
+Astropy and the HDU WCS when available. A nonfinite value is flagged, and a
+data-quality mask is available through its own HDU. The synthetic check
+confirms that source pixel `(2, 1)` reports 10 adu and the same world
+coordinates with or without the display crop.
+
 ## Two-catalog sky crossmatch
 
 The generated CSVs declare `source_id`, `ra_deg`, and `dec_deg` in decimal

@@ -159,6 +159,7 @@ struct CapabilityEntry: Identifiable, Hashable, Sendable {
   let shortDescription: String
   let allowedEnvironmentKeys: Set<String>
   let supportsBoundedFITSPreview: Bool
+  let supportsFITSPixelLookup: Bool
   let owningSkillRoot: String?
   let owningSkillRole: String?
   let registrySourcePath: String?
@@ -178,6 +179,7 @@ struct CapabilityEntry: Identifiable, Hashable, Sendable {
     shortDescription: String,
     allowedEnvironmentKeys: Set<String> = [],
     supportsBoundedFITSPreview: Bool = false,
+    supportsFITSPixelLookup: Bool = false,
     owningSkillRoot: String? = nil,
     owningSkillRole: String? = nil,
     registrySourcePath: String? = nil,
@@ -196,6 +198,7 @@ struct CapabilityEntry: Identifiable, Hashable, Sendable {
     self.shortDescription = shortDescription
     self.allowedEnvironmentKeys = allowedEnvironmentKeys
     self.supportsBoundedFITSPreview = supportsBoundedFITSPreview
+    self.supportsFITSPixelLookup = supportsFITSPixelLookup
     self.owningSkillRoot = owningSkillRoot
     self.owningSkillRole = owningSkillRole
     self.registrySourcePath = registrySourcePath

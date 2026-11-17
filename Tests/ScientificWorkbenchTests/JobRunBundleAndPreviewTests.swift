@@ -437,7 +437,9 @@ extension ScientificWorkbenchTests {
        "data_summary":{"shape":[8,10],"dtype":"float32","sampled_pixels":80,"nonfinite_sampled_pixels":1}},
       {"index":2,"name":"DQ","type":"ImageHDU","has_data":true,"header":{},"wcs":null}
     ],"preview_extension":1,"preview":{"status":"rendered","hdu_index":1,"region_xywh":[2,1,5,4],
-      "plane_indices":[],"coordinates":"wcs","display_only":true}}}
+      "plane_indices":[],"coordinates":"wcs","display_only":true},"pixel_lookup":{"hdu_index":1,
+      "image_xy":[2,1],"plane_indices":[],"pixel_value":12.5,"pixel_unit":"adu","pixel_status":"finite",
+      "world_axes":[{"name":"RA---TAN","value":150.0,"unit":"deg"}],"reference_frame":"ICRS"}}}
     """
     let root = try makeScenarioFixture(name: "fits-inspection-summary", files: ["summary.json": summaryText])
     defer { try? FileManager.default.removeItem(at: root) }
@@ -454,7 +456,82 @@ extension ScientificWorkbenchTests {
     #expect(inspection.hdus[1].header["BLANK"]?.text == "-32768")
     #expect(inspection.preview?.hduIndex == 1)
     #expect(inspection.preview?.regionXywh == [2, 1, 5, 4])
+    #expect(inspection.pixelLookup?.imageXy == [2, 1])
+    #expect(inspection.pixelLookup?.pixelValue?.text == "12.5")
+    #expect(inspection.pixelLookup?.worldAxes.first?.unit == "deg")
     #expect(try String(contentsOf: file, encoding: .utf8) == summaryText)
+  }
+
+  @Test
+  @MainActor
+  func fitsFollowUpsUseRecordedInputsAndKeepPriorArtifacts() async throws {
+    let root = try makeScenarioFixture(
+      name: "fits-inspection-follow-up",
+      files: [
+        "input/science.fits": "source bytes",
+        "unattached.fits": "another file",
+        "scripts/datanalysis_env.py": """
+        import json
+        import sys
+        from pathlib import Path
+        assert sys.argv[1:3] == ["run-tool", "inspect_fits"]
+        path = Path(sys.argv[3])
+        assert path.read_text() == "source bytes"
+        assert sys.argv[sys.argv.index("--extension") + 1] == "1"
+        output = Path(sys.argv[sys.argv.index("--summary-json") + 1])
+        if "--preview" in sys.argv:
+            preview = Path(sys.argv[sys.argv.index("--preview") + 1])
+            preview.parent.mkdir(parents=True, exist_ok=True)
+            preview.write_bytes(b"test quicklook")
+        output.write_text(json.dumps({"tool": "inspect_fits", "app_status": "PASS", "arguments": sys.argv[4:]}))
+        """
+      ]
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+    let input = root.appendingPathComponent("input/science.fits")
+    let priorOutput = root.appendingPathComponent("prior-run")
+    try FileManager.default.createDirectory(at: priorOutput, withIntermediateDirectories: true)
+    let summaryURL = priorOutput.appendingPathComponent("summary.json")
+    func retainedSummary(for source: URL) throws -> Data {
+      try JSONSerialization.data(withJSONObject: [
+        "tool": "inspect_fits", "results": ["path": source.path, "hdus": []]
+      ])
+    }
+    let priorBytes = try retainedSummary(for: input)
+    try priorBytes.write(to: summaryURL)
+    let summary = try #require(FITSInspectionSummary.load(from: summaryURL))
+    let suite = "Scientific-Workbench-Tests-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false)
+    store.outputRootPath = root.appendingPathComponent("new-runs").path
+    store.skillRootPath = root.path
+    store.pythonExecutable = "/usr/bin/python3"
+
+    var original = JobRecord(capability: expertFITSCapability(), runDirectory: priorOutput.path)
+    original.status = .succeeded
+    original.requestInputPaths = [input.path]
+    store.capabilities = [expertFITSCapability()]
+    #expect(await store.runFITSFollowUp(from: original, summary: summary, hdu: 1, action: .lookup(x: 2, y: 1)) == nil)
+
+    store.capabilities = [expertFITSCapability(boundedPreview: true, pixelLookup: true)]
+    let unrelatedURL = root.appendingPathComponent("unrelated-summary.json")
+    try retainedSummary(for: root.appendingPathComponent("unattached.fits")).write(to: unrelatedURL)
+    let unrelated = try #require(FITSInspectionSummary.load(from: unrelatedURL))
+    #expect(await store.runFITSFollowUp(from: original, summary: unrelated, hdu: 1, action: .lookup(x: 2, y: 1)) == nil)
+
+    let lookup = try #require(await store.runFITSFollowUp(from: original, summary: summary, hdu: 1, action: .lookup(x: 2, y: 1)))
+    let crop = try #require(await store.runFITSFollowUp(from: original, summary: summary, hdu: 1,
+                                                       action: .crop(x: 2, y: 1, width: 4, height: 4)))
+    #expect(lookup.status == .succeeded)
+    #expect(crop.status == .succeeded)
+    #expect(try ShellWords.split(lookup.requestRawArguments).suffix(2) == ["--pixel", "2,1"])
+    #expect(try ShellWords.split(crop.requestRawArguments).contains("2,1,4,4"))
+    #expect(crop.artifacts.contains { $0.relativePath == "previews/fits_quicklook.png" })
+    #expect(lookup.runDirectory != crop.runDirectory)
+    #expect(lookup.runDirectory != original.runDirectory)
+    #expect(try Data(contentsOf: summaryURL) == priorBytes)
+    #expect(try String(contentsOf: input, encoding: .utf8) == "source bytes")
   }
 
   @Test
