@@ -548,6 +548,79 @@ def photometric_cases(root: Path, environment: dict[str, str]) -> dict:
     return {"input_sha256": original, "residual_degrees_of_freedom": 0, "coefficient_uncertainties": results}
 
 
+def lithium_equivalent_width_cases(root: Path, environment: dict[str, str]) -> dict:
+    import numpy as np
+    from astropy.io import fits
+
+    source = root / "input" / "lithium_ascii.dat"
+    source.write_text(
+        "# wavelength in angstroms, normalized flux\n"
+        "6705.4 1.01\n6705.6 0.98\n6705.8 1.01\n"
+        "6707.0 1.0\n6707.1 0.9\n6707.4 0.8\n6707.8 1.0\n"
+        "6708.3 1.01\n6708.4 0.98\n6708.5 1.01\n",
+        encoding="ascii",
+    )
+    wrong_unit = root / "input" / "lithium_nm.fits"
+    fits.PrimaryHDU(np.ones(10), header=fits.Header({"CUNIT1": "nm"})).writeto(wrong_unit)
+    originals = {item.name: sha256(item) for item in (source, wrong_unit)}
+    # Trapezoids over widths 0.1, 0.3, 0.4 Å give 90 mÅ for these depths.
+    expected_ew = 90.0
+    expected_noise = 1000 * math.sqrt(0.0002) * math.sqrt(0.05**2 + 0.20**2 + 0.35**2 + 0.20**2)
+    checks = {}
+    for name, spectrum, continuum_left, skip_grid, failure in (
+        ("lithium_no_grid", source, ("6705.15", "6706.0"), True, None),
+        ("lithium_with_grid", source, ("6705.15", "6706.0"), False, None),
+        ("lithium_no_continuum", source, ("6704", "6705"), True, "contains no samples"),
+        ("lithium_wrong_unit", wrong_unit, ("6705.15", "6706.0"), True, "wavelength unit"),
+    ):
+        case = root / name
+        products = case / "products"
+        summary = case / "summary.json"
+        manifest = case / "manifest.json"
+        command = [
+            sys.executable, str(ROOT / "skills/scientific-data-astro/scripts/li6708_equivalent_width_workbench.py"),
+            "measure", str(spectrum), "--output-dir", str(products), "--summary-json", str(summary),
+            "--manifest-json", str(manifest), "--continuum-degree", "0",
+            "--continuum-window", *continuum_left, "--continuum-window", "6708.1", "6708.8",
+            "--integration-window", "6706.8", "6708.0",
+        ]
+        if skip_grid:
+            command.append("--skip-systematic-grid")
+        completed = run(command, case, environment)
+        payload = read_json(summary)
+        result = payload["results"]
+        measurement = result["measurement_summary"]
+        if failure:
+            require(completed.returncode == 2 and payload["app_status"] == "BLOCKED_CONTROLADO"
+                    and any(failure in finding for finding in payload["qa"]["findings"]),
+                    f"{name} was not controlled-blocked")
+            require(measurement["measurements"] == [] and not manifest.exists(), f"{name} reported derived values")
+            checks[name] = "BLOCKED_CONTROLADO"
+            continue
+        require(completed.returncode == 0 and payload["app_status"] == "PASS", f"{name} failed")
+        ew = measurement["measurements"][0]
+        require(ew["unit"] == "mÅ" and abs(ew["value"] - expected_ew) < 1e-7,
+                "lithium equivalent width differs from the trapezoid reference")
+        require(abs(result["random_like_uncertainty_milliangstrom"] - expected_noise) < 1e-7,
+                "lithium noise proxy did not propagate the nonuniform trapezoid weights")
+        if skip_grid:
+            require(ew["uncertainty"] is None and result["uncertainty_milliangstrom"] is None,
+                    "lithium reported an unmeasured combined uncertainty")
+        else:
+            grid = result["grid_systematics"]
+            require(grid["grid_count"] >= 2 and grid["ew_ma_std"] < 1e-7,
+                    "window shifts should leave this fixture's sample selections unchanged")
+            require(abs(ew["uncertainty"] - expected_noise) < 1e-7,
+                    "lithium combined uncertainty differs without a systematic floor")
+        check_manifest(manifest, [spectrum], [
+            summary, products / "li6708_summary.csv", products / "li6708_summary.md",
+            products / "figures/li6708_equivalent_width.png",
+        ])
+        checks[name] = {"ew_milliangstrom": ew["value"], "combined_uncertainty_milliangstrom": ew["uncertainty"]}
+    require({item.name: sha256(item) for item in (source, wrong_unit)} == originals, "lithium inputs changed")
+    return {"input_sha256": originals, "noise_proxy_milliangstrom": expected_noise, "cases": checks}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -581,6 +654,7 @@ def main() -> int:
         evidence["fits_bounded"] = check_bounded_fits(output, environment)
         evidence["crossmatch"] = crossmatch_cases(output, environment)
         evidence["photometry"] = photometric_cases(output, environment)
+        evidence["lithium_equivalent_width"] = lithium_equivalent_width_cases(output, environment)
         evidence["status"] = "PASS"
     except Exception as error:
         evidence["failure"] = str(error)
@@ -589,7 +663,7 @@ def main() -> int:
         (output / "verification.json").write_text(
             json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-    print(f"Scientific known-answer PASS: FITS/WCS, sky crossmatch, and photometric calibration. Evidence: {output}")
+    print(f"Scientific known-answer PASS: FITS/WCS, sky crossmatch, photometric calibration, and lithium EW. Evidence: {output}")
     return 0
 
 

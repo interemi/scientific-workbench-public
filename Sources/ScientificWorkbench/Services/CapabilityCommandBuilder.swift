@@ -400,15 +400,16 @@ struct CapabilityCommandBuilder {
         "--manifest-json", manifest
       ]
     case "li6708_equivalent_width_workbench.measure":
+      let spectrum = try preferredPWAndFITS(request)
+      let isCourseworkPWAnd = URL(fileURLWithPath: spectrum).lastPathComponent.lowercased() == "npwand_n3.fits"
       return [
-        try preferredPWAndFITS(request),
+        spectrum,
         "--output-dir", artifacts,
         "--line-center", "6707.8",
         "--line-label", "Li I 6707.8",
-        "--target-name", "PW And",
         "--summary-json", summary,
         "--manifest-json", manifest
-      ]
+      ] + (isCourseworkPWAnd ? ["--target-name", "PW And"] : [])
     case "legacy_spectroscopy_report_builder.scaffold":
       return [
         runURL.appendingPathComponent("artifacts/legacy_report").path,

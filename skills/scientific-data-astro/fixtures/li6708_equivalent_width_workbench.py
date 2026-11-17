@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import math
+import re
 import sys
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from _internal.runtime_common import configure_runtime
 
 DEFAULT_CONTINUUM_WINDOWS = [(6705.30, 6706.00), (6708.20, 6708.60)]
 DEFAULT_INTEGRATION_WINDOW = (6706.05, 6707.85)
+MEASUREMENT_METHOD = "Polynomial continuum fit and trapezoidal equivalent-width integration"
 
 
 def parse_args():
@@ -26,7 +28,7 @@ def parse_args():
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     measure = subparsers.add_parser("measure", help="Measure a first-pass local EW from a MULTISPE FITS order or a two-column ASCII spectrum.")
-    measure.add_argument("fits_path", help="Input MULTISPE FITS spectrum or ASCII table with wavelength and flux in the first two numeric columns.")
+    measure.add_argument("fits_path", help="Input MULTISPE FITS spectrum in angstroms or ASCII table with wavelength in angstroms and flux in the first two numeric columns.")
     measure.add_argument("--output-dir", required=True)
     measure.add_argument("--order", type=int, help="1-based echelle order/aperture. If omitted, select the order containing the line.")
     measure.add_argument("--line-center", type=float, default=6707.8)
@@ -78,6 +80,9 @@ def blocked_payload(args, message: str) -> dict:
             "line_label": getattr(args, "line_label", "Li I 6707.8 A"),
             "line_center_rest_angstrom": getattr(args, "line_center", None),
             "error": message,
+            "measurement_summary": {
+                "method": MEASUREMENT_METHOD, "measurements": [], "diagnostics": [], "assumptions": [],
+            },
         },
         inputs=[input_path],
     )
@@ -122,6 +127,7 @@ def load_multispec_order(fits_path: Path, requested_order: int | None, line_cent
     with fits.open(fits_path, memmap=False, ignore_missing_end=True) as hdul:
         header = hdul[0].header.copy()
         data = np.asarray(hdul[0].data, dtype=float)
+    declared_wavelength_unit(header)
     if data.ndim == 1:
         data = data.reshape(1, data.shape[0])
     if data.ndim != 2:
@@ -140,7 +146,6 @@ def load_multispec_order(fits_path: Path, requested_order: int | None, line_cent
 
 
 def load_ascii_spectrum(path: Path):
-    import re
     import numpy as np
 
     wavelengths = []
@@ -187,16 +192,37 @@ def load_input_spectrum(path: Path, requested_order: int | None, line_center: fl
     return "ascii", {}, order, wavelength, flux
 
 
+def declared_wavelength_unit(header: dict):
+    """Check explicit MULTISPEC units before treating an axis as angstroms."""
+    from astropy import units as u
+
+    wat = "".join(str(header[key]) for key in sorted(header) if str(key).startswith("WAT1_"))
+    matches = re.findall(r'\bunits\s*=\s*(?:"([^"]+)"|([^\s"]+))', wat, flags=re.IGNORECASE)
+    values = [str(header.get("CUNIT1") or "").strip()] + [quoted or bare for quoted, bare in matches]
+    declared = False
+    for raw in filter(None, values):
+        declared = True
+        unit = u.AA if raw.casefold().strip() in {"angstrom", "angstroms", "aa", "å"} else u.Unit(raw, parse_strict="silent")
+        if unit != u.AA:
+            raise ValueError(f"The spectrum declares wavelength unit {raw!r}. Supply a spectrum calibrated in angstroms.")
+    return "fits_metadata" if declared else "input_contract"
+
+
 def fit_continuum(wavelength, flux, windows: list[tuple[float, float]], degree: int):
     import numpy as np
 
     mask = np.zeros_like(wavelength, dtype=bool)
     for left, right in windows:
-        mask |= (wavelength >= left) & (wavelength <= right)
+        in_window = (wavelength >= left) & (wavelength <= right)
+        if not np.any(in_window):
+            raise ValueError(f"Continuum window {left:g}–{right:g} Å contains no samples.")
+        mask |= in_window
     if int(mask.sum()) < degree + 2:
         raise ValueError("Las ventanas de continuo no contienen suficientes pixeles para el ajuste.")
-    coeff = np.polyfit(wavelength[mask], flux[mask], degree)
-    continuum = np.polyval(coeff, wavelength)
+    polynomial, (_, rank, _, _) = np.polynomial.Polynomial.fit(wavelength[mask], flux[mask], degree, full=True)
+    if rank != degree + 1:
+        raise ValueError("The continuum samples do not constrain the requested polynomial degree.")
+    continuum = polynomial(wavelength)
     return continuum, mask
 
 
@@ -232,6 +258,8 @@ def measure_ew(wavelength, flux, continuum_windows: list[tuple[float, float]], i
     import numpy as np
 
     validate_measurement_windows(continuum_windows, integration_window)
+    if integration_window[0] < wavelength[0] or integration_window[1] > wavelength[-1]:
+        raise ValueError("The selected spectrum does not cover the full integration window.")
     continuum, continuum_mask = fit_continuum(wavelength, flux, continuum_windows, degree)
     if not np.all(np.isfinite(continuum)):
         raise ValueError("El continuo ajustado contiene valores no finitos.")
@@ -250,8 +278,10 @@ def measure_ew(wavelength, flux, continuum_windows: list[tuple[float, float]], i
     line_wavelengths = wavelength[line_mask]
     line_normalized = normalized[line_mask]
     continuum_rms = float(np.std(normalized[continuum_mask] - 1.0))
-    pixel_step = float(abs(np.median(np.diff(wavelength))))
-    random_like_ma = 1000.0 * continuum_rms * pixel_step * math.sqrt(int(line_mask.sum()))
+    steps = np.diff(line_wavelengths)
+    # Each point contributes half of the widths of its adjacent trapezoids.
+    weights = 0.5 * (np.r_[steps, 0.0] + np.r_[0.0, steps])
+    random_like_ma = 1000.0 * continuum_rms * float(np.linalg.norm(weights))
     return {
         "continuum": continuum,
         "normalized": normalized,
@@ -299,7 +329,7 @@ def systematic_grid(wavelength, flux, continuum_windows: list[tuple[float, float
     return {
         "grid_count": int(array.size),
         "ew_ma_mean": float(np.mean(array)),
-        "ew_ma_std": float(np.std(array)),
+        "ew_ma_std": float(np.std(array)) if array.size >= 2 else None,
         "ew_ma_p16": float(np.percentile(array, 16)),
         "ew_ma_p50": float(np.percentile(array, 50)),
         "ew_ma_p84": float(np.percentile(array, 84)),
@@ -353,6 +383,12 @@ def write_csv(path: Path, row: dict) -> None:
 
 
 def write_markdown(path: Path, results: dict, notes: list[str]) -> None:
+    uncertainty = results["uncertainty_milliangstrom"]
+    ew = f"{results['ew_milliangstrom']:.1f}"
+    ew_display = (
+        f"`{ew} ± {uncertainty:.1f} mÅ` (aproximada)"
+        if uncertainty is not None else f"`{ew} mÅ`, incertidumbre combinada no disponible"
+    )
     lines = [
         f"# {results['line_label']}",
         "",
@@ -362,8 +398,11 @@ def write_markdown(path: Path, results: dict, notes: list[str]) -> None:
         f"- Orden usado: `{results['order_1based'] if results['order_1based'] is not None else 'no aplica'}`",
         f"- Ventanas de continuo: `{results['continuum_windows_angstrom']}`",
         f"- Ventana de integracion: `{results['integration_window_angstrom']}`",
-        f"- EW medida: `{results['ew_milliangstrom']:.1f} +/- {results['uncertainty_milliangstrom']:.1f} mA`",
+        f"- EW medida: {ew_display}",
         f"- Centro observado del minimo: `{results['line_center_observed_angstrom']:.3f} A`",
+        f"- Dispersion residual del continuo normalizado: `{results['continuum_rms']:.6g}`",
+        f"- Componente de ruido aproximada: `{results['random_like_uncertainty_milliangstrom']:.6g} mÅ`",
+        f"- Sensibilidad a las ventanas: {results['uncertainty_note']}",
         "",
         "## Notas",
         "",
@@ -372,9 +411,45 @@ def write_markdown(path: Path, results: dict, notes: list[str]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def measurement_summary(results: dict) -> dict:
+    grid = results["grid_systematics"]
+
+    def quantity(label, value, unit, **extra):
+        return {"label": label, "value": value, "unit": unit, **extra}
+
+    diagnostics = [
+        quantity("Continuum residual scatter", results["continuum_rms"], "dimensionless"),
+        quantity("Line depth", results["line_depth"], "dimensionless"),
+        quantity("Continuum-noise proxy", results["random_like_uncertainty_milliangstrom"], "mÅ"),
+        quantity("Window-grid measurements", grid.get("grid_count", 0), "dimensionless"),
+    ]
+    if grid.get("ew_ma_std") is not None:
+        diagnostics.append(quantity("Window-sensitivity scatter", grid["ew_ma_std"], "mÅ"))
+    windows = ", ".join(f"{left:g}–{right:g}" for left, right in results["continuum_windows_angstrom"])
+    left, right = results["integration_window_angstrom"]
+    unit_basis = "FITS metadata" if results["wavelength_unit_source"] == "fits_metadata" else "the input convention"
+    return {
+        "method": MEASUREMENT_METHOD,
+        "measurements": [
+            quantity("Equivalent width", results["ew_milliangstrom"], "mÅ", uncertainty=results["uncertainty_milliangstrom"]),
+            quantity("Wavelength at deepest sampled point", results["line_center_observed_angstrom"], "Å"),
+        ],
+        "diagnostics": diagnostics,
+        "assumptions": [
+            f"Wavelengths use angstroms from {unit_basis}.",
+            f"Continuum polynomial degree {results['continuum_degree']}. Continuum windows {windows} Å.",
+            f"Integration window {left:g}–{right:g} Å. Positive equivalent width indicates absorption.",
+            "The continuum-noise proxy assumes independent samples and similar normalized-flux scatter in the line.",
+            results["uncertainty_note"],
+        ],
+    }
+
+
 def cmd_measure(args):
     ensure_datanalysis_runtime("li6708_equivalent_width_workbench")
     configure_runtime("li6708_equivalent_width_workbench")
+    import numpy as np
+
     input_path = Path(args.fits_path).expanduser().resolve()
     if not input_path.exists():
         raise SystemExit(f"No existe la entrada indicada: {input_path}")
@@ -384,17 +459,28 @@ def cmd_measure(args):
     integration_window = tuple(float(item) for item in args.integration_window)
     continuum_windows = [tuple(float(value) for value in item) for item in (args.continuum_window or DEFAULT_CONTINUUM_WINDOWS)]
     validate_measurement_windows(continuum_windows, integration_window)
+    if args.continuum_degree < 0:
+        raise ValueError("The continuum polynomial degree must be nonnegative.")
 
     input_format, header, order, wavelength, flux = load_input_spectrum(input_path, args.order, args.line_center, integration_window)
+    if not np.all(np.isfinite(wavelength)) or np.any(np.diff(wavelength) <= 0):
+        raise ValueError("The spectral axis must contain finite, distinct wavelength samples.")
     measurement = measure_ew(wavelength, flux, continuum_windows, integration_window, args.continuum_degree)
     grid = {} if args.skip_systematic_grid else systematic_grid(wavelength, flux, continuum_windows, integration_window, args.continuum_degree)
     grid_unc = grid.get("ew_ma_std")
-    uncertainty_ma = float(
-        math.hypot(
-            measurement["random_like_uncertainty_milliangstrom"],
-            max(5.0, float(grid_unc)) if grid_unc is not None else 5.0,
-        )
-    )
+    random_like_ma = measurement["random_like_uncertainty_milliangstrom"]
+    if args.skip_systematic_grid:
+        uncertainty_ma = None
+        uncertainty_note = "Combined uncertainty unavailable because the window-sensitivity grid was skipped."
+    elif grid_unc is None:
+        uncertainty_ma = None
+        uncertainty_note = "Combined uncertainty unavailable because fewer than two usable window-grid measurements were obtained."
+    elif random_like_ma == 0:
+        uncertainty_ma = None
+        uncertainty_note = "Combined uncertainty unavailable because the fitted continuum residuals show no measurable scatter."
+    else:
+        uncertainty_ma = math.hypot(random_like_ma, grid_unc)
+        uncertainty_note = "Approximate uncertainty combines the continuum-noise proxy and window-grid scatter in quadrature."
 
     target = args.target_name or header.get("OBJECT") or input_path.stem
     plot_path = figures_dir / "li6708_equivalent_width.png"
@@ -407,11 +493,14 @@ def cmd_measure(args):
         notes.append("Entrada ASCII de dos columnas: no hay seleccion de orden ni metadatos MULTISPE.")
     if args.literature_ew_ma is not None:
         notes.append("Se incluye comparacion numerica con literatura indicada por el usuario.")
+    notes.append(uncertainty_note)
     qa_findings = []
     if measurement["continuum_rms"] > 0.05:
         qa_findings.append("continuum_rms_alto")
     if measurement["line_depth"] <= 0:
         qa_findings.append("linea_no_absorbida")
+    if not args.skip_systematic_grid and grid_unc is None:
+        qa_findings.append("The window-sensitivity grid did not support a combined uncertainty.")
     qa_status = "warning" if qa_findings else "ok"
 
     results = {
@@ -425,11 +514,15 @@ def cmd_measure(args):
         "order_0based": order["aperture_0based"],
         "continuum_windows_angstrom": continuum_windows,
         "integration_window_angstrom": integration_window,
+        "wavelength_unit_source": declared_wavelength_unit(header) if input_format == "fits" else "input_contract",
+        "continuum_degree": args.continuum_degree,
         "line_center_observed_angstrom": measurement["line_center_observed"],
         "line_depth": measurement["line_depth"],
         "ew_angstrom": measurement["ew_angstrom"],
         "ew_milliangstrom": measurement["ew_milliangstrom"],
         "uncertainty_milliangstrom": uncertainty_ma,
+        "uncertainty_note": uncertainty_note,
+        "random_like_uncertainty_milliangstrom": random_like_ma,
         "continuum_rms": measurement["continuum_rms"],
         "grid_systematics": grid,
         "literature_ew_milliangstrom": args.literature_ew_ma,
@@ -437,6 +530,7 @@ def cmd_measure(args):
             measurement["ew_milliangstrom"] - args.literature_ew_ma if args.literature_ew_ma is not None else None
         ),
     }
+    details = measurement_summary(results)
 
     csv_path = output_dir / "li6708_summary.csv"
     md_path = output_dir / "li6708_summary.md"
@@ -449,7 +543,7 @@ def cmd_measure(args):
         status=qa_status,
         notes=notes,
         artifacts={"summary_json": str(summary_json), "summary_csv": str(csv_path), "summary_md": str(md_path), "plot": str(plot_path)},
-        results=results,
+        results={**results, "measurement_summary": details},
         qa={"status": qa_status, "findings": qa_findings, "metrics": {"continuum_rms": measurement["continuum_rms"], "line_depth": measurement["line_depth"]}},
     )
     rendered = json.dumps(payload, indent=2, ensure_ascii=True, allow_nan=False)
@@ -461,7 +555,13 @@ def cmd_measure(args):
             args.manifest_json,
             inputs=[input_path],
             outputs=[summary_json, csv_path, md_path, plot_path],
-            parameters={"tool": "li6708_equivalent_width_workbench.measure", "line_center": args.line_center, "order": args.order},
+            parameters={
+                "tool": "li6708_equivalent_width_workbench.measure",
+                "line_center": args.line_center, "order": order["aperture_1based"],
+                "continuum_degree": args.continuum_degree, "continuum_windows_angstrom": continuum_windows,
+                "integration_window_angstrom": integration_window, "skip_systematic_grid": args.skip_systematic_grid,
+                "wavelength_unit_source": results["wavelength_unit_source"],
+            },
             command=" ".join(sys.argv),
             notes=notes,
         )

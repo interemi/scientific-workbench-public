@@ -4947,14 +4947,14 @@
     "scientific-data-astro/fixtures/legacy_spectroscopy_report_builder.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "46363d3d350cf9aff1b52faee01f9cf0d561470fa7e48b69720e18050506efb8",
-      "size": 33719
+      "sha256": "a7248a0fdf18cfb09e657d1a35b2a8ae68a17168f30bc44bff2a2c86e062a0ab",
+      "size": 33852
     },
     "scientific-data-astro/fixtures/li6708_equivalent_width_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "1f42d5bb854a9fc409f7aaa0a77503b7a2929d01c7bd41b1cc91a9f5bd105d7d",
-      "size": 22138
+      "sha256": "b744423279caf1c82ecdd30aa669b663feea90fb4657929a64866d25b9c031e5",
+      "size": 28123
     },
     "scientific-data-astro/fixtures/notebook_workbench.py": {
       "executable": false,

@@ -577,7 +577,8 @@ def populate_equivalent_width_section(project_dir: Path, payloads: list[dict]) -
                 rf"\item {tex_escape(str(label))}, orden {tex_escape(str(order))}: EW = {float(ew_ma):.1f} $\pm$ {float(uncertainty_ma):.1f} m\AA."
             )
         elif ew_ma is not None:
-            lines.append(rf"\item {tex_escape(str(label))}, orden {tex_escape(str(order))}: EW = {float(ew_ma):.1f} m\AA.")
+            availability = " Incertidumbre combinada no disponible." if "uncertainty_milliangstrom" in results else ""
+            lines.append(rf"\item {tex_escape(str(label))}, orden {tex_escape(str(order))}: EW = {float(ew_ma):.1f} m\AA.{availability}")
         else:
             lines.append(rf"\item {tex_escape(str(label))}: medición pendiente de revisar.")
         notes = payload.get("notes") or []

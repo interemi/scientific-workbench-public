@@ -93,6 +93,39 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func lithiumCommandUsesPWAndLabelOnlyForItsCourseworkSpectrum() throws {
+    let root = try makeScenarioFixture(
+      name: "lithium-command-target",
+      files: [
+        "scripts/datanalysis_env.py": "# runtime wrapper\n",
+        "scripts/li6708_equivalent_width_workbench.py": "# wrapper\n",
+        "target-spectrum.dat": "6707 1\n",
+        "practice/fits_p1/npwand_n3.fits": "coursework fixture\n",
+      ]
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+    let entry = CapabilityEntry(
+      id: "li6708_equivalent_width_workbench.measure",
+      label: "Li I equivalent width", script: "scripts/li6708_equivalent_width_workbench.py",
+      visibleBlock: "astronomy observational", kind: "specialized", supportLevel: "narrow",
+      platform: "portable", requiresDatanalysis: true, preflightMode: "none",
+      smokeTier: "core", shortDescription: "Measure equivalent width."
+    )
+    let builder = CapabilityCommandBuilder(pythonExecutable: "/usr/bin/python3")
+    for (input, useCourseworkTarget) in [("target-spectrum.dat", false), ("practice", true)] {
+      let run = root.appendingPathComponent("run-\(input)")
+      let command = try builder.build(
+        capability: entry,
+        request: RunRequest(capabilityID: entry.id, inputPaths: [root.appendingPathComponent(input).path],
+                            outputDirectory: run.path, rawArguments: ""),
+        skillRoot: root.path
+      )
+      #expect(command.arguments.contains("--target-name") == useCourseworkTarget)
+      #expect(command.arguments.contains("PW And") == useCourseworkTarget)
+    }
+  }
+
+  @Test
   func commandBuilderCreatesProfileTableCommand() throws {
     let entry = CapabilityEntry(
       id: "profile_table",

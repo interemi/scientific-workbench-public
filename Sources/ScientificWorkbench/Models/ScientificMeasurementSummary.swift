@@ -1,6 +1,6 @@
 import Foundation
 
-struct ScientificMeasurementSummary: Decodable, Sendable {
+struct ScientificMeasurementSummary: Sendable {
   struct Quantity: Decodable, Sendable {
     let label: String
     let value: Double
@@ -37,7 +37,7 @@ struct ScientificMeasurementSummary: Decodable, Sendable {
   let quality: Quality
 
   static func supports(_ capabilityID: String) -> Bool {
-    capabilityID == "photometric_solution"
+    ["photometric_solution", "li6708_equivalent_width_workbench.measure"].contains(capabilityID)
   }
 
   static func load(from url: URL, capabilityID: String) -> Self? {

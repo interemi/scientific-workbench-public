@@ -279,6 +279,22 @@ uses the same delimiter as the reviewed preview and keeps ECSV column metadata.
 Binary FITS tables, Parquet, and spreadsheets require a reviewed text conversion for this
 form, or the backend's expert CLI.
 
+### Measure Li I equivalent width
+
+The Li I 6707.8 Å workflow measures equivalent width by integrating the
+continuum-normalized line. Supply an angstrom-calibrated MULTISPEC FITS
+spectrum or an ASCII table whose first two numeric columns are wavelength
+in angstroms and flux. The workflow checks declared FITS units and uses
+positive equivalent width for absorption.
+
+Open the run summary in Results to see the continuum and integration
+windows, residual scatter, line depth, and uncertainty diagnostics. The
+continuum-noise proxy propagates the actual trapezoid weights and assumes
+independent samples. The window-sensitivity grid repeats the measurement
+with shifted windows. The combined uncertainty is an approximation from
+both terms. With the grid skipped or insufficient, the width remains
+available and the combined uncertainty is shown as unavailable.
+
 ### Populate a legacy spectroscopy report
 
 `legacy_spectroscopy_report_builder.populate` separates the report scaffold
