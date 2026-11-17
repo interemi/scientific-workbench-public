@@ -304,15 +304,83 @@ def check_bounded_fits(root: Path, environment: dict[str, str]) -> dict:
 
 
 def crossmatch_command(left: Path, right: Path, output: Path, summary: Path,
-                       manifest: Path, radius: str = "1") -> list[str]:
+                       manifest: Path, radius: str = "1", *options: str,
+                       right_columns: tuple[str, str] = ("ra_deg", "dec_deg")) -> list[str]:
     return [
         sys.executable, str(ROOT / "skills/scientific-data-analysis/scripts/catalog_workbench.py"),
         "crossmatch-sky", str(left), str(right), str(output),
         "--left-ra", "ra_deg", "--left-dec", "dec_deg",
-        "--right-ra", "ra_deg", "--right-dec", "dec_deg",
+        "--right-ra", right_columns[0], "--right-dec", right_columns[1],
         "--radius-arcsec", radius, "--summary-json", str(summary),
         "--manifest-json", str(manifest),
+        *options,
     ]
+
+
+def crossmatch_convention_cases(root: Path, environment: dict[str, str]) -> dict:
+    from astropy.table import Table
+
+    left = root / "input" / "mixed_left.tsv"
+    right = root / "input" / "mixed_right.ecsv"
+    left.write_text("source_id\tra_deg\tdec_deg\nL-wrap\t359.99995\t0\n", encoding="ascii")
+    table = Table({"source_id": ["R-wrap"], "ra": [math.radians(0.00005)], "dec": [0.0]})
+    table["ra"].unit = table["dec"].unit = "rad"
+    table.meta.update(coordinate_frame="ICRS", coordinate_epoch_jyear=2016.25)
+    table.write(right, format="ascii.ecsv")
+    inputs = [left, right]
+    original_hashes = {path.name: sha256(path) for path in inputs}
+
+    for name, ra_unit, epoch, message in [
+        ("mixed_units", "rad", "2016.25", None),
+        ("metadata_unit_conflict", "deg", "2016.25", "declares unit rad"),
+        ("metadata_epoch_conflict", "rad", "2000", "declares coordinate epoch 2016.25"),
+    ]:
+        case = root / name
+        output = case / "matches.ecsv"
+        summary = case / "summary.json"
+        manifest = case / "manifest.json"
+        completed = run(
+            crossmatch_command(
+                left, right, output, summary, manifest, "0.5",
+                "--right-ra-unit", ra_unit, "--right-dec-unit", "rad",
+                "--left-format", "tab", "--right-format", "ecsv",
+                "--coordinate-frame", "icrs", "--coordinate-epoch-jyear", epoch,
+                right_columns=("ra", "dec"),
+            ),
+            case, environment,
+        )
+        payload = read_json(summary)
+        if message is not None:
+            require(completed.returncode == 2 and payload.get("app_status") == "BLOCKED_CONTROLADO"
+                    and message in payload["results"]["message"], f"{name} was not controlled-blocked")
+            require(not output.exists() and not manifest.exists(), f"{name} wrote scientific output")
+            continue
+
+        require(completed.returncode == 0 and payload.get("app_status") == "PASS", f"{name} failed")
+        matches = Table.read(output, format="ascii.ecsv")
+        require(len(matches) == 1 and matches["source_id"][0] == "L-wrap"
+                and matches["right_source_id"][0] == "R-wrap", "crossmatch across RA zero differs")
+        actual_sep = float(matches["match_sep_arcsec"][0])
+        expected_sep = separation_arcsec(359.99995, 0.0, 0.00005, 0.0)
+        require(abs(actual_sep - expected_sep) < 1e-6, "mixed-unit separation differs")
+        check_manifest(manifest, inputs, [output, summary])
+        parameters = read_json(manifest)["parameters"]
+        expected = {
+            "left_ra": "ra_deg", "left_dec": "dec_deg", "right_ra": "ra", "right_dec": "dec",
+            "left_ra_unit": "deg", "left_dec_unit": "deg", "right_ra_unit": "rad", "right_dec_unit": "rad",
+            "left_format": "tab", "right_format": "ecsv",
+            "coordinate_frame": "icrs", "coordinate_epoch_jyear": 2016.25, "radius_arcsec": 0.5,
+            "proper_motion_applied": False,
+        }
+        for key, value in expected.items():
+            require(parameters.get(key) == value and payload["results"].get(key) == value,
+                    f"crossmatch evidence lost {key}")
+
+    require({path.name: sha256(path) for path in inputs} == original_hashes, "mixed catalogs changed")
+    return {
+        "input_sha256": original_hashes, "actual_sep_arcsec": actual_sep,
+        "unit_conflict": "BLOCKED_CONTROLADO", "epoch_conflict": "BLOCKED_CONTROLADO",
+    }
 
 
 def crossmatch_cases(root: Path, environment: dict[str, str]) -> dict:
@@ -352,6 +420,7 @@ def crossmatch_cases(root: Path, environment: dict[str, str]) -> dict:
     rejected = {}
     variants = {
         "zero_radius": (right, "0"),
+        "radius_over_half_circle": (right, "648000.01"),
         "missing_dec": (root / "input" / "missing_dec.csv", "1"),
         "nonfinite_ra": (root / "input" / "nonfinite_ra.csv", "1"),
         "out_of_range_ra": (root / "input" / "out_of_range_ra.csv", "1"),
@@ -420,6 +489,7 @@ def crossmatch_cases(root: Path, environment: dict[str, str]) -> dict:
         "baseline_sep_arcsec": expected_sep, "actual_sep_arcsec": actual_sep,
         "tolerance_arcsec": 1e-6, "rejections": rejected,
         "no_match_status": "WARNING",
+        "reviewed_conventions": crossmatch_convention_cases(root, environment),
     }
 
 
@@ -438,8 +508,8 @@ def main() -> int:
         "status": "FAIL", "source_commit": None,
         "fixture_origin": "project-authored synthetic; generated from published constants",
         "scientific_limit": (
-            "FITS preview is display-only; the crossmatch has no epoch, proper motion, "
-            "uncertainty, duplicate resolution, or physical-association validation."
+            "FITS preview is display-only. The crossmatch uses supplied positions and applies no epoch "
+            "transformation, proper motion, uncertainty, duplicate resolution, or physical-association validation."
         ),
     }
     try:

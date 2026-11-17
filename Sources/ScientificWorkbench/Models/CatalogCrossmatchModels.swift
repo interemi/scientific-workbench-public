@@ -19,18 +19,49 @@ struct CatalogCrossmatchColumn: Identifiable, Hashable, Sendable {
 struct CatalogCrossmatchTableReview: Sendable {
   let inputPath: String
   let formatLabel: String
+  let backendFormat: String
   let columns: [CatalogCrossmatchColumn]
   let sampledRowCount: Int
   let sampleWasTruncated: Bool
 }
 
+enum CatalogCrossmatchCoordinateUnit: String, CaseIterable, Sendable {
+  case degrees = "deg"
+  case radians = "rad"
+  case hours = "hourangle"
+
+  var label: String {
+    switch self {
+    case .degrees: "Decimal degrees"
+    case .radians: "Radians"
+    case .hours: "Decimal hours"
+    }
+  }
+
+  var fullCircle: Double {
+    switch self {
+    case .degrees: 360
+    case .radians: 2 * .pi
+    case .hours: 24
+    }
+  }
+}
+
+struct CatalogCrossmatchMapping: Equatable, Sendable {
+  var raColumn: Int?
+  var decColumn: Int?
+  var raUnit: CatalogCrossmatchCoordinateUnit?
+  var decUnit: CatalogCrossmatchCoordinateUnit?
+}
+
 struct CatalogCrossmatchSelection: Equatable, Sendable {
-  var leftRAColumn: Int?
-  var leftDecColumn: Int?
-  var rightRAColumn: Int?
-  var rightDecColumn: Int?
-  var radiusArcseconds: Double
-  var coordinateUnitsConfirmed: Bool
+  static let maximumRadiusArcseconds = 180.0 * 3_600
+
+  var left: CatalogCrossmatchMapping
+  var right: CatalogCrossmatchMapping
+  var radiusArcseconds: Double?
+  var sharedICRSConfirmed: Bool
+  var coordinateEpochJulianYear: Double?
 }
 
 struct CatalogCrossmatchValidation: Equatable, Sendable {
@@ -43,29 +74,42 @@ struct CatalogCrossmatchValidation: Equatable, Sendable {
   }
 }
 
+struct CatalogCrossmatchMappedColumn: Equatable, Sendable {
+  let name: String
+  let unit: CatalogCrossmatchCoordinateUnit
+
+  func arguments(role: String) -> [String] {
+    ["--\(role)", name, "--\(role)-unit", unit.rawValue]
+  }
+}
+
 struct CatalogCrossmatchPreparedRun: Equatable, Sendable {
   let leftPath: String
   let rightPath: String
-  let leftRAColumn: String
-  let leftDecColumn: String
-  let rightRAColumn: String
-  let rightDecColumn: String
+  let leftFormat: String
+  let rightFormat: String
+  let leftRA: CatalogCrossmatchMappedColumn
+  let leftDec: CatalogCrossmatchMappedColumn
+  let rightRA: CatalogCrossmatchMappedColumn
+  let rightDec: CatalogCrossmatchMappedColumn
   let radiusArcseconds: Double
+  let coordinateEpochJulianYear: Double
 
   func arguments(runURL: URL) -> [String] {
-    [
+    let columnArguments = leftRA.arguments(role: "left-ra")
+      + leftDec.arguments(role: "left-dec")
+      + rightRA.arguments(role: "right-ra")
+      + rightDec.arguments(role: "right-dec")
+    return [
       leftPath,
       rightPath,
       runURL.appendingPathComponent("artifacts/catalog_crossmatch.ecsv").path,
-      "--left-ra", leftRAColumn,
-      "--left-dec", leftDecColumn,
-      "--right-ra", rightRAColumn,
-      "--right-dec", rightDecColumn,
-      "--radius-arcsec", String(
-        format: "%.12g",
-        locale: Locale(identifier: "en_US_POSIX"),
-        radiusArcseconds
-      ),
+    ] + columnArguments + [
+      "--left-format", leftFormat,
+      "--right-format", rightFormat,
+      "--radius-arcsec", String(radiusArcseconds),
+      "--coordinate-frame", "icrs",
+      "--coordinate-epoch-jyear", String(coordinateEpochJulianYear),
       "--summary-json", runURL.appendingPathComponent("summary.json").path,
       "--manifest-json", runURL.appendingPathComponent("manifest.json").path,
     ]

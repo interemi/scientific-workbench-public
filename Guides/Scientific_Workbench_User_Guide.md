@@ -245,14 +245,28 @@ fits without uncertainties produce warnings. The original table is unchanged;
 
 ### Guided sky crossmatch
 
-`catalog_workbench.crossmatch-sky` requires two distinct text tables, explicit
-RA/Dec columns for each, confirmation of decimal degrees, and a positive match
-radius in arcseconds. Review numeric fractions, ranges, and previews.
-Nonfinite values, repeated columns, and coordinates outside RA `[0, 360)` or
-Dec `[-90, 90]` are rejected; the backend rechecks all rows.
+`catalog_workbench.crossmatch-sky` requires two distinct text tables. Choose the
+RA and Dec columns and their units for each catalog. Both axes accept decimal
+degrees or radians. RA also accepts decimal hours of right ascension. Review
+the numeric fractions and ranges before running.
 
-The guided inspector supports CSV, TSV, ECSV, and delimited text. Binary FITS
-tables, Parquet, and spreadsheets require a reviewed text conversion for this
+Confirm that both catalogs contain ICRS positions at the same coordinate
+epoch and enter that epoch as a Julian year, for example `2016.0`. Use the
+epoch of the positions themselves. If the catalogs differ in frame or epoch,
+prepare aligned copies before attaching them. The matcher applies no frame
+conversion or proper-motion propagation.
+
+Enter a finite radius in arcseconds greater than zero and at most 648,000
+(180 degrees). The matcher takes the nearest right-catalog row for each left
+row within that radius. The backend checks every row and rejects nonfinite or
+out-of-range coordinates and conflicting column units. ECSV metadata can
+declare `coordinate_frame` and `coordinate_epoch_jyear` for a consistency
+check. The summary and manifest record the four column mappings and units,
+the frame and epoch, and the radius. Both input files stay unchanged.
+
+The guided inspector supports CSV, TSV, ECSV, and delimited text. The backend
+uses the same delimiter as the reviewed preview and keeps ECSV column metadata.
+Binary FITS tables, Parquet, and spreadsheets require a reviewed text conversion for this
 form, or the backend's expert CLI.
 
 ### Populate a legacy spectroscopy report
