@@ -621,6 +621,79 @@ def lithium_equivalent_width_cases(root: Path, environment: dict[str, str]) -> d
     return {"input_sha256": originals, "noise_proxy_milliangstrom": expected_noise, "cases": checks}
 
 
+def sb2_cases(root: Path, environment: dict[str, str]) -> dict:
+    import csv
+
+    inputs = []
+    specifications = [
+        ("observation_a", 1, -42.0, 38.0, 241),
+        ("observation_a", 2, -41.7, 38.4, 241),
+        ("observation_b", 1, -15.0, 64.0, 241),
+        ("observation_b", 2, -15.0, 64.0, 8),
+    ]
+    for name, aperture, left, right, count in specifications:
+        source = root / "input" / f"sb2_{name}_{aperture}.csv"
+        with source.open("w", encoding="ascii", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["case_id", "aperture", "velocity_kms", "ccf_value"])
+            for index in range(count):
+                velocity = -120 + 240 * index / (count - 1)
+                signal = (
+                    0.15 + 0.9 * math.exp(-0.5 * ((velocity - left) / 9.0)**2)
+                    + 0.75 * math.exp(-0.5 * ((velocity - right) / 11.0)**2)
+                    + 0.001 * aperture * math.sin(velocity)
+                )
+                writer.writerow([name, aperture, velocity, signal])
+        inputs.append(source)
+    originals = {source.name: sha256(source) for source in inputs}
+    case = root / "sb2"
+    products = case / "products"
+    summary = case / "summary.json"
+    manifest = case / "manifest.json"
+    completed = run(
+        [sys.executable, str(ROOT / "skills/scientific-data-astro/scripts/sb2_double_gaussian_workbench.py"),
+         "fit", *map(str, inputs), "--output-dir", str(products), "--summary-json", str(summary),
+         "--manifest-json", str(manifest)],
+        case, environment,
+    )
+    payload = read_json(summary)
+    result = payload["results"]
+    require(completed.returncode == 0 and payload["app_status"] == "WARNING",
+            "partially rejected SB2 runs must report a warning")
+    require(result["accepted_count"] == 3 and result["rejected_count"] == 1, "SB2 acceptance counts differ")
+    require(result["component_a_summary"] is None and result["component_b_summary"] is None,
+            "SB2 pooled different cases")
+    cases = {item["case_id"]: item for item in result["case_summaries"]}
+    require(list(cases) == ["observation_a", "observation_b"], "SB2 case grouping differs")
+    rows = result["order_rows"]
+    for row, (_, _, left, right, _) in zip(rows[:3], specifications):
+        require(abs(row["center_left_kms"] - left) < 0.03 and abs(row["center_right_kms"] - right) < 0.03,
+                "SB2 fit failed to recover synthetic centers")
+    for name, row_slice in [("observation_a", rows[:2]), ("observation_b", rows[2:3])]:
+        for side, component in [("left", "component_a_summary"), ("right", "component_b_summary")]:
+            reported = cases[name][component]
+            weights = [row[f"center_{side}_err_kms"]**-2 for row in row_slice]
+            mean = sum(weight * row[f"center_{side}_kms"] for row, weight in zip(row_slice, weights)) / sum(weights)
+            require(reported["n_orders"] == len(row_slice) and abs(reported["mean_kms"] - mean) < 1e-10
+                    and abs(reported["err_kms"] - math.sqrt(1 / sum(weights))) < 1e-10,
+                    "SB2 per-case weighting differs")
+    require(rows[-1]["acceptance_flags"] == "fit_failed" and rows[-1]["center_left_kms"] is None
+            and "12 distinct samples" in rows[-1]["fit_error"]
+            and any("12 distinct samples" in finding["message"] for finding in payload["qa"]["findings"]),
+            "SB2 failure must retain a reason and omit derived velocities")
+    details = result["measurement_summary"]
+    require(len(details["measurements"]) == 4 and all(row["unit"] == "km/s" for row in details["measurements"]),
+            "SB2 did not retain structured units and case measurements")
+    figures = sorted((products / "figures").glob("*.png"))
+    require([path.name for path in figures] == [Path(row["figure_path"]).name for row in rows[:3]],
+            "SB2 figures differ from the reported successful fits")
+    check_manifest(manifest, inputs, [
+        products / "sb2_double_gaussian_orders.csv", products / "summary.md", *figures, summary,
+    ])
+    require({source.name: sha256(source) for source in inputs} == originals, "SB2 inputs changed")
+    return {"accepted_count": 3, "rejected_count": 1, "cases": cases, "input_sha256": originals}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -655,6 +728,7 @@ def main() -> int:
         evidence["crossmatch"] = crossmatch_cases(output, environment)
         evidence["photometry"] = photometric_cases(output, environment)
         evidence["lithium_equivalent_width"] = lithium_equivalent_width_cases(output, environment)
+        evidence["sb2"] = sb2_cases(output, environment)
         evidence["status"] = "PASS"
     except Exception as error:
         evidence["failure"] = str(error)
@@ -663,7 +737,7 @@ def main() -> int:
         (output / "verification.json").write_text(
             json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-    print(f"Scientific known-answer PASS: FITS/WCS, sky crossmatch, photometric calibration, and lithium EW. Evidence: {output}")
+    print(f"Scientific known-answer PASS: FITS/WCS, sky crossmatch, photometric calibration, lithium EW, and SB2. Evidence: {output}")
     return 0
 
 

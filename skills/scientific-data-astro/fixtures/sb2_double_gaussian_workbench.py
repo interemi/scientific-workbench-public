@@ -17,6 +17,12 @@ from _internal.runtime_common import clean_known_stderr, configure_runtime
 
 TOOL_NAME = "sb2_double_gaussian_workbench.fit"
 TOOL_NAME_ORDERS = "sb2_double_gaussian_workbench.fit-orders"
+FIT_METHOD = "Bounded least-squares fit of two Gaussians and a constant baseline"
+ACCEPTANCE_FINDINGS = {
+    "low_peak_separation": "The fitted peaks are closer than the requested minimum separation.",
+    "sigma_out_of_range": "A fitted Gaussian width falls outside the review range of 2.5–120 km/s.",
+    "non_positive_peak": "A fitted peak has a non-positive amplitude.",
+}
 
 
 class InputValidationError(Exception):
@@ -88,6 +94,7 @@ def blocked_payload(args, issues: list[str], tool_name: str | None = None) -> di
             "input_count": len(args.inputs or []),
             "fxcor_csv": list(args.fxcor_csv or []),
             "min_separation": args.min_separation,
+            "measurement_summary": {"method": FIT_METHOD, "measurements": [], "diagnostics": [], "assumptions": []},
         },
         qa=standard_qa_payload(status="blocked", findings=issues, metrics={"issue_count": len(issues)}),
     )
@@ -162,13 +169,22 @@ def read_ccf_csv(path: Path) -> dict:
             continue
         xs.append(velocity_value)
         ys.append(ccf_numeric)
-        if metadata["aperture"] is None and row.get("aperture"):
+        if row.get("aperture"):
             try:
-                metadata["aperture"] = int(float(row["aperture"]))
+                value = float(row["aperture"])
+                if not math.isfinite(value) or not value.is_integer():
+                    raise ValueError
+                aperture = int(value)
+                if metadata["aperture"] not in (None, aperture):
+                    raise InputValidationError([f"{public_path(path)} contains multiple apertures. Supply one CCF per file."])
+                metadata["aperture"] = aperture
             except ValueError:
                 issues.append(f"{public_path(path)}: aperture no es numerico: {row['aperture']!r}")
-        if metadata["case_id"] is None and row.get("case_id"):
-            metadata["case_id"] = row["case_id"]
+        case_id = (row.get("case_id") or "").strip()
+        if case_id:
+            if metadata["case_id"] not in (None, case_id):
+                raise InputValidationError([f"{public_path(path)} contains multiple case IDs. Supply one CCF per file."])
+            metadata["case_id"] = case_id
     if len(xs) < 7:
         issues.append(f"{public_path(path)}: se necesitan al menos 7 puntos numericos para ajustar dos gaussianas.")
     if xs and max(xs) <= min(xs):
@@ -325,9 +341,6 @@ def weighted_component_mean(rows: list[dict], key: str) -> dict | None:
         component = row.get(key) or {}
         center = component.get("center_kms")
         err = component.get("center_err_kms")
-        if err is None:
-            sigma = component.get("sigma_kms")
-            err = max(1.0, float(sigma) / 6.0) if sigma is not None and math.isfinite(float(sigma)) else None
         if center is None or err is None or not math.isfinite(float(center)) or not math.isfinite(float(err)) or float(err) <= 0:
             continue
         usable.append((center, err))
@@ -340,6 +353,61 @@ def weighted_component_mean(rows: list[dict], key: str) -> dict | None:
     mean = sum(value * weight for (value, _), weight in zip(usable, weights)) / total_weight
     err = math.sqrt(1.0 / total_weight)
     return {"mean_kms": mean, "err_kms": err, "n_orders": len(usable)}
+
+
+def summarize_cases(rows: list[dict]) -> list[dict]:
+    from statistics import median
+
+    cases = {}
+    for row in rows:
+        cases.setdefault(row["case_id"], []).append(row)
+    summaries = []
+    for case_id, orders in cases.items():
+        accepted = [row for row in orders if row["status"] == "accepted"]
+        summaries.append({
+            "case_id": case_id,
+            "accepted_count": len(accepted),
+            "rejected_count": len(orders) - len(accepted),
+            "component_a_summary": weighted_component_mean(accepted, "left"),
+            "component_b_summary": weighted_component_mean(accepted, "right"),
+            "median_ccf_residual_rms": median(row["rms"] for row in accepted) if accepted else None,
+        })
+    return summaries
+
+
+def measurement_summary(cases: list[dict], min_separation: float) -> dict:
+    measurements = []
+    diagnostics = []
+    for case in cases:
+        prefix = f"{case['case_id']} · " if len(cases) > 1 else ""
+        for key, name in [("component_a_summary", "Lower-velocity peak"), ("component_b_summary", "Higher-velocity peak")]:
+            component = case[key]
+            if component is not None:
+                measurements.append({
+                    "label": prefix + name, "value": component["mean_kms"], "unit": "km/s",
+                    "uncertainty": component["err_kms"],
+                })
+        diagnostics.extend([
+            {"label": prefix + "Orders accepted", "value": case["accepted_count"], "unit": "dimensionless"},
+            {"label": prefix + "Orders rejected", "value": case["rejected_count"], "unit": "dimensionless"},
+        ])
+        if case["median_ccf_residual_rms"] is not None:
+            diagnostics.append({
+                "label": prefix + "Median CCF residual RMS",
+                "value": case["median_ccf_residual_rms"], "unit": "CCF units",
+            })
+    return {
+        "method": FIT_METHOD,
+        "measurements": measurements,
+        "diagnostics": diagnostics,
+        "assumptions": [
+            f"The minimum accepted peak separation is {min_separation:g} km/s.",
+            "Peaks are ordered by fitted velocity within each trace. Stellar identity requires separate review.",
+            "Per-case means use inverse-variance weights from formal fit errors. The combined errors assume independent orders.",
+            "Formal errors use the local fit covariance and residual variance. They exclude calibration and template systematics.",
+            "Traces with no case ID share the default case. Group orders from the same observation.",
+        ],
+    }
 
 
 def plot_fit(path: Path, trace: dict, fit_result: dict, label: str) -> None:
@@ -416,6 +484,7 @@ def cmd_fit_orders(args):
                     "source_csv": metadata["source_csv"],
                     "status": "rejected",
                     "acceptance_flags": "fit_failed",
+                    "fit_error": str(exc),
                     "center_left_kms": None,
                     "center_left_err_kms": None,
                     "sigma_left_kms": None,
@@ -433,7 +502,7 @@ def cmd_fit_orders(args):
             continue
         comparisons = compare_with_fxcor(fit_result, fxcor_rows)
         status = "accepted" if not fit_result["flags"] else "rejected"
-        figure_path = figures_dir / f"{case_id}_order_{aperture:03d}.png"
+        figure_path = figures_dir / f"trace_{index:03d}_order_{aperture:03d}.png"
         plot_fit(figure_path, trace, fit_result, f"{case_id} orden {aperture}")
         order_rows.append(
             {
@@ -457,8 +526,7 @@ def cmd_fit_orders(args):
             }
         )
 
-    component_a = weighted_component_mean(order_rows, "left")
-    component_b = weighted_component_mean(order_rows, "right")
+    cases = summarize_cases(order_rows)
     table_path = output_dir / "sb2_double_gaussian_orders.csv"
     with table_path.open("w", newline="", encoding="utf-8") as handle:
         fieldnames = [
@@ -467,6 +535,7 @@ def cmd_fit_orders(args):
             "source_csv",
             "status",
             "acceptance_flags",
+            "fit_error",
             "center_left_kms",
             "center_left_err_kms",
             "sigma_left_kms",
@@ -486,25 +555,44 @@ def cmd_fit_orders(args):
     lines = ["# SB2 Double Gaussian Summary", ""]
     accepted = [row for row in order_rows if row["status"] == "accepted"]
     lines.append(f"- Ordenes aceptados: `{len(accepted)}` / `{len(order_rows)}`")
-    if component_a:
-        lines.append(f"- Componente A: `{component_a['mean_kms']:.3f} +/- {component_a['err_kms']:.3f} km/s` con `{component_a['n_orders']}` ordenes.")
-    if component_b:
-        lines.append(f"- Componente B: `{component_b['mean_kms']:.3f} +/- {component_b['err_kms']:.3f} km/s` con `{component_b['n_orders']}` ordenes.")
+    for case in cases:
+        lines.extend(["", f"## Caso {case['case_id']}", ""])
+        for key, label in [("component_a_summary", "Pico de menor velocidad"), ("component_b_summary", "Pico de mayor velocidad")]:
+            component = case[key]
+            if component:
+                lines.append(
+                    f"- {label}: `{component['mean_kms']:.3f} +/- {component['err_kms']:.3f} km/s` "
+                    f"con `{component['n_orders']}` ordenes. Incertidumbre formal."
+                )
     lines.extend(["", "## Ordenes rechazados", ""])
     rejected = [row for row in order_rows if row["status"] != "accepted"]
     if rejected:
         for row in rejected:
-            lines.append(f"- Orden {row['aperture']}: {row['acceptance_flags'] or 'revisar manualmente'}")
+            reason = row.get("fit_error") or row["acceptance_flags"]
+            lines.append(f"- Caso {row['case_id']}, orden {row['aperture']}: {reason}")
     else:
         lines.append("- Ninguno.")
     summary_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    status = "ok" if accepted else "warning"
+    status = "warning" if rejected else "ok"
+    findings = []
+    for row in rejected:
+        reason = row.get("fit_error") or " ".join(
+            ACCEPTANCE_FINDINGS[flag] for flag in row["acceptance_flags"].split(";")
+        )
+        findings.append({
+            "aperture": row["aperture"],
+            "flags": row["acceptance_flags"],
+            "case_id": row["case_id"],
+            "message": f"{row['case_id']}, order {row['aperture']}: {reason}",
+        })
+    single_case = cases[0] if len(cases) == 1 else {}
     payload = standard_tool_payload(
         tool_name,
         status=status,
         notes=notes,
         artifacts={
+            "summary_json": args.summary_json,
             "orders_csv": str(table_path),
             "summary_md": str(summary_md),
             "figures_dir": str(figures_dir),
@@ -513,16 +601,20 @@ def cmd_fit_orders(args):
             "order_rows": order_rows,
             "accepted_count": len(accepted),
             "rejected_count": len(rejected),
-            "component_a_summary": component_a,
-            "component_b_summary": component_b,
+            "component_a_summary": single_case.get("component_a_summary"),
+            "component_b_summary": single_case.get("component_b_summary"),
+            "case_summaries": cases,
+            "measurement_summary": measurement_summary(cases, args.min_separation),
         },
         qa=standard_qa_payload(
-            status="warning" if rejected else "ok",
-            findings=[{"aperture": row["aperture"], "flags": row["acceptance_flags"]} for row in rejected],
+            status=status,
+            findings=findings,
             metrics={"order_count": len(order_rows), "accepted_count": len(accepted)},
         ),
     )
-    outputs = [table_path, summary_md, *figures_dir.glob("*.png")]
+    outputs = [table_path, summary_md, *(Path(row["figure_path"]) for row in order_rows if row["figure_path"])]
+    if args.summary_json:
+        outputs.append(Path(args.summary_json).expanduser())
     manifest_inputs = [Path(raw).expanduser().resolve() for raw in args.inputs]
     manifest_inputs.extend(Path(raw).expanduser().resolve() for raw in args.fxcor_csv)
     return emit_fit_payload(
@@ -530,7 +622,7 @@ def cmd_fit_orders(args):
         args,
         manifest_inputs=manifest_inputs,
         manifest_outputs=outputs,
-        manifest_parameters={"tool": tool_name, "min_separation": args.min_separation},
+        manifest_parameters={"tool": tool_name, "min_separation": args.min_separation, "case_id": args.case_id},
         manifest_notes=notes,
     )
 

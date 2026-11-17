@@ -295,6 +295,20 @@ with shifted windows. The combined uncertainty is an approximation from
 both terms. With the grid skipped or insufficient, the width remains
 available and the combined uncertainty is shown as unavailable.
 
+### Review two-peak SB2 fits
+
+Supply one cross-correlation trace per CSV, with velocity in `km/s` and
+a CCF value. Use the same case ID for orders from a single observation.
+Unlabeled traces share the default case. Results shows the lower- and
+higher-velocity peak estimates per case, the median residual RMS of accepted
+orders, and the reasons for rejected orders. Velocity order alone does not
+identify the stars.
+
+The combined peak velocities use inverse-variance weights from the fitted
+center errors. The formal errors assume independent orders and exclude
+calibration and template systematics. Inspect the order table and plots
+before interpreting the combined estimates.
+
 ### Populate a legacy spectroscopy report
 
 `legacy_spectroscopy_report_builder.populate` separates the report scaffold

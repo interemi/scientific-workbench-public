@@ -4995,8 +4995,8 @@
     "scientific-data-astro/fixtures/sb2_double_gaussian_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "11eedac0f711c5cc718a6e13c2c7c841895022e899d5ec47528cfb49828b6021",
-      "size": 24097
+      "sha256": "3ba5a24d64958125730dc7fe7c0e899365e63e3fa920e853376e4247c7b29388",
+      "size": 28502
     },
     "scientific-data-astro/fixtures/spectra_ascii_coursework_workbench.py": {
       "executable": false,

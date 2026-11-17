@@ -11,6 +11,24 @@ struct ScientificMeasurementSummary: Sendable {
   struct Quality: Decodable, Sendable {
     let status: String
     let findings: [String]
+
+    private struct Finding: Decodable {
+      let message: String
+    }
+
+    private enum CodingKeys: String, CodingKey {
+      case status, findings
+    }
+
+    init(from decoder: any Decoder) throws {
+      let values = try decoder.container(keyedBy: CodingKeys.self)
+      status = try values.decode(String.self, forKey: .status)
+      if let text = try? values.decode([String].self, forKey: .findings) {
+        findings = text
+      } else {
+        findings = try values.decode([Finding].self, forKey: .findings).map(\.message)
+      }
+    }
   }
 
   private struct Details: Decodable {
@@ -37,7 +55,8 @@ struct ScientificMeasurementSummary: Sendable {
   let quality: Quality
 
   static func supports(_ capabilityID: String) -> Bool {
-    ["photometric_solution", "li6708_equivalent_width_workbench.measure"].contains(capabilityID)
+    ["photometric_solution", "li6708_equivalent_width_workbench.measure", "sb2_double_gaussian_workbench.fit"]
+      .contains(capabilityID)
   }
 
   static func load(from url: URL, capabilityID: String) -> Self? {
