@@ -26,6 +26,13 @@ from _internal.provenance_utils import public_path, write_manifest
 from _internal.tabular_io import read_table_any
 
 
+PARAMETER_DETAILS = {
+    "zero_point": ("Zero point", "mag"),
+    "extinction": ("Extinction coefficient", "mag per unit airmass"),
+    "color_term": ("Color coefficient", "mag per mag of color"),
+}
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input_table", help="Table with standard-star measurements (`.csv`, `.tsv`, `.ecsv`, `.fits`, ...).")
@@ -111,6 +118,12 @@ def blocked_payload(args, message: str) -> dict:
             "fitted_model": None,
             "parameters": {},
             "error": message,
+            "measurement_summary": {
+                "method": "Linear least-squares photometric calibration",
+                "measurements": [],
+                "diagnostics": [],
+                "assumptions": [],
+            },
         },
         inputs=[input_path],
     )
@@ -155,22 +168,20 @@ def weighted_lstsq(design: np.ndarray, values: np.ndarray, sigma: np.ndarray | N
         raise SystemExit(
             "The photometric solution is ill-conditioned. Broaden the airmass/color coverage or fit fewer terms."
         )
-    beta, _, _, _ = np.linalg.lstsq(xw, yw, rcond=None)
+    beta, _, rank, _ = np.linalg.lstsq(xw, yw, rcond=None)
+    if rank != design.shape[1]:
+        raise SystemExit("The standards do not constrain all fitted parameters.")
     base_covariance = np.linalg.inv(normal_matrix)
     model = design @ beta
     residuals = values - model
     dof = len(values) - design.shape[1]
-    if dof > 0:
-        if sigma is None:
-            scale = float(np.sum(np.square(residuals)) / dof)
-        else:
-            # Supplied sigma values are absolute measurement uncertainties.
-            # Their covariance is already encoded in (X^T W X)^-1 and must not
-            # collapse when an exact or over-fitting data set has chi^2 << dof.
-            scale = 1.0
+    if sigma is not None:
+        # Absolute input uncertainties already set the covariance scale.
+        covariance = base_covariance
+    elif dof > 0:
+        covariance = base_covariance * float(np.sum(np.square(residuals)) / dof)
     else:
-        scale = 1.0
-    covariance = base_covariance * max(scale, 1.0e-12)
+        covariance = None
     return beta, covariance, weights, residuals
 
 
@@ -186,8 +197,8 @@ def build_design(df: pd.DataFrame, args) -> tuple[np.ndarray, list[str]]:
     return design, columns
 
 
-def save_coefficients(path: Path, names: list[str], values: np.ndarray, errors: np.ndarray):
-    rows = [{"parameter": name, "value": float(value), "uncertainty": float(error)} for name, value, error in zip(names, values, errors)]
+def save_coefficients(path: Path, parameters: dict):
+    rows = [{"parameter": name, **details} for name, details in parameters.items()]
     pd.DataFrame(rows).to_csv(path, index=False)
 
 
@@ -253,12 +264,17 @@ def write_report(path: Path, summary: dict):
         f"- Input table: `{summary['input_table']}`",
         f"- Row count used: `{summary['row_count']}`",
         f"- Model: `{summary['fitted_model']}`",
+        f"- Method: {summary['fit_method']}",
+        f"- Uncertainty: {summary['uncertainty_note']}",
         "",
         "## Coefficients",
         "",
     ]
     for name, payload in summary["parameters"].items():
-        lines.append(f"- `{name}` = `{payload['value']:.6f} +/- {payload['uncertainty']:.6f}`")
+        uncertainty = payload["uncertainty"]
+        error = f" +/- {uncertainty:.6g}" if uncertainty is not None else ""
+        unavailable = " (uncertainty unavailable)" if uncertainty is None else ""
+        lines.append(f"- `{name}` = `{payload['value']:.6g}{error}` {payload['unit']}{unavailable}")
     lines.extend(
         [
             "",
@@ -266,7 +282,8 @@ def write_report(path: Path, summary: dict):
             "",
             f"- RMS residual: `{summary['rms_residual_mag']:.6f}` mag",
             f"- Median absolute residual: `{summary['median_abs_residual_mag']:.6f}` mag",
-            f"- Reduced chi-square: `{summary['reduced_chi2']}`",
+            f"- Residual degrees of freedom: `{summary['residual_degrees_of_freedom']}`",
+            f"- Reduced chi-square: `{summary['reduced_chi2'] if summary['reduced_chi2'] is not None else 'unavailable'}`",
             f"- Airmass range: `{summary['coverage']['airmass_min']:.4f}` to `{summary['coverage']['airmass_max']:.4f}`",
         ]
     )
@@ -280,6 +297,37 @@ def write_report(path: Path, summary: dict):
     lines.extend(["", "## Notes", ""])
     lines.extend([f"- {item}" for item in summary["notes"]])
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def measurement_summary(summary: dict, work: pd.DataFrame, *, weighted: bool) -> dict:
+    assumptions = [
+        summary["fitted_model"],
+        summary["uncertainty_note"],
+        "The fit assumes independent standards. Systematic calibration errors are not included.",
+    ]
+    for column, label in [("catalog_magnitude_system", "Catalog magnitude system"), ("calibration_passband", "Passband")]:
+        if column in work and work[column].notna().all() and work[column].nunique() == 1:
+            assumptions.append(f"{label}: {work[column].iloc[0]}.")
+    diagnostics = [
+        {"label": "Standards used", "value": summary["row_count"], "unit": "rows"},
+        {"label": "Residual degrees of freedom", "value": summary["residual_degrees_of_freedom"], "unit": "dimensionless"},
+        {"label": "Weighted RMS residual" if weighted else "RMS residual",
+         "value": summary["rms_residual_mag"], "unit": "mag"},
+        {"label": "Median absolute residual", "value": summary["median_abs_residual_mag"], "unit": "mag"},
+    ]
+    if summary["reduced_chi2"] is not None:
+        diagnostics.append({"label": "Reduced chi-square", "value": summary["reduced_chi2"], "unit": "dimensionless"})
+    else:
+        assumptions.append("Reduced chi-square requires supplied uncertainties and positive residual degrees of freedom.")
+    return {
+        "method": summary["fit_method"],
+        "assumptions": assumptions,
+        "measurements": [
+            {"label": PARAMETER_DETAILS[name][0], **details}
+            for name, details in summary["parameters"].items()
+        ],
+        "diagnostics": diagnostics,
+    }
 
 
 def run_solution(args) -> int:
@@ -330,18 +378,29 @@ def run_solution(args) -> int:
     design, parameter_names = build_design(work, args)
     beta, covariance, weights, residuals = weighted_lstsq(design, observed_offset, sigma)
     model = design @ beta
-    parameter_errors = np.sqrt(np.diag(covariance))
-
-    dof = max(len(work) - len(parameter_names), 1)
+    dof = len(work) - len(parameter_names)
+    fit_method = "Weighted linear least squares" if sigma is not None else "Ordinary linear least squares"
+    if covariance is None:
+        parameter_errors = [None] * len(parameter_names)
+        uncertainty_note = "Uncertainty unavailable without supplied uncertainties or positive residual degrees of freedom."
+    else:
+        parameter_errors = np.sqrt(np.diag(covariance)).tolist()
+        uncertainty_note = (
+            "Formal standard errors use the supplied absolute one-sigma offset uncertainties."
+            if sigma is not None
+            else "Formal standard errors use residual scatter and assume a common variance."
+        )
     if sigma is None:
         rms = float(np.sqrt(np.mean(np.square(residuals))))
         reduced_chi2 = None
     else:
         chi2 = float(np.sum(np.square(residuals / sigma)))
-        reduced_chi2 = chi2 / dof
+        reduced_chi2 = chi2 / dof if dof > 0 else None
         rms = float(np.sqrt(np.average(np.square(residuals), weights=weights)))
     median_abs_residual = float(np.median(np.abs(residuals)))
     quality_flags = build_quality_flags(work, args, residuals, sigma, len(parameter_names))
+    if dof == 0:
+        quality_flags.append("The number of standards equals the number of coefficients. Residuals cannot independently check the fit.")
 
     coverage = {
         "airmass_min": float(work[args.airmass_col].min()),
@@ -359,9 +418,12 @@ def run_solution(args) -> int:
     summary = {
         "input_table": public_path(input_path),
         "row_count": int(len(work)),
+        "fit_method": fit_method,
+        "uncertainty_note": uncertainty_note,
+        "residual_degrees_of_freedom": dof,
         "fitted_model": "std_mag - inst_mag = zero_point + extinction*airmass" + (" + color_term*color" if args.include_color_term else ""),
         "parameters": {
-            name: {"value": float(value), "uncertainty": float(error)}
+            name: {"value": float(value), "uncertainty": error, "unit": PARAMETER_DETAILS[name][1]}
             for name, value, error in zip(parameter_names, beta, parameter_errors)
         },
         "rms_residual_mag": rms,
@@ -390,7 +452,7 @@ def run_solution(args) -> int:
             "report_md": args.report_md,
             "manifest_json": args.manifest_json,
         },
-        results=summary,
+        results={**summary, "measurement_summary": measurement_summary(summary, work, weighted=sigma is not None)},
         qa={
             "status": "warning" if quality_flags else "ok",
             "findings": quality_flags,
@@ -414,7 +476,7 @@ def run_solution(args) -> int:
     if args.coefficients_csv:
         coeff_path = Path(args.coefficients_csv)
         coeff_path.parent.mkdir(parents=True, exist_ok=True)
-        save_coefficients(coeff_path, parameter_names, beta, parameter_errors)
+        save_coefficients(coeff_path, summary["parameters"])
         outputs.append(coeff_path)
         print(f"Saved coefficients: {public_path(coeff_path)}")
     if args.residual_csv:

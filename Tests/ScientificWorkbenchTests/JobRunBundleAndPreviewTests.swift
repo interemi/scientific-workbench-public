@@ -535,6 +535,51 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func measurementPreviewKeepsMissingUncertaintyDistinctFromZero() async throws {
+    let summaryText = """
+    {
+      "tool": "photometric_solution",
+      "results": {
+        "measurement_summary": {
+          "method": "Ordinary linear least squares",
+          "measurements": [
+            {"label": "Zero point", "value": 1.2, "unit": "mag", "uncertainty": null},
+            {"label": "Extinction", "value": -0.2, "unit": "mag per unit airmass", "uncertainty": 0}
+          ],
+          "diagnostics": [{"label": "Residual degrees of freedom", "value": 0, "unit": "dimensionless"}],
+          "assumptions": ["Systematic errors are outside the model."]
+        }
+      },
+      "qa": {"status": "warning", "findings": ["Residuals cannot independently check the fit."]}
+    }
+    """
+    let root = try makeScenarioFixture(
+      name: "measurement-preview",
+      files: ["summary.json": summaryText, "legacy-summary.json": #"{"tool":"photometric_solution","results":{}}"#]
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+    let capability = CapabilityEntry(
+      id: "photometric_solution", label: "Photometry", script: "photometry.py", visibleBlock: "astronomy",
+      kind: "supporting_tool", supportLevel: "stable", platform: "portable",
+      requiresDatanalysis: true, preflightMode: "none", smokeTier: "core", shortDescription: "Photometry."
+    )
+    let job = JobRecord(capability: capability, runDirectory: root.path)
+    let url = root.appendingPathComponent("summary.json")
+    let artifact = Artifact(path: url.path, relativePath: "summary.json",
+                            byteCount: Int64(summaryText.utf8.count), artifactType: "summary_json")
+    let preview = try #require(await ArtifactPreviewLoader.shared.load(artifact, in: job, includePreview: true, redact: { $0 }))
+    let summary = try #require(preview.measurementSummary)
+    #expect(summary.measurements.map(\.uncertainty) == [nil, 0])
+    #expect(summary.diagnostics.first?.value == 0)
+    #expect(summary.quality.status == "warning")
+    #expect(summary.quality.findings == ["Residuals cannot independently check the fit."])
+    #expect(preview.payload?.kind == .json)
+    #expect(ScientificMeasurementSummary.load(from: url, capabilityID: "inspect_fits") == nil)
+    #expect(ScientificMeasurementSummary.load(from: root.appendingPathComponent("legacy-summary.json"),
+                                             capabilityID: capability.id) == nil)
+  }
+
+  @Test
   func rasterPreviewCacheReusesOnlyTheCurrentVersionAndClearsOnlyTheReviewedEntry() async throws {
     let root = try makeScenarioFixture(name: "raster-preview-cache", files: ["stderr.txt": "failure evidence"])
     defer { try? FileManager.default.removeItem(at: root) }

@@ -337,6 +337,7 @@ struct ArtifactPreview: View {
   @State private var loadedPreview: (id: RequestID, snapshot: ArtifactPreviewSnapshot)?
   @State private var showTableText = false
   @State private var showFITSJSON = false
+  @State private var showMeasurementJSON = false
   private var isTable: Bool { TablePreviewService.supports(artifact) }
   private var requestID: RequestID {
     RequestID(job: job.id, runDirectory: job.runDirectory, artifact: artifact,
@@ -362,6 +363,14 @@ struct ArtifactPreview: View {
             .textSelection(.enabled)
         }
         Spacer()
+        if ScientificMeasurementSummary.supports(job.capabilityID),
+           let summary = job.artifacts.first(where: { $0.relativePath == "summary.json" }),
+           summary.id != artifact.id {
+          Button("Open run summary") {
+            store.selectResultArtifact(summary.id, for: job)
+          }
+          .accessibilityIdentifier("results.measurements.open-summary")
+        }
         Button {
           Task { await store.revealArtifact(artifact) }
         } label: {
@@ -402,6 +411,15 @@ struct ArtifactPreview: View {
           }
           .id(requestID)
         }
+      } else if let measurements = snapshot?.measurementSummary {
+        Toggle("Raw JSON", isOn: $showMeasurementJSON)
+          .controlSize(.small)
+          .accessibilityIdentifier("results.measurements.raw-json")
+        if showMeasurementJSON {
+          preview(snapshot)
+        } else {
+          ScientificMeasurementSummaryView(summary: measurements, redact: store.redactedPreviewText)
+        }
       } else {
         preview(snapshot)
       }
@@ -412,6 +430,7 @@ struct ArtifactPreview: View {
       let id = requestID
       loadedPreview = nil
       showFITSJSON = false
+      showMeasurementJSON = false
       guard var result = await ArtifactPreviewLoader.shared.load(
         artifact, in: job, includePreview: !isTable || id.showTableText, redact: store.previewRedactor()
       ), !Task.isCancelled else { return }

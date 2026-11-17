@@ -493,6 +493,61 @@ def crossmatch_cases(root: Path, environment: dict[str, str]) -> dict:
     }
 
 
+def photometric_cases(root: Path, environment: dict[str, str]) -> dict:
+    import csv
+
+    source = root / "input" / "photometry_standards.csv"
+    source.write_text(
+        "inst_mag,std_mag,airmass,color,error_mag,catalog_magnitude_system,calibration_passband\n"
+        "12,13,1,0,0.02,AB,r\n12,13,2,1,0.02,AB,r\n12,12.6,3,0,0.02,AB,r\n",
+        encoding="ascii",
+    )
+    original = sha256(source)
+    expected_values = [1.2, -0.2, 0.2]
+    # With this design, the coefficient variances are 2.5, 0.5 and 1.5 times sigma squared.
+    expected_errors = [0.02 * math.sqrt(factor) for factor in (2.5, 0.5, 1.5)]
+    results = {}
+    for weighted in (False, True):
+        case = root / ("photometry_weighted" if weighted else "photometry_unweighted")
+        summary = case / "summary.json"
+        manifest = case / "manifest.json"
+        coefficients = case / "coefficients.csv"
+        command = [
+            sys.executable, str(ROOT / "skills/scientific-data-astro/scripts/photometric_solution.py"),
+            str(source), "--include-color-term", "--color-col", "color", "--summary-json", str(summary),
+            "--coefficients-csv", str(coefficients), "--manifest-json", str(manifest),
+        ]
+        if weighted:
+            command.extend(["--error-col", "error_mag"])
+        completed = run(command, case, environment)
+        require(completed.returncode == 0, "photometric calibration failed; inspect retained logs")
+        payload = read_json(summary)
+        require(payload["tool"] == "photometric_solution" and payload["app_status"] == "WARNING",
+                "exactly determined photometric fit must warn about its residuals")
+        result = payload["results"]
+        require(result["residual_degrees_of_freedom"] == 0 and result["reduced_chi2"] is None,
+                "reduced chi-square is undefined at zero residual degrees of freedom")
+        measurements = result["measurement_summary"]["measurements"]
+        require(len(measurements) == 3, "expected three photometric coefficients")
+        with coefficients.open(newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+        require(len(rows) == len(measurements), "photometric CSV omitted coefficients")
+        for measurement, row, value, uncertainty in zip(measurements, rows, expected_values, expected_errors):
+            require(abs(measurement["value"] - value) < 1e-12, "photometric coefficient differs")
+            require(row["unit"] == measurement["unit"] and abs(float(row["value"]) - value) < 1e-12,
+                    "photometric CSV value or unit differs")
+            if weighted:
+                require(abs(measurement["uncertainty"] - uncertainty) < 1e-12,
+                        "absolute-sigma coefficient uncertainty differs")
+            else:
+                require(measurement["uncertainty"] is None and row["uncertainty"] == "",
+                        "unweighted fit invented uncertainty at zero residual degrees of freedom")
+        check_manifest(manifest, [source], [summary, coefficients])
+        results[case.name] = [measurement["uncertainty"] for measurement in measurements]
+    require(sha256(source) == original, "photometry input changed")
+    return {"input_sha256": original, "residual_degrees_of_freedom": 0, "coefficient_uncertainties": results}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -525,6 +580,7 @@ def main() -> int:
         evidence["fits"] = inspect_fits_case(output, environment)
         evidence["fits_bounded"] = check_bounded_fits(output, environment)
         evidence["crossmatch"] = crossmatch_cases(output, environment)
+        evidence["photometry"] = photometric_cases(output, environment)
         evidence["status"] = "PASS"
     except Exception as error:
         evidence["failure"] = str(error)
@@ -533,7 +589,7 @@ def main() -> int:
         (output / "verification.json").write_text(
             json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-    print(f"Scientific known-answer PASS: FITS/WCS and sky crossmatch. Evidence: {output}")
+    print(f"Scientific known-answer PASS: FITS/WCS, sky crossmatch, and photometric calibration. Evidence: {output}")
     return 0
 
 

@@ -243,6 +243,16 @@ three valid standards remain. Suspicious ranges, narrow airmass/color coverage, 
 fits without uncertainties produce warnings. The original table is unchanged;
 `photometric_solution.py` owns the scientific model.
 
+In Results, open the run summary to review fitted coefficients, their units and
+formal standard errors, residuals, and quality findings. Keep the residual table
+and plot for checking trends against airmass and color. A weighted fit uses the
+supplied absolute uncertainties. An unweighted fit estimates its standard errors
+from residual scatter when there are residual degrees of freedom. With no such
+degrees of freedom, an unweighted fit labels its coefficient uncertainties
+unavailable. Reduced chi-square is shown only for a weighted fit with positive
+residual degrees of freedom. Systematic calibration errors are outside these
+formal uncertainty estimates.
+
 ### Guided sky crossmatch
 
 `catalog_workbench.crossmatch-sky` requires two distinct text tables. Choose the

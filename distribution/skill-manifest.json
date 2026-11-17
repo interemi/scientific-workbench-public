@@ -4965,8 +4965,8 @@
     "scientific-data-astro/fixtures/photometric_solution.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "85300417efb0272b405f126668595c9fae95138e26577f1d49007587667ce8a9",
-      "size": 20030
+      "sha256": "884a19d70e9014ea306b67c11c4e2c710cd59934fb43c66af3f37b320e3a9cde",
+      "size": 23379
     },
     "scientific-data-astro/fixtures/photometry_noise_budget.py": {
       "executable": false,

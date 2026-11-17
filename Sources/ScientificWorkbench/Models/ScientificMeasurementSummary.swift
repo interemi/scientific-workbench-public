@@ -1,0 +1,61 @@
+import Foundation
+
+struct ScientificMeasurementSummary: Decodable, Sendable {
+  struct Quantity: Decodable, Sendable {
+    let label: String
+    let value: Double
+    let unit: String
+    let uncertainty: Double?
+  }
+
+  struct Quality: Decodable, Sendable {
+    let status: String
+    let findings: [String]
+  }
+
+  private struct Details: Decodable {
+    let method: String
+    let measurements: [Quantity]
+    let diagnostics: [Quantity]
+    let assumptions: [String]
+  }
+
+  private struct Envelope: Decodable {
+    struct Results: Decodable {
+      let measurementSummary: Details
+    }
+
+    let tool: String
+    let results: Results
+    let qa: Quality
+  }
+
+  let method: String
+  let measurements: [Quantity]
+  let diagnostics: [Quantity]
+  let assumptions: [String]
+  let quality: Quality
+
+  static func supports(_ capabilityID: String) -> Bool {
+    capabilityID == "photometric_solution"
+  }
+
+  static func load(from url: URL, capabilityID: String) -> Self? {
+    let maximumBytes = 1_000_000
+    guard supports(capabilityID), let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+    defer { try? handle.close() }
+    guard let data = try? handle.read(upToCount: maximumBytes + 1),
+          data.count <= maximumBytes else { return nil }
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    guard let envelope = try? decoder.decode(Envelope.self, from: data),
+          envelope.tool == capabilityID else { return nil }
+    let details = envelope.results.measurementSummary
+    guard (details.measurements + details.diagnostics).allSatisfy({
+      $0.value.isFinite && !$0.unit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && ($0.uncertainty.map { $0.isFinite && $0 >= 0 } ?? true)
+    }) else { return nil }
+    return Self(method: details.method, measurements: details.measurements,
+                diagnostics: details.diagnostics, assumptions: details.assumptions, quality: envelope.qa)
+  }
+}
