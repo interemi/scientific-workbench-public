@@ -295,6 +295,19 @@ with shifted windows. The combined uncertainty is an approximation from
 both terms. With the grid skipped or insufficient, the width remains
 available and the combined uncertainty is shown as unavailable.
 
+### Check an existing celestial WCS
+
+Results identifies the FITS extension used for coordinates, the pixel
+round trip, and the quicklook. On an image, the check transforms the center
+and four corners to sky coordinates and back. A header-only WCS is checked
+at its reference pixel and produces no image quicklook.
+
+The residual is a pixel-space consistency check with a tolerance of
+0.01 pixel. Where usable pointing keywords are present in the selected
+image extension, the summary also gives their spherical separation from
+the WCS center in arcseconds. Catalog-based accuracy and coordinate
+uncertainties require an independent reference.
+
 ### Review two-peak SB2 fits
 
 Supply one cross-correlation trace per CSV, with velocity in `km/s` and

@@ -41,6 +41,7 @@ struct ScientificMeasurementSummary: Sendable {
   private struct Envelope: Decodable {
     struct Results: Decodable {
       let measurementSummary: Details
+      let mode: String?
     }
 
     let tool: String
@@ -55,8 +56,10 @@ struct ScientificMeasurementSummary: Sendable {
   let quality: Quality
 
   static func supports(_ capabilityID: String) -> Bool {
-    ["photometric_solution", "li6708_equivalent_width_workbench.measure", "sb2_double_gaussian_workbench.fit"]
-      .contains(capabilityID)
+    [
+      "photometric_solution", "li6708_equivalent_width_workbench.measure", "sb2_double_gaussian_workbench.fit",
+      "astrometry_net_workbench.verify-existing-wcs"
+    ].contains(capabilityID)
   }
 
   static func load(from url: URL, capabilityID: String) -> Self? {
@@ -67,8 +70,9 @@ struct ScientificMeasurementSummary: Sendable {
           data.count <= maximumBytes else { return nil }
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
-    guard let envelope = try? decoder.decode(Envelope.self, from: data),
-          envelope.tool == capabilityID else { return nil }
+    guard let envelope = try? decoder.decode(Envelope.self, from: data) else { return nil }
+    let command = envelope.results.mode.map { "\(envelope.tool).\($0)" }
+    guard envelope.tool == capabilityID || command == capabilityID else { return nil }
     let details = envelope.results.measurementSummary
     guard (details.measurements + details.diagnostics).allSatisfy({
       $0.value.isFinite && !$0.unit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

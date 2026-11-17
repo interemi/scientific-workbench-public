@@ -25,7 +25,7 @@ struct ScientificMeasurementSummaryView: View {
           section("Quality findings", lines: summary.quality.findings)
         }
         if !summary.diagnostics.isEmpty {
-          quantities(summary.diagnostics, title: "Fit diagnostics", reportUncertainty: false)
+          quantities(summary.diagnostics, title: "Diagnostics", reportUncertainty: false)
         }
         if !summary.assumptions.isEmpty {
           section("Method and assumptions", lines: summary.assumptions)

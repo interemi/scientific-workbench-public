@@ -694,6 +694,96 @@ def sb2_cases(root: Path, environment: dict[str, str]) -> dict:
     return {"accepted_count": 3, "rejected_count": 1, "cases": cases, "input_sha256": originals}
 
 
+def existing_wcs_cases(root: Path, environment: dict[str, str]) -> dict:
+    import numpy as np
+    from astropy.io import fits
+    from PIL import Image
+
+    # The celestial axes are deliberately swapped. The extension center lands on CRVAL.
+    header = fits.Header({
+        "WCSAXES": 2, "CTYPE1": "DEC--TAN", "CTYPE2": "RA---TAN",
+        "CUNIT1": "deg", "CUNIT2": "deg", "CRPIX1": 5.5, "CRPIX2": 3.5,
+        "CRVAL1": 0.0, "CRVAL2": 0.01, "CDELT1": 1 / 3600, "CDELT2": -1 / 3600,
+        "RADESYS": "ICRS", "RA": 359.99, "DEC": 0.0,
+    })
+    plane = np.arange(60, dtype=np.float32).reshape(6, 10)
+    fixtures = {}
+    for name, image, pointing, inverse_fails in [
+        ("wcs_later_image_extension", plane, True, False),
+        ("wcs_header_in_separate_extension", None, True, False),
+        ("wcs_without_pointing_keywords", plane, False, False),
+        ("wcs_noninvertible_sip", plane, False, True),
+    ]:
+        selected = header.copy()
+        if not pointing:
+            del selected["RA"]
+            del selected["DEC"]
+        if inverse_fails:
+            selected.update({
+                "CTYPE1": "RA---TAN-SIP", "CTYPE2": "DEC--TAN-SIP", "CRVAL1": 0.01, "CRVAL2": 0.0,
+                "CDELT1": -1 / 3600, "CDELT2": 1 / 3600,
+                "A_ORDER": 2, "A_2_0": 0.5, "B_ORDER": 2, "B_0_2": 0.0,
+            })
+        source = root / "input" / f"{name}.fits"
+        unrelated = fits.PrimaryHDU(data=np.full((8, 8), 1000, dtype=np.float32))
+        fits.HDUList([unrelated, fits.ImageHDU(data=image, header=selected)]).writeto(source)
+        fixtures[name] = (source, image is not None, pointing, inverse_fails, sha256(source))
+
+    checks = {}
+    for name, (source, has_image, has_pointing, inverse_fails, original) in fixtures.items():
+        case = root / name
+        products = case / "products"
+        preview = products / "existing_wcs_quicklook.png"
+        summary = case / "summary.json"
+        manifest = case / "manifest.json"
+        completed = run(
+            [sys.executable, str(ROOT / "skills/scientific-data-astro/scripts/astrometry_net_workbench.py"),
+             "verify-existing-wcs", str(source), "--output-dir", str(products),
+             "--summary-json", str(summary), "--manifest-json", str(manifest)],
+            case, environment,
+        )
+        payload = read_json(summary)
+        result = payload["results"]
+        expected_status = "PASS" if has_image and not inverse_fails else "WARNING"
+        require(completed.returncode == 0 and payload["app_status"] == expected_status,
+                "local WCS verification status differs")
+        require(result["wcs_hdu_index"] == 1 and result["has_image_data"] == has_image,
+                "WCS check used an unrelated FITS extension")
+        center = result["wcs_center"]
+        require(abs(center["ra_deg"] - 0.01) < 1e-10 and abs(center["dec_deg"]) < 1e-10,
+                "WCS center did not respect celestial axis order")
+        residual = result["pixel_round_trip"]
+        if inverse_fails:
+            require(residual["max_residual_pixel"] is None and residual["finite_points"] == 0
+                    and any("did not converge" in item for item in payload["qa"]["findings"]),
+                    "noninvertible SIP must expose the inverse failure and omit a residual")
+        else:
+            require(residual["finite_points"] == (5 if has_image else 1) and residual["max_residual_pixel"] < 1e-7,
+                    "WCS round trip differs from the TAN reference")
+        require(result["catalog_accuracy_checked"] is False and
+                all(row.get("uncertainty") is None for row in result["measurement_summary"]["measurements"]),
+                "local WCS check reported independent coordinate uncertainties")
+        offset = result["center_offset_arcsec"]
+        if has_image and has_pointing:
+            require(abs(offset - 72) < 1e-7, "pointing separation did not wrap RA at zero")
+        else:
+            require(offset is None, "WCS check invented a pointing-to-center separation")
+        if has_image:
+            corners = {(item["x"], item["y"]) for item in result["field_corners"]}
+            require(corners == {(0, 0), (9, 0), (0, 5), (9, 5)}, "WCS checks used the wrong image footprint")
+            require(result["image_quality_proxy"]["median"] == 29.5, "image QA used the wrong FITS extension")
+            with Image.open(preview) as image:
+                require(image.info.get("Description") == "Source FITS HDU 1 (zero-based)",
+                        "WCS quicklook did not use the selected extension")
+        else:
+            require(center["source"] == "WCS reference pixel" and not result["field_corners"] and not preview.exists(),
+                    "header-only WCS borrowed image data")
+        check_manifest(manifest, [source], [summary, preview] if has_image else [summary])
+        require(sha256(source) == original, "WCS verification changed the input")
+        checks[name] = {"status": payload["app_status"], "round_trip": residual, "pointing_separation_arcsec": offset}
+    return checks
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -729,6 +819,7 @@ def main() -> int:
         evidence["photometry"] = photometric_cases(output, environment)
         evidence["lithium_equivalent_width"] = lithium_equivalent_width_cases(output, environment)
         evidence["sb2"] = sb2_cases(output, environment)
+        evidence["existing_wcs"] = existing_wcs_cases(output, environment)
         evidence["status"] = "PASS"
     except Exception as error:
         evidence["failure"] = str(error)

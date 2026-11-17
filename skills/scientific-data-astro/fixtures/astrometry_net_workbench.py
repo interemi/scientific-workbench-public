@@ -32,15 +32,17 @@ with suppress_fd_output(True):
     import numpy as np
     import requests
     from astropy import units as u
-    from astropy.coordinates import Angle
+    from astropy.coordinates import Angle, SkyCoord
     from astropy.io import fits
-    from astropy.wcs import FITSFixedWarning, WCS
+    from astropy.wcs import FITSFixedWarning, NoConvergence, WCS
     from astropy.wcs.utils import proj_plane_pixel_scales
 
 warnings.filterwarnings("ignore", category=FITSFixedWarning)
 
 
 API_BASE_DEFAULT = "https://nova.astrometry.net"
+WCS_VERIFICATION_METHOD = "Local pixel-to-sky-to-pixel consistency check"
+WCS_ROUND_TRIP_TOLERANCE_PIXEL = 0.01
 DOWNLOADABLE_PRODUCTS = {
     "wcs": ("wcs_file", ".fits"),
     "new_fits": ("new_fits_file", ".fits"),
@@ -317,19 +319,14 @@ def _first_celestial_wcs_hdu(path: Path):
             if header is None:
                 continue
             try:
-                wcs = WCS(header)
+                wcs = WCS(header, fobj=hdus)
             except Exception:
                 continue
             if not getattr(wcs, "has_celestial", False):
                 continue
-            data = getattr(hdu, "data", None)
-            if data is None:
-                return index, header.copy(), None, False
-            array = np.asarray(data)
-            while array.ndim > 2:
-                array = array[0]
-            if array.ndim == 2:
-                return index, header.copy(), tuple(int(v) for v in array.shape), True
+            shape = hdu.shape if hdu.is_image else ()
+            if len(shape) >= 2 and all(shape):
+                return index, header.copy(), tuple(shape[-2:]), True
             return index, header.copy(), None, False
     return None, None, None, False
 
@@ -383,7 +380,7 @@ def build_astrometry_dependency_preflight(args, mode: str) -> dict:
     }
 
 
-def infer_center_from_header(header):
+def infer_center_from_header(header, *, allow_wcs_reference=True):
     if header is None:
         return None
     for ra_key in RA_HEADER_KEYS:
@@ -391,12 +388,15 @@ def infer_center_from_header(header):
             if ra_key in header and dec_key in header:
                 ra_deg = _parse_angle(header.get(ra_key), is_ra=True)
                 dec_deg = _parse_angle(header.get(dec_key), is_ra=False)
-                if ra_deg is not None and dec_deg is not None:
+                if (ra_deg is not None and dec_deg is not None and np.isfinite(ra_deg)
+                        and np.isfinite(dec_deg) and -90 <= dec_deg <= 90):
                     return {
                         "ra_deg": ra_deg,
                         "dec_deg": dec_deg,
                         "source": f"{ra_key}/{dec_key}",
                     }
+    if not allow_wcs_reference:
+        return None
     try:
         wcs = WCS(header)
         if getattr(wcs, "has_celestial", False):
@@ -482,7 +482,8 @@ def infer_existing_astrometric_solution(header, shape):
             x_center = (float(width_pix) - 1.0) / 2.0
             y_center = (float(height_pix) - 1.0) / 2.0
             try:
-                ra_deg, dec_deg = wcs.celestial.pixel_to_world_values(x_center, y_center)
+                sky = wcs.celestial.pixel_to_world(x_center, y_center).icrs
+                ra_deg, dec_deg = sky.ra.deg, sky.dec.deg
                 if np.isfinite(ra_deg) and np.isfinite(dec_deg):
                     center = {"ra_deg": float(ra_deg), "dec_deg": float(dec_deg), "source": "WCS image center"}
             except Exception:
@@ -699,18 +700,32 @@ def image_quality_proxy(image) -> dict:
     }
 
 
-def render_fits_qa_png(input_path: Path, output_path: Path, title: str | None = None, annotations_payload: dict | None = None, wcs_header_path: Path | None = None):
+def render_fits_qa_png(
+    input_path: Path,
+    output_path: Path,
+    title: str | None = None,
+    annotations_payload: dict | None = None,
+    wcs_header_path: Path | None = None,
+    *,
+    image_hdu_index: int | None = None,
+):
     with suppress_fd_output(True):
         import matplotlib
 
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
-    hdu_index, header, _shape = _first_image_hdu(input_path)
-    if header is None:
+    hdu_index = image_hdu_index
+    if hdu_index is None:
+        hdu_index, _, _ = _first_image_hdu(input_path)
+    if hdu_index is None:
         return None
+    image_wcs = None
     with fits.open(input_path, memmap=False) as hdus:
+        header = hdus[hdu_index].header.copy()
         data = np.asarray(hdus[hdu_index].data)
+        if image_hdu_index is not None and wcs_header_path is None:
+            image_wcs = WCS(header, fobj=hdus)
     while data.ndim > 2:
         data = data[0]
     finite = data[np.isfinite(data)]
@@ -729,7 +744,7 @@ def render_fits_qa_png(input_path: Path, output_path: Path, title: str | None = 
         except Exception:
             wcs_header = header
     try:
-        maybe_wcs = WCS(wcs_header)
+        maybe_wcs = image_wcs if image_wcs is not None else WCS(wcs_header)
         has_celestial = bool(getattr(maybe_wcs, "has_celestial", False))
     except Exception:
         maybe_wcs = None
@@ -737,8 +752,6 @@ def render_fits_qa_png(input_path: Path, output_path: Path, title: str | None = 
     figure = plt.figure(figsize=(7, 6))
     if has_celestial:
         axis = figure.add_subplot(111, projection=maybe_wcs.celestial)
-        axis.set_xlabel("RA")
-        axis.set_ylabel("Dec")
         try:
             axis.coords.grid(color="white", alpha=0.35, linestyle=":")
         except Exception:
@@ -764,7 +777,7 @@ def render_fits_qa_png(input_path: Path, output_path: Path, title: str | None = 
     axis.set_title(title or input_path.name)
     figure.tight_layout()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(output_path, dpi=160)
+    figure.savefig(output_path, dpi=160, metadata={"Description": f"Source FITS HDU {hdu_index} (zero-based)"})
     plt.close(figure)
     return public_path(output_path.resolve())
 
@@ -820,68 +833,134 @@ def build_compact_visual_review(input_path: Path, output_dir: Path, solved_paylo
     )
 
 
+def wcs_geometry(wcs, shape) -> tuple[dict | None, list[dict], dict]:
+    if shape is None:
+        points = [tuple(wcs.wcs.crpix - 1)]
+    else:
+        height, width = shape
+        points = [
+            ((width - 1) / 2, (height - 1) / 2),
+            (0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1),
+        ]
+    x, y = np.asarray(points, dtype=float).T
+    sky = wcs.pixel_to_world(x, y)
+    icrs = sky.icrs
+    valid_sky = np.isfinite(icrs.ra.deg) & np.isfinite(icrs.dec.deg)
+    coordinates = [
+        {"ra_deg": float(ra), "dec_deg": float(dec)} if valid else None
+        for ra, dec, valid in zip(icrs.ra.deg, icrs.dec.deg, valid_sky)
+    ]
+    center = coordinates[0]
+    if center is not None:
+        center["source"] = "WCS image center" if shape is not None else "WCS reference pixel"
+    corners = [
+        {"x": float(px), "y": float(py), **coord}
+        for (px, py), coord in zip(points[1:], coordinates[1:]) if coord is not None
+    ]
+    closure = {
+        "tested_points": len(points),
+        "finite_points": 0,
+        "max_residual_pixel": None,
+        "tolerance_pixel": WCS_ROUND_TRIP_TOLERANCE_PIXEL,
+        "failure": None,
+    }
+    if np.any(valid_sky):
+        valid_x, valid_y = x[valid_sky], y[valid_sky]
+        native_world = wcs.pixel_to_world_values(valid_x, valid_y)
+        try:
+            inverse_x, inverse_y = wcs.all_world2pix(*native_world, 0)
+            residuals = np.hypot(inverse_x - valid_x, inverse_y - valid_y)
+            finite = residuals[np.isfinite(residuals)]
+            closure["finite_points"] = int(finite.size)
+            if finite.size:
+                closure["max_residual_pixel"] = float(np.max(finite))
+        except NoConvergence:
+            closure["failure"] = "The inverse celestial WCS did not converge at the checked pixels."
+    return center, corners, closure
+
+
+def wcs_measurement_summary(result: dict) -> dict:
+    center = result["wcs_center"]
+    closure = result["pixel_round_trip"]
+    measurements = []
+    if center is not None:
+        label = "Image center" if result["has_image_data"] else "Reference pixel"
+        measurements.extend([
+            {"label": f"{label} RA (ICRS)", "value": center["ra_deg"], "unit": "deg"},
+            {"label": f"{label} Dec (ICRS)", "value": center["dec_deg"], "unit": "deg"},
+        ])
+    diagnostics = [
+        {"label": "FITS extension index (zero-based)", "value": result["wcs_hdu_index"], "unit": "dimensionless"},
+        {"label": "Image corners transformed", "value": len(result["field_corners"]), "unit": "dimensionless"},
+    ]
+    if closure["max_residual_pixel"] is not None:
+        diagnostics.append({
+            "label": "Maximum round-trip residual", "value": closure["max_residual_pixel"], "unit": "pixel",
+        })
+    if result["center_offset_arcsec"] is not None:
+        diagnostics.append({
+            "label": "Pointing-to-center separation", "value": result["center_offset_arcsec"], "unit": "arcsec",
+        })
+    return {
+        "method": WCS_VERIFICATION_METHOD,
+        "measurements": measurements,
+        "diagnostics": diagnostics,
+        "assumptions": result["notes"],
+    }
+
+
 def build_existing_wcs_verification(path: Path) -> dict:
     path = path.resolve()
-    preflight = build_preflight(path, argparse.Namespace())
-    existing = preflight.get("existing_astrometric_solution")
-    if not existing:
-        raise SystemExit(f"No celestial WCS was detected in {path}.")
-    image_hdu_index = preflight.get("image_hdu_index")
+    preflight = build_preflight(path, argparse.Namespace(), verify_wcs_hdu=True)
     wcs_hdu_index = preflight.get("wcs_hdu_index")
-    data = None
-    header = None
-    has_image_data = False
-    if image_hdu_index is not None:
-        with fits.open(path, memmap=False) as hdus:
-            hdu = hdus[image_hdu_index]
-            data = np.asarray(hdu.data)
-            header = hdu.header.copy()
-        while data.ndim > 2:
-            data = data[0]
-        has_image_data = data.ndim == 2
-    elif wcs_hdu_index is not None:
-        with fits.open(path, memmap=False) as hdus:
-            header = hdus[wcs_hdu_index].header.copy()
-    corners_world = []
-    if has_image_data and header is not None:
-        wcs = WCS(header).celestial
-        height, width = data.shape
-        corners_pix = [(0.0, 0.0), (width - 1.0, 0.0), (0.0, height - 1.0), (width - 1.0, height - 1.0)]
-        for x_pix, y_pix in corners_pix:
-            try:
-                ra_deg, dec_deg = wcs.pixel_to_world_values(x_pix, y_pix)
-                corners_world.append({"x": x_pix, "y": y_pix, "ra_deg": float(ra_deg), "dec_deg": float(dec_deg)})
-            except Exception:
-                continue
-    header_center = infer_center_from_header(header)
-    wcs_center = existing.get("center")
+    if wcs_hdu_index is None:
+        raise SystemExit(f"No celestial WCS was detected in {path}.")
+    shape = preflight["wcs_shape"]
+    has_image_data = shape is not None
+    with fits.open(path, memmap=False) as hdus:
+        header = hdus[wcs_hdu_index].header.copy()
+        wcs = WCS(header, fobj=hdus).celestial
+        wcs_center, corners_world, closure = wcs_geometry(wcs, shape)
+    if preflight.get("existing_astrometric_solution"):
+        preflight["existing_astrometric_solution"]["center"] = wcs_center
+    header_center = infer_center_from_header(header, allow_wcs_reference=False)
     center_offset_arcsec = None
-    if header_center and wcs_center:
-        dra = (header_center["ra_deg"] - wcs_center["ra_deg"]) * np.cos(np.deg2rad(wcs_center["dec_deg"]))
-        ddec = header_center["dec_deg"] - wcs_center["dec_deg"]
-        center_offset_arcsec = float(np.hypot(dra, ddec) * 3600.0)
+    if header_center and wcs_center and has_image_data:
+        pointing = SkyCoord(header_center["ra_deg"], header_center["dec_deg"], unit=u.deg, frame="icrs")
+        image_center = SkyCoord(wcs_center["ra_deg"], wcs_center["dec_deg"], unit=u.deg, frame="icrs")
+        center_offset_arcsec = float(pointing.separation(image_center).arcsec)
+    basis = "the image center and corners" if has_image_data else "the reference pixel only"
     notes = [
-        "This path verifies an existing celestial WCS instead of requesting a new blind solve.",
-        "A non-zero header-vs-WCS center offset is not automatically an error; it may reflect approximate telescope pointing metadata.",
+        f"The check samples {basis} from FITS extension {wcs_hdu_index} and uses a round-trip tolerance of {WCS_ROUND_TRIP_TOLERANCE_PIXEL:g} pixel.",
+        "The residual measures internal consistency. Catalog-based accuracy and coordinate uncertainties were not measured.",
     ]
+    if center_offset_arcsec is not None:
+        notes.append(f"The offset uses {header_center['source']} from the selected extension as approximate ICRS pointing coordinates.")
+    elif has_image_data:
+        notes.append("No separate usable pointing offset was available from the selected extension.")
     result_status = "verified_existing_wcs"
     if not has_image_data:
         result_status = "wcs_header_only"
         notes.append("A celestial WCS was found, but no 2D image plane was available for corner and image-quality verification.")
-    return {
+    result = {
         "tool": "astrometry_net_workbench",
         "mode": "verify-existing-wcs",
         "result_status": result_status,
         "input_path": public_path(path),
         "preflight": preflight,
         "wcs_center": wcs_center,
+        "wcs_hdu_index": wcs_hdu_index,
         "header_center": header_center,
         "center_offset_arcsec": center_offset_arcsec,
         "field_corners": corners_world,
-        "image_quality_proxy": image_quality_proxy(data) if has_image_data else None,
+        "image_quality_proxy": preflight.get("image_quality_proxy"),
+        "pixel_round_trip": closure,
+        "catalog_accuracy_checked": False,
         "has_image_data": has_image_data,
         "notes": notes,
     }
+    result["measurement_summary"] = wcs_measurement_summary(result)
+    return result
 
 
 def parse_sequence_index(path: Path) -> tuple[str, int] | None:
@@ -1186,7 +1265,7 @@ def build_peer_stack(paths: list[Path], output_path: Path, *, allow_unregistered
     }
 
 
-def build_preflight(path: Path, args) -> dict:
+def build_preflight(path: Path, args, *, verify_wcs_hdu=False) -> dict:
     path = path.resolve()
     payload = {
         "tool": "astrometry_net_workbench",
@@ -1197,8 +1276,12 @@ def build_preflight(path: Path, args) -> dict:
     }
     if not path.exists():
         raise SystemExit(f"Input file not found: {path}")
-    hdu_index, header, shape = _first_image_hdu(path)
     wcs_hdu_index, wcs_header, wcs_shape, wcs_has_image = _first_celestial_wcs_hdu(path)
+    if verify_wcs_hdu:
+        hdu_index = wcs_hdu_index if wcs_has_image else None
+        header, shape = wcs_header, wcs_shape
+    else:
+        hdu_index, header, shape = _first_image_hdu(path)
     header_for_subset = header or wcs_header
     wcs_probe_header = wcs_header or header
     wcs_probe_shape = wcs_shape or shape
@@ -1655,11 +1738,17 @@ def write_report(path: Path, payload: dict):
             ]
         )
     elif payload["mode"] == "verify-existing-wcs":
+        closure = payload.get("pixel_round_trip") or {}
         lines.extend(
             [
+                f"- Method: {WCS_VERIFICATION_METHOD}",
+                f"- FITS extension index (zero-based): `{payload.get('wcs_hdu_index')}`",
                 f"- Existing WCS center: `{payload.get('wcs_center')}`",
-                f"- Header center: `{payload.get('header_center')}`",
-                f"- Header-vs-WCS offset (arcsec): `{payload.get('center_offset_arcsec')}`",
+                f"- Header pointing: `{payload.get('header_center')}`",
+                f"- Pointing-to-center separation (arcsec): `{payload.get('center_offset_arcsec')}`",
+                f"- Maximum round-trip residual (pixel): `{closure.get('max_residual_pixel')}`",
+                f"- Finite round trips: `{closure.get('finite_points')}` of `{closure.get('tested_points')}`",
+                "- Catalog-based astrometric accuracy and coordinate uncertainties are unavailable.",
                 f"- Image quality proxy: `{payload.get('image_quality_proxy')}`",
                 "",
                 "## Field Corners",
@@ -1853,12 +1942,18 @@ def run_verify_existing_wcs(args):
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     payload = build_existing_wcs_verification(input_path)
-    verification_products = {}
-    quicklook = render_fits_qa_png(input_path, output_dir / "existing_wcs_quicklook.png", title=f"Existing WCS verification: {input_path.name}")
-    if quicklook:
-        verification_products["existing_wcs_quicklook"] = quicklook
-    payload["verification_products"] = verification_products
-    return payload, [output_dir]
+    payload["verification_products"] = {}
+    quicklook_path = output_dir / "existing_wcs_quicklook.png"
+    if payload["has_image_data"]:
+        quicklook = render_fits_qa_png(
+            input_path, quicklook_path,
+            title=f"Existing WCS verification: {input_path.name} · HDU {payload['wcs_hdu_index']}",
+            image_hdu_index=payload["wcs_hdu_index"],
+        )
+        if quicklook:
+            payload["verification_products"]["existing_wcs_quicklook"] = quicklook
+            return payload, [quicklook_path]
+    return payload, []
 
 
 def clone_args(args, **overrides):
@@ -1929,12 +2024,17 @@ def build_astrometry_qa(payload: dict) -> dict:
     if mode == "verify-existing-wcs":
         quality = payload.get("image_quality_proxy") or {}
         products = payload.get("verification_products") or {}
+        closure = payload["pixel_round_trip"]
         metrics = {
             "has_image_data": payload.get("has_image_data"),
             "field_corner_count": len(payload.get("field_corners") or []),
             "center_offset_arcsec": payload.get("center_offset_arcsec"),
             "has_finite_image_pixels": quality.get("median") is not None if quality else None,
             "has_quicklook": bool(products.get("existing_wcs_quicklook")),
+            "wcs_hdu_index": payload["wcs_hdu_index"],
+            "round_trip_max_residual_pixel": closure["max_residual_pixel"],
+            "round_trip_finite_points": closure["finite_points"],
+            "catalog_accuracy_checked": False,
         }
         status = "ok"
         if payload.get("result_status") == "wcs_header_only":
@@ -1949,6 +2049,15 @@ def build_astrometry_qa(payload: dict) -> dict:
         if payload.get("has_image_data") and len(payload.get("field_corners") or []) < 4:
             status = "warning"
             findings.append("Celestial WCS exists, but not all image corners could be transformed to sky coordinates.")
+        residual = closure["max_residual_pixel"]
+        if closure["failure"]:
+            findings.append(closure["failure"])
+        elif closure["finite_points"] < closure["tested_points"]:
+            findings.append("Some checked pixels did not complete a finite WCS round trip.")
+        if residual is not None and residual > closure["tolerance_pixel"]:
+            findings.append("The pixel round-trip residual exceeds the stated tolerance.")
+        if findings:
+            status = "warning"
         return {"status": status, "findings": findings, "metrics": metrics}
     if mode == "stack-peers":
         member_count = int(payload.get("member_count") or 0)
@@ -2027,6 +2136,17 @@ def standardize_astrometry_payload(payload: dict, args, extra_outputs: list[Path
 
 
 def emit_blocked_payload(args, message: str, *, status: str = "blocked") -> int:
+    mode = getattr(args, "command", None)
+    results = {
+        "mode": mode,
+        "input_path": public_path(Path(args.path)) if hasattr(args, "path") else None,
+        "input_url": getattr(args, "url", None),
+        "blocked_reason": message,
+    }
+    if mode == "verify-existing-wcs":
+        results["measurement_summary"] = {
+            "method": WCS_VERIFICATION_METHOD, "measurements": [], "diagnostics": [], "assumptions": [],
+        }
     payload = standard_tool_payload(
         "astrometry_net_workbench",
         status=status,
@@ -2036,12 +2156,7 @@ def emit_blocked_payload(args, message: str, *, status: str = "blocked") -> int:
             "report_md": getattr(args, "report_md", None),
             "manifest_json": getattr(args, "manifest_json", None),
         },
-        results={
-            "mode": getattr(args, "command", None),
-            "input_path": public_path(Path(args.path)) if hasattr(args, "path") else None,
-            "input_url": getattr(args, "url", None),
-            "blocked_reason": message,
-        },
+        results=results,
         qa={
             "status": status,
             "findings": [message],

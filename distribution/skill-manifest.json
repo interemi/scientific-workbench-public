@@ -4863,8 +4863,8 @@
     "scientific-data-astro/fixtures/astrometry_net_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "74ce7a8a0c9d74ccd20508d236bcbd038bfd4e4ce2b1020a25c5245969bf48c3",
-      "size": 140495
+      "sha256": "870e8870b2896878bcb9c324c424fde05b22a68467fefef03bd005e04680c87e",
+      "size": 146086
     },
     "scientific-data-astro/fixtures/datanalysis_env.py": {
       "executable": false,
