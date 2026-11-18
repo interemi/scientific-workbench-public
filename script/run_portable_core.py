@@ -7,6 +7,7 @@ from pathlib import Path
 import platform
 import subprocess
 import sys
+from zipfile import ZipFile
 
 from check_distribution_snapshot import ROOT, verify
 from capability_io_contracts import validate_summary_contract
@@ -32,6 +33,20 @@ def validate_summary(summary, profile="core"):
             or not required_tiers.issubset(coverage.get("tiers_enforced", []))):
         raise ValueError(f"{profile} smoke failed, returned no feature runs or has incomplete coverage")
     return len(runs)
+
+
+def run_io_probe(evidence, environment, name, capability, arguments, expected, *, stdout_target=None):
+    summary = stdout_target or evidence / f"{name}.json"
+    command = [sys.executable, *map(str, arguments), "--summary-json", str(summary)]
+    process = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, timeout=120)
+    (evidence / f"{name}.stdout.log").write_text(process.stdout, encoding="utf-8")
+    (evidence / f"{name}.stderr.log").write_text(process.stderr, encoding="utf-8")
+    payload = json.loads(process.stdout if stdout_target else summary.read_text(encoding="utf-8"))
+    validate_summary_contract(payload, capability=capability)
+    status = payload["app_status"]
+    if status not in expected.get(process.returncode, set()):
+        raise ValueError(f"{capability} {name}: unexpected exit {process.returncode} with {status}")
+    return {"returncode": process.returncode, "app_status": status}
 
 
 def check_core_io_contracts(output, doctor, environment):
@@ -67,20 +82,73 @@ def check_core_io_contracts(output, doctor, environment):
     ]
     records = {"doctor": {"returncode": 0, "app_status": doctor["app_status"]}}
     for name, capability, script, args, expected in cases:
-        overlap = name == "advisory-overlap"
-        summary = original if overlap else evidence / f"{name}.json"
-        command = [sys.executable, str(script), *args, "--summary-json", str(summary)]
-        process = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, timeout=120)
-        (evidence / f"{name}.stdout.log").write_text(process.stdout, encoding="utf-8")
-        (evidence / f"{name}.stderr.log").write_text(process.stderr, encoding="utf-8")
-        if overlap and original.read_bytes() != marker:
-            raise ValueError("companion routing modified the synthetic file hint")
-        payload = json.loads(process.stdout if overlap else summary.read_text(encoding="utf-8"))
-        validate_summary_contract(payload, capability=capability)
-        status = payload["app_status"]
-        if status not in expected.get(process.returncode, set()):
-            raise ValueError(f"{capability} {name}: unexpected exit {process.returncode} with {status}")
-        records[name] = {"returncode": process.returncode, "app_status": status}
+        records[name] = run_io_probe(
+            evidence, environment, name, capability, [script, *args], expected,
+            stdout_target=original if name == "advisory-overlap" else None,
+        )
+    if original.read_bytes() != marker:
+        raise ValueError("companion routing modified the synthetic file hint")
+    return records
+
+
+def check_tabular_io_contracts(output, environment):
+    scripts = ROOT / "skills/scientific-data-notebooks/scripts"
+    evidence = output / "tabular-io"
+    sources = evidence / "sources"
+    sources.mkdir(parents=True)
+    table = sources / "synthetic.csv"
+    table.write_text("ra_deg,dec_deg,flux,flux_err\n450,0,3,1\n120,1,2,1\n", encoding="ascii")
+    archive = sources / "synthetic.zip"
+    with ZipFile(archive, "w") as bundle:
+        bundle.write(table, arcname=table.name)
+    branches = sources / "branches"
+    branch_tables = [branches / branch / table.name for branch in ("a", "c")]
+    for branch_table in branch_tables:
+        branch_table.parent.mkdir(parents=True)
+        branch_table.write_bytes(table.read_bytes())
+    originals = {source: source.read_bytes() for source in [table, archive, *branch_tables]}
+
+    notebook = sources / "generated.ipynb"
+    missing = sources / "missing.csv"
+    cross_products = evidence / "cross-products"
+    branch_products = evidence / "branch-products"
+    fidelity_report = evidence / "fidelity.md"
+    passed = {0: {"PASS"}}
+    warning = {0: {"WARNING"}}
+    blocked = {2: {"BLOCKED_CONTROLADO"}}
+    failure = {2: {"FAIL"}}
+    cases = [
+        ("profile", "profile_table", [table], passed),
+        ("profile-missing", "profile_table", [missing], failure),
+        ("container", "inspect_data_container", [archive], passed),
+        ("container-missing", "inspect_data_container", [missing], blocked),
+        ("physical", "physical_qa", [table], warning),
+        ("physical-missing", "physical_qa", [missing], blocked),
+        ("scaffold", "bootstrap_analysis_notebook", [notebook], passed),
+        ("scaffold-existing", "bootstrap_analysis_notebook", [notebook], blocked),
+        ("fidelity", "coursework_notebook_fidelity_check", [notebook, "--report-md", fidelity_report], warning),
+        ("fidelity-missing", "coursework_notebook_fidelity_check", [missing], blocked),
+        ("cross-domain", "cross_domain_data_workbench", [table, "--output-dir", cross_products], passed),
+        ("cross-domain-missing", "cross_domain_data_workbench", [missing, "--output-dir", evidence / "unused"], failure),
+        ("branches", "notebook_branch_compare", [branches, "--output-dir", branch_products], passed),
+        ("branches-missing", "notebook_branch_compare", [missing], blocked),
+    ]
+    records = {}
+    for name, capability, args, expected in cases:
+        records[name] = run_io_probe(
+            evidence, environment, name, capability, [scripts / f"{capability}.py", *args], expected,
+        )
+        if name == "scaffold":
+            originals[notebook] = notebook.read_bytes()
+    if any(source.read_bytes() != previous for source, previous in originals.items()):
+        raise ValueError("tabular or notebook inspection modified a protected synthetic input")
+    generated = json.loads(notebook.read_text(encoding="utf-8"))
+    for cell in generated["cells"]:
+        if cell["cell_type"] == "code" and (cell["execution_count"] is not None or cell["outputs"]):
+            raise ValueError("notebook scaffold unexpectedly contains executed cells")
+    expected_reports = (fidelity_report, cross_products / "report.md", branch_products / "branch_product_inventory.csv")
+    if not all(report.is_file() for report in expected_reports):
+        raise ValueError("a documented tabular or notebook report was not written")
     return records
 
 
@@ -121,6 +189,7 @@ def main(argv=None):
                 doctor = json.loads((output / "env-doctor.json").read_text())
                 validate_profile_readiness(doctor, args.profile)
                 evidence["core_io_contracts"] = check_core_io_contracts(output, doctor, environment)
+                evidence["tabular_io_contracts"] = check_tabular_io_contracts(output, environment)
         summary = json.loads((output / "smoke-summary.json").read_text())
         evidence["passed_features"] = validate_summary(summary, args.profile)
         known_answer = json.loads((output / "known-answer/verification.json").read_text())

@@ -99,7 +99,11 @@ extension ScientificWorkbenchTests {
     #expect(discovery.inputs.isEmpty)
     #expect(discovery.summary.container == "root")
     #expect(discovery.summary.complete["found"] == "boolean")
-    #expect(entries.first { $0.id == "profile_table" }?.ioContract == nil)
+    let profile = try #require(entries.first { $0.id == "profile_table" }?.ioContract)
+    #expect(profile.inputs.first { $0.argument == "--lazy-threshold-mb" }?.unit == "MiB")
+    let scaffold = try #require(entries.first { $0.id == "bootstrap_analysis_notebook" }?.ioContract)
+    #expect(scaffold.summary.tool == "bootstrap_analysis_notebook.py")
+    #expect(scaffold.outputs.first { $0.argument == "output" }?.format == "IPYNB")
   }
 
   @Test

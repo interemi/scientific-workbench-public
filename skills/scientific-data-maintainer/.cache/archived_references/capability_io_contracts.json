@@ -99,6 +99,157 @@
         "rejected": {"capabilities": "object", "blocking_findings": "array", "native_alternatives": "object"}
       }
     },
+    "profile_table": {
+      "revision": 1,
+      "backend": "Core with pandas or Astropy. The optional Dask reader supports out-of-core profiling for compatible formats.",
+      "inputs": [
+        {"argument": "path", "format": "Table", "detail": "Readable table, such as CSV, TSV, ECSV, or a FITS table HDU."},
+        {"argument": "--format", "detail": "Explicit Astropy reader format when suffix-based detection is insufficient."},
+        {"argument": "--prefer", "detail": "Preferred compatible table reader."},
+        {"argument": "--hdu", "detail": "FITS table HDU by name or zero-based index when applicable."},
+        {"argument": "--head", "unit": "rows", "detail": "Maximum number of preview rows."},
+        {"argument": "--max-columns", "unit": "columns", "detail": "Maximum number of detailed column summaries."},
+        {"argument": "--lazy", "detail": "Prefer out-of-core reads where available."},
+        {"argument": "--lazy-threshold-mb", "unit": "MiB", "detail": "File-size threshold for automatic lazy profiling where supported."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Reader, row and column counts, column profiles and bounded preview."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source table and written summary records."},
+        {"argument": "--run-dir", "format": "Directory", "detail": "App-ready bundle location with default summary and manifest paths."}
+      ],
+      "warnings": "Missingness and duplicate evidence are diagnostics. Original units are preserved as metadata where available.",
+      "failure": "A missing or unreadable table can exit 2 with a failure report. A summary destination that aliases the input is rejected before a write.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"backend": "string", "rows": "integer", "columns": "integer", "column_summaries": "array"},
+        "rejected": {"error": "string", "partial_summary": "object"}
+      }
+    },
+    "inspect_data_container": {
+      "revision": 1,
+      "backend": "Core covers ZIP and other standard-library readers. Structured formats can require their optional Python readers.",
+      "inputs": [
+        {"argument": "path", "format": "Container", "detail": "Readable archive or supported HDF5, NetCDF, Zarr or other data container selected for inspection."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Detected reader, container structure and bounded inspection evidence."},
+        {"argument": "--output-json", "format": "JSON", "detail": "Alternate destination used when --summary-json is omitted."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input and written inspection output records."},
+        {"argument": "--run-dir", "format": "Directory", "detail": "App-ready bundle location with default summary and manifest paths."}
+      ],
+      "warnings": "Archive warnings or a raw-byte fallback can yield WARNING. Inspection does not extract the archive.",
+      "failure": "Missing input or a recognized format whose reader is unavailable can exit 2 with a blocked diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"method": "string", "path": "string"},
+        "rejected": {"path": "string", "error": "string"}
+      }
+    },
+    "physical_qa": {
+      "revision": 1,
+      "backend": "Core with NumPy and Astropy for FITS, and tabular readers for numeric columns.",
+      "inputs": [
+        {"argument": "input", "format": "FITS or table", "detail": "Readable input with available header or column metadata. Recognized names guide the bounded sanity checks."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Issue list and metrics for recognizable physical quantities, such as angular bounds, signs and sample order."}
+      ],
+      "warnings": "Suspicious values remain visible as warnings and are never corrected by the check. Interpret metrics using the input quantity and its declared unit.",
+      "failure": "A missing or unreadable dataset can exit 2 with a diagnostic. A path collision is refused before writing an output.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"path": "string", "kind": "string", "issue_count": "integer", "issues": "array", "metrics": "object"},
+        "rejected": {"path": "string", "issues": "array"}
+      }
+    },
+    "bootstrap_analysis_notebook": {
+      "revision": 1,
+      "backend": "Local Python generates notebook JSON. This command never executes the generated cells.",
+      "inputs": [
+        {"argument": "--title", "detail": "Notebook title."},
+        {"argument": "--domain", "detail": "General, applied or astronomy template."},
+        {"argument": "--language", "detail": "English, Spanish or bilingual scaffold text."},
+        {"argument": "--runtime-profile", "detail": "Local or Colab-style scaffold."},
+        {"argument": "--data-path", "detail": "Optional source reference for the data-loading cell. The scaffold does not rewrite the source."},
+        {"argument": "--output-dir-name", "detail": "Name of the analysis output directory referenced in generated cells."},
+        {"argument": "--overwrite", "detail": "Explicit permission to replace an existing notebook at the output path."}
+      ],
+      "outputs": [
+        {"argument": "output", "format": "IPYNB", "detail": "New notebook with setup, loading, analysis and export templates."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Scaffold settings, warnings and blocking findings."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Notebook creation settings and referenced data records."}
+      ],
+      "warnings": "An absolute, absent or nonportable data reference can yield WARNING while retaining a scaffold.",
+      "failure": "An existing notebook without explicit overwrite, or an invalid output, exits 2 with an explanation.",
+      "summary": {
+        "tool": "bootstrap_analysis_notebook.py",
+        "version": "1.8",
+        "complete": {"output": "string", "title": "string", "domain": "string", "language": "string", "runtime_profile": "string", "warnings": "array"},
+        "rejected": {"error": "string", "blockers": "array"}
+      }
+    },
+    "coursework_notebook_fidelity_check": {
+      "revision": 1,
+      "backend": "Local Python inspects notebook JSON and readable assignment references without executing cells.",
+      "inputs": [
+        {"argument": "notebook", "format": "IPYNB", "detail": "Readable coursework notebook to audit."},
+        {"argument": "--assignment-file", "detail": "Optional repeatable assignment or sidecar reference used to identify required materials."}
+      ],
+      "outputs": [
+        {"argument": "--report-md", "format": "Markdown", "detail": "Readable findings and final delivery checks."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Notebook metadata, detected input and answer signals, findings and checklist."}
+      ],
+      "warnings": "Heuristics flag missing answers, input requirements and portability risks for review.",
+      "failure": "A missing or unreadable notebook or assignment file can exit 2 with retained diagnostic details.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"notebook": "object", "signals": "object", "findings": "array", "final_delivery_checklist": "array"},
+        "rejected": {"blocked_reason": "string", "error_type": "string"}
+      }
+    },
+    "cross_domain_data_workbench": {
+      "revision": 1,
+      "backend": "Core table profiling. Optional query execution uses DuckDB when installed in the selected Python environment.",
+      "inputs": [
+        {"argument": "inputs", "format": "Tables or directories", "detail": "One or more table files or folders to discover supported datasets."},
+        {"argument": "--sql", "detail": "Optional SQL against discovered inputs through the dedicated query backend."},
+        {"argument": "--head", "unit": "rows per table", "detail": "Maximum preview rows per file profile."},
+        {"argument": "--max-files", "unit": "files", "detail": "Bound on the number of included table files."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Profiles, overview report and optional query products in a new output folder."},
+        {"argument": "--query-output", "format": "CSV, JSON or Parquet", "detail": "Optional output path for query results."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Discovered files, total rows, profile status, input issues and query state."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Discovered input and completed output records."},
+        {"argument": "--run-dir", "format": "Directory", "detail": "App-ready bundle location with default summary and manifest paths."}
+      ],
+      "warnings": "Partial profiling and unavailable or unsuccessful optional SQL are recorded in the result.",
+      "failure": "An unreadable input set, invalid output directory or output alias can exit 2. A rejected bundle is identified by its diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"file_count": "integer", "total_rows": "integer", "files": "array", "sql": "object"},
+        "rejected": {"sql": "object"}
+      }
+    },
+    "notebook_branch_compare": {
+      "revision": 1,
+      "backend": "Local Python inventories branch products and groups likely equivalents.",
+      "inputs": [
+        {"argument": "root", "format": "Directory", "detail": "Folder containing branch directories or products named with branch suffixes."},
+        {"argument": "--branch-token", "detail": "Additional repeatable branch or suffix token."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Contains branch_product_inventory.csv, branch_summary.csv, equivalent_products.csv and candidate_figures.md."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Branch inventory, equivalence groups, missing products, duplicates and candidate figures."}
+      ],
+      "warnings": "Missing and duplicate product groups require review. Grouping compares inventory evidence and names.",
+      "failure": "A missing root or a non-directory root can exit 2 with a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"product_count": "integer", "branch_count": "integer", "branch_summary": "array", "equivalent_products": "array"},
+        "rejected": {"blocked_reason": "string", "error_type": "string"}
+      }
+    },
     "inspect_fits": {
       "revision": 1,
       "backend": "Core with Astropy and NumPy. PNG quicklook uses Matplotlib. The limited NumPy fallback inspects the primary image.",
