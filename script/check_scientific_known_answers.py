@@ -842,6 +842,89 @@ def photometry_noise_cases(root: Path, environment: dict[str, str]) -> dict:
     return evidence
 
 
+def legacy_spectroscopy_cases(root: Path, environment: dict[str, str]) -> dict:
+    import csv
+    import statistics
+
+    from astropy.io import fits
+
+    fits_root = root / "input" / "legacy_spectra"
+    fits_root.mkdir()
+    header = fits.Header({
+        "RA": 150.0, "DEC": 20.0, "EQUINOX": 2000.0, "OBSERVAT": "DSAZ",
+        "DATE-OBS": "2024-01-01T00:00:00", "EXPTIME": 120.0,
+    })
+    for name in ("object.fits", "template.fits"):
+        fits.PrimaryHDU(header=header).writeto(fits_root / name)
+    calibration = root / "input" / "fwhm_calibration.csv"
+    calibration.write_text("FWHM_pix,vsini_kms\n5,10\n10,20\n15,30\n", encoding="ascii")
+    orders = root / "input" / "legacy_orders.csv"
+    fields = [
+        "image_name", "template_image", "template_vhelio_kms", "case_id", "mode",
+        "aperture", "vrel_kms", "verr_kms", "tdr", "fwhm_pix",
+    ]
+    with orders.open("w", encoding="ascii", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(fields)
+        for case_id, mode, aperture, rv, uncertainty, tdr, fwhm in [
+            ("single", "single_rv", 1, 10, 2, 10, 7.5),
+            ("single", "single_rv", 2, 14, 4, 11, 7.5),
+            ("single", "single_rv", 3, 80, 1, 2, 7.5),
+            ("single", "single_rv", 4, 70, 0, 12, 7.5),
+            ("binary", "sb2_rv", 1, 20, 2, 10, 7.5),
+            ("missing", "single_rv", 1, 10, "-1", 10, 7.5),
+            ("rotation", "vsini_fwhm", 1, "", "", 12, 7.5),
+            ("rotation", "vsini_fwhm", 2, "", "", 12, 16),
+            ("rotation", "vsini_fwhm", 3, "", "", 12, ""),
+        ]:
+            writer.writerow(["object.fits", "template.fits", 0, case_id, mode, aperture, rv, uncertainty, tdr, fwhm])
+    inputs = [orders, calibration, *sorted(fits_root.glob("*.fits"))]
+    original = {source.name: sha256(source) for source in inputs}
+    case = root / "legacy_spectroscopy"
+    products, summary = case / "products", case / "summary.json"
+    completed = run(
+        [sys.executable, str(ROOT / "skills/scientific-data-astro/scripts/legacy_rv_coursework_workbench.py"),
+         "analyze", str(orders), "--fits-root", str(fits_root), "--calibration-csv", str(calibration),
+         "--output-dir", str(products), "--summary-json", str(summary), "--manifest-json", str(case / "manifest.json")],
+        case, environment,
+    )
+    require(completed.returncode == 0, f"legacy spectroscopy exited {completed.returncode}: {completed.stderr[-1000:]}")
+    payload = read_json(summary)
+    require(payload["app_status"] == "WARNING", "provisional legacy estimates must report quality warnings")
+    result = payload["results"]
+    with (products / "rv_orders_filtered.csv").open(encoding="utf-8") as handle:
+        selected = [row for row in csv.DictReader(handle) if row["case_id"] == "single"]
+    require([row["aperture"] for row in selected] == ["1", "2"], "legacy RV retained invalid or low-quality orders")
+    velocities = [float(row["vhelio_calc_kms"]) for row in selected]
+    weighted_velocity = (4 * velocities[0] + velocities[1]) / 5
+    formal_uncertainty = 4 / math.sqrt(5)
+    details = result["measurement_summary"]
+    measurements = {item["label"]: item for item in details["measurements"]}
+    rv = measurements["single: heliocentric RV"]
+    require(rv["unit"] == "km/s" and math.isclose(rv["value"], weighted_velocity, abs_tol=1e-10)
+            and math.isclose(rv["uncertainty"], formal_uncertainty, abs_tol=1e-10),
+            "legacy RV central value, unit, or formal error differs")
+    diagnostics = {item["label"]: item for item in details["diagnostics"]}
+    require(math.isclose(diagnostics["single: sample scatter"]["value"], statistics.stdev(velocities), abs_tol=1e-10)
+            and diagnostics["single: orders with missing or invalid errors"]["value"] == 1,
+            "legacy RV order scatter or exclusions differ")
+    rotation = measurements["rotation, order 1: v sin i estimate"]
+    require(rotation["value"] == 15 and rotation["unit"] == "km/s" and rotation.get("uncertainty") is None
+            and len(measurements) == 3, "legacy rotation added an extrapolated value or invented an uncertainty")
+    findings = {finding["finding"] for finding in payload["qa"]["findings"] if finding.get("message")}
+    require({"calibration_range_warning", "missing_fwhm", "sb2_manual_ccf_review_required", "no_usable_orders"} <= findings,
+            "legacy spectroscopy did not expose provisional or unavailable results")
+    require(all(item["measurement_state"] == "unavailable" and "first_pass_fwhm_proxy" not in item["quality_flags"]
+                for item in result["vsini_rows"] if item["vsini_interp_kms"] is None),
+            "unavailable rotation must not be labeled as a provisional measurement")
+    report = (products / "summary.md").read_text(encoding="utf-8")
+    require("15 km/s (uncertainty unavailable)" in report and "orders with missing or invalid errors" in report,
+            "the written report lost the uncertainty and exclusion information")
+    require({source.name: sha256(source) for source in inputs} == original, "legacy spectroscopy inputs changed")
+    return {"rv_kms": rv["value"], "formal_uncertainty_kms": rv["uncertainty"],
+            "selected_orders": len(selected), "vsini_kms": rotation["value"], "input_sha256": original}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -879,6 +962,7 @@ def main() -> int:
         evidence["sb2"] = sb2_cases(output, environment)
         evidence["existing_wcs"] = existing_wcs_cases(output, environment)
         evidence["photometry_noise"] = photometry_noise_cases(output, environment)
+        evidence["legacy_spectroscopy"] = legacy_spectroscopy_cases(output, environment)
         evidence["status"] = "PASS"
     except Exception as error:
         evidence["failure"] = str(error)
@@ -887,7 +971,7 @@ def main() -> int:
         (output / "verification.json").write_text(
             json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-    print(f"Scientific known-answer PASS: FITS/WCS, sky crossmatch, photometric calibration, lithium EW, and SB2. Evidence: {output}")
+    print(f"Scientific known-answer PASS: FITS/WCS, crossmatch, photometry, Li I, SB2, and legacy RV/rotation. Evidence: {output}")
     return 0
 
 

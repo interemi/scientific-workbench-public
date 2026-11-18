@@ -4935,8 +4935,8 @@
     "scientific-data-astro/fixtures/legacy_rv_coursework_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "31b2642d4941339798736e8d10915a12f199e1089f6fe1f4e6236a5bd04c6ec0",
-      "size": 32594
+      "sha256": "f777efaad063dc8f561f8fed8049fc56434b779271479e72b8917020ff0b343f",
+      "size": 39245
     },
     "scientific-data-astro/fixtures/legacy_spectroscopy_envcheck.py": {
       "executable": false,

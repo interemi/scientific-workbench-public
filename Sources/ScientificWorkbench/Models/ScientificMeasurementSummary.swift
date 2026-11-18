@@ -58,7 +58,8 @@ struct ScientificMeasurementSummary: Sendable {
   static func supports(_ capabilityID: String) -> Bool {
     [
       "photometric_solution", "li6708_equivalent_width_workbench.measure", "sb2_double_gaussian_workbench.fit",
-      "astrometry_net_workbench.verify-existing-wcs", "photometry_noise_budget"
+      "astrometry_net_workbench.verify-existing-wcs", "photometry_noise_budget",
+      "legacy_rv_coursework_workbench.analyze"
     ].contains(capabilityID)
   }
 

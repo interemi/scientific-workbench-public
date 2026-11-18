@@ -336,6 +336,28 @@ center errors. The formal errors assume independent orders and exclude
 calibration and template systematics. Inspect the order table and plots
 before interpreting the combined estimates.
 
+### Review legacy radial velocities and rotation
+
+The expert `legacy_rv_coursework_workbench.analyze` route consumes parsed
+fxcor orders and uses the source and template FITS headers for heliocentric
+corrections. Provide one case ID per observation and component. The
+companion FWHM calibration table is optional and uses pixels for the CCF
+width and km/s for projected rotation.
+
+Results shows the heliocentric RV in km/s, its formal error from the
+reported fxcor errors, and the sample scatter of the selected orders.
+The filter excludes orders with missing, zero, negative, or non-finite
+errors. Check the Tonry-Davis R limits, selected orders, and quality
+findings. The formal error assumes independent orders and excludes
+template and calibration systematics. SB2 velocities require review of
+the CCF peaks before adoption.
+
+The projected rotation estimate uses PCHIP interpolation within the
+supplied calibration range. A width outside that range leaves the
+rotation value unavailable. The workflow has no CCF-width error model
+and reports the rotation uncertainty as unavailable. Use the CSV tables
+to inspect the per-order values and flags.
+
 ### Populate a legacy spectroscopy report
 
 `legacy_spectroscopy_report_builder.populate` separates the report scaffold
