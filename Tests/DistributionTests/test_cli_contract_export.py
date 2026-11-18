@@ -44,7 +44,7 @@ class CLIContractExportTests(unittest.TestCase):
         self.assertEqual(noise_args["units"]["default"], "electrons")
         self.assertEqual(noise["io_contract"]["revision"], 1)
         self.assertEqual(noise["io_contract"]["summary"]["complete"]["snr"], "number_or_null")
-        self.assertNotIn("io_contract", records["companion_route_check"])
+        self.assertEqual(records["companion_route_check"]["io_contract"]["summary"]["complete"]["policy"], "object")
 
         crossmatch = records["catalog_workbench.crossmatch-sky"]
         self.assertEqual(crossmatch["argv"], [
@@ -107,3 +107,17 @@ class CLIContractExportTests(unittest.TestCase):
         summary["results"]["mode"] = "preflight"
         with self.assertRaisesRegex(ValueError, "summary mode differs"):
             validate_summary_contract(summary, capability=capability)
+
+    def test_environment_status_retains_its_legacy_root_fields(self):
+        summary = {
+            "tool": "datanalysis_env.status",
+            "contract_version": "1.8",
+            "app_status": "BLOCKED_CONTROLADO",
+            "found": False,
+            "next_step": "Check the selected interpreter",
+            "warnings": [],
+        }
+        validate_summary_contract(summary)
+        summary["found"] = 0
+        with self.assertRaisesRegex(ValueError, r"found must be boolean"):
+            validate_summary_contract(summary)

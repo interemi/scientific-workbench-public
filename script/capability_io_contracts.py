@@ -15,6 +15,7 @@ JSON_TYPES = {
     "array": lambda value: isinstance(value, list),
     "object": lambda value: isinstance(value, dict),
     "string": lambda value: isinstance(value, str),
+    "boolean": lambda value: isinstance(value, bool),
     "integer": lambda value: type(value) is int,
     "number": lambda value: type(value) in (int, float),
     "number_or_null": lambda value: value is None or type(value) in (int, float),
@@ -46,6 +47,8 @@ def validate_parser_references(capability: str, contract: dict, parser: dict) ->
     if unknown or missing:
         raise ValueError(f"{capability}: I/O arguments differ from parser: missing={sorted(missing)}, unknown={sorted(unknown)}")
     summary = contract["summary"]
+    if summary.get("container", "results") not in {"root", "results"}:
+        raise ValueError(f"{capability}: unsupported summary field container")
     for outcome in ("complete", "rejected"):
         if not summary[outcome] or set(summary[outcome].values()) - JSON_TYPES.keys():
             raise ValueError(f"{capability}: invalid JSON field types for {outcome}")
@@ -75,11 +78,13 @@ def validate_summary_contract(payload: dict, *, capability: str | None = None) -
         outcome = "rejected"
     else:
         raise ValueError(f"{capability}: unrecognized summary status {status!r}")
-    results = payload.get("results")
+    container = summary.get("container", "results")
+    results = payload if container == "root" else payload.get("results")
     if not isinstance(results, dict):
         raise ValueError(f"{capability}: missing summary results")
     if "mode" in summary and results.get("mode") != summary["mode"]:
         raise ValueError(f"{capability}: summary mode differs from I/O contract")
     for field, kind in summary[outcome].items():
         if field not in results or not JSON_TYPES[kind](results[field]):
-            raise ValueError(f"{capability}: results.{field} must be {kind} for {status}")
+            prefix = "results." if container == "results" else ""
+            raise ValueError(f"{capability}: {prefix}{field} must be {kind} for {status}")

@@ -9,6 +9,7 @@ import subprocess
 import sys
 
 from check_distribution_snapshot import ROOT, verify
+from capability_io_contracts import validate_summary_contract
 from setup_environment import installation_environment, validate_profile_readiness
 
 
@@ -31,6 +32,56 @@ def validate_summary(summary, profile="core"):
             or not required_tiers.issubset(coverage.get("tiers_enforced", []))):
         raise ValueError(f"{profile} smoke failed, returned no feature runs or has incomplete coverage")
     return len(runs)
+
+
+def check_core_io_contracts(output, doctor, environment):
+    """Exercise the published environment and advisory result shapes."""
+    validate_summary_contract(doctor, capability="env_doctor")
+    family = ROOT / "skills"
+    analysis = family / "scientific-data-analysis/scripts"
+    astro = family / "scientific-data-astro/scripts"
+    evidence = output / "core-io"
+    evidence.mkdir()
+    original = evidence / "synthetic-file-hint.pdf"
+    marker = b"synthetic file hint only\n"
+    original.write_bytes(marker)
+
+    advisory = analysis / "companion_route_check.py"
+    external = astro / "external_astro_tools_preflight.py"
+    cases = [
+        ("discovery", "datanalysis_env.status", analysis / "datanalysis_env.py",
+         ["status"], {0: {"PASS", "WARNING"}}),
+        ("healthcheck", "datanalysis_healthcheck", analysis / "datanalysis_healthcheck.py",
+         ["--skip-notebook-exec"], {0: {"PASS", "WARNING"}, 1: {"BLOCKED_CONTROLADO"}}),
+        ("doctor-invalid-output", "env_doctor", analysis / "env_doctor.py",
+         ["--manifest-json", str(evidence)], {2: {"BLOCKED_CONTROLADO"}}),
+        ("advisory", "companion_route_check", advisory,
+         ["--task", "Inspect a scientific report", "--file", str(original)], {0: {"PASS"}}),
+        ("advisory-overlap", "companion_route_check", advisory,
+         ["--file", str(original)], {2: {"BLOCKED_CONTROLADO"}}),
+        ("external-discovery", "external_astro_tools_preflight", external,
+         [], {0: {"PASS", "WARNING"}, 2: {"BLOCKED_CONTROLADO"}}),
+        ("external-missing-required", "external_astro_tools_preflight", external,
+         ["--require-apt", "--apt-command", str(evidence / "missing-apt"),
+          "--apt-preferences", str(evidence / "missing.pref")], {2: {"BLOCKED_CONTROLADO"}}),
+    ]
+    records = {"doctor": {"returncode": 0, "app_status": doctor["app_status"]}}
+    for name, capability, script, args, expected in cases:
+        overlap = name == "advisory-overlap"
+        summary = original if overlap else evidence / f"{name}.json"
+        command = [sys.executable, str(script), *args, "--summary-json", str(summary)]
+        process = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, timeout=120)
+        (evidence / f"{name}.stdout.log").write_text(process.stdout, encoding="utf-8")
+        (evidence / f"{name}.stderr.log").write_text(process.stderr, encoding="utf-8")
+        if overlap and original.read_bytes() != marker:
+            raise ValueError("companion routing modified the synthetic file hint")
+        payload = json.loads(process.stdout if overlap else summary.read_text(encoding="utf-8"))
+        validate_summary_contract(payload, capability=capability)
+        status = payload["app_status"]
+        if status not in expected.get(process.returncode, set()):
+            raise ValueError(f"{capability} {name}: unexpected exit {process.returncode} with {status}")
+        records[name] = {"returncode": process.returncode, "app_status": status}
+    return records
 
 
 def main(argv=None):
@@ -67,7 +118,9 @@ def main(argv=None):
                 subprocess.run(command, env=environment, cwd=ROOT, stdout=log,
                                stderr=subprocess.STDOUT, check=True, timeout=600)
             if index == 0:
-                validate_profile_readiness(json.loads((output / "env-doctor.json").read_text()), args.profile)
+                doctor = json.loads((output / "env-doctor.json").read_text())
+                validate_profile_readiness(doctor, args.profile)
+                evidence["core_io_contracts"] = check_core_io_contracts(output, doctor, environment)
         summary = json.loads((output / "smoke-summary.json").read_text())
         evidence["passed_features"] = validate_summary(summary, args.profile)
         known_answer = json.loads((output / "known-answer/verification.json").read_text())

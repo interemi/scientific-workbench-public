@@ -685,7 +685,9 @@ private struct CapabilityIOContractDetails: View {
     DisclosureGroup("Inputs and outputs · revision \(contract.revision)") {
       VStack(alignment: .leading, spacing: 10) {
         Text(contract.backend)
-        argumentSection("Inputs and units", arguments: contract.inputs)
+        if !contract.inputs.isEmpty {
+          argumentSection("Inputs and units", arguments: contract.inputs)
+        }
         argumentSection("Outputs", arguments: contract.outputs)
         Text(contract.warnings)
         Text(contract.failure)

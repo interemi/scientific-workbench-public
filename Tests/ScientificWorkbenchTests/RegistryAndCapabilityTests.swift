@@ -95,6 +95,10 @@ extension ScientificWorkbenchTests {
     let wcs = try #require(entries.first { $0.id == "astrometry_net_workbench.verify-existing-wcs" }?.ioContract)
     #expect(wcs.summary.tool == "astrometry_net_workbench")
     #expect(wcs.summary.mode == "verify-existing-wcs")
+    let discovery = try #require(entries.first { $0.id == "datanalysis_env.status" }?.ioContract)
+    #expect(discovery.inputs.isEmpty)
+    #expect(discovery.summary.container == "root")
+    #expect(discovery.summary.complete["found"] == "boolean")
     #expect(entries.first { $0.id == "profile_table" }?.ioContract == nil)
   }
 

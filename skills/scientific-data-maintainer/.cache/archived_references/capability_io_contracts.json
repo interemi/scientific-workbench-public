@@ -1,6 +1,104 @@
 {
   "schema_version": 1,
   "capabilities": {
+    "datanalysis_env.status": {
+      "revision": 1,
+      "backend": "Local Python environment discovery. Uses configured and installed interpreter candidates.",
+      "inputs": [],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Optional copy of the discovery report, which is also printed to standard output."}
+      ],
+      "warnings": "A usable selection can coexist with warnings about other candidates. Package imports and notebook execution have their own healthcheck.",
+      "failure": "When no dedicated environment is found, exits 1 and reports recovery guidance. It does not install an environment.",
+      "summary": {
+        "version": "1.8",
+        "container": "root",
+        "complete": {"found": "boolean", "selected_python": "string", "selected_env_root": "string", "warnings": "array"},
+        "rejected": {"found": "boolean", "next_step": "string", "warnings": "array"}
+      }
+    },
+    "datanalysis_healthcheck": {
+      "revision": 1,
+      "backend": "The selected datanalysis interpreter checks imports. Jupyter support enables the optional temporary notebook smoke.",
+      "inputs": [
+        {"argument": "--kernel-name", "detail": "Kernel used for the generated smoke notebook."},
+        {"argument": "--skip-notebook-exec", "detail": "Check modules and imports without executing the notebook."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Environment identity, module status, missing or failed imports, and notebook smoke status."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Diagnostic provenance and summary output record when requested."}
+      ],
+      "warnings": "A notebook smoke blocked by the host environment can yield WARNING. A skipped smoke records no notebook execution result.",
+      "failure": "An incomplete stack or unsuccessful notebook smoke can exit 1 with a retained diagnostic report.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"ready": "boolean", "modules": "object", "notebook_execution": "object"},
+        "rejected": {"ready": "boolean", "missing": "array", "import_failures": "array", "notebook_execution": "object"}
+      }
+    },
+    "env_doctor": {
+      "revision": 1,
+      "backend": "Local Python, package metadata, interpreter discovery and installed tool checks.",
+      "inputs": [
+        {"argument": "--strict-core", "detail": "Exit 1 if any core dependency is missing, while retaining the diagnostic when its output path is usable."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Core and optional dependency status, discovered backends and recommended actions."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Summary output and environment-readiness provenance."}
+      ],
+      "warnings": "Unavailable optional features can produce WARNING even when Core is ready.",
+      "failure": "An invalid output destination can exit 2 with a controlled diagnostic on standard output. An independently writable summary path can retain it.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"core_modules": "object", "optional_groups": "object", "capabilities": "object", "recommendations": "array"},
+        "rejected": {"blocked_reason": "string", "error_type": "string", "requested_outputs": "object"}
+      }
+    },
+    "companion_route_check": {
+      "revision": 1,
+      "backend": "Local rule-based advisory routing in Python.",
+      "inputs": [
+        {"argument": "--task", "detail": "Short task description used to match advisory routes."},
+        {"argument": "--file", "detail": "Repeatable filename hint. The command uses its name and extension without reading the file."},
+        {"argument": "--format", "detail": "Repeatable explicit format hint."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Advisory recommendations, exclusions and routing policy. No plugins or connectors are started."}
+      ],
+      "warnings": "An unmatched request produces WARNING and an empty recommendation list.",
+      "failure": "A summary path that overlaps a supplied file hint or cannot be written exits 2 with a diagnostic on standard output.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"files": "array", "recommendations": "array", "excluded_by_policy": "array", "policy": "object"},
+        "rejected": {"files": "array"}
+      }
+    },
+    "external_astro_tools_preflight": {
+      "revision": 1,
+      "backend": "Local Python discovery of optional Java, STILTS, TOPCAT and APT commands or packages.",
+      "inputs": [
+        {"argument": "--java-command", "detail": "Explicit Java command for JAR routes."},
+        {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+        {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS Java archive."},
+        {"argument": "--topcat-command", "detail": "Explicit TOPCAT command."},
+        {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT Java archive."},
+        {"argument": "--apt-command", "detail": "Explicit APT command."},
+        {"argument": "--apt-preferences", "format": "APT.pref", "detail": "Saved preferences for reproducible APT batch mode."},
+        {"argument": "--require-stilts", "detail": "Require a launchable STILTS route."},
+        {"argument": "--require-apt", "detail": "Require APT batch mode with its saved preferences."},
+        {"argument": "--probe", "detail": "Run short help or version probes for detected commands."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Discovered backends, optional probe results, blocking findings and native alternatives."}
+      ],
+      "warnings": "Absent non-required backends can yield WARNING. Discovery without a probe verifies the selected path rather than executing a scientific job.",
+      "failure": "A missing required backend exits 2 with blocking findings. This command does not perform catalog matching or photometry.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"capabilities": "object", "blocking_findings": "array", "warning_findings": "array", "native_alternatives": "object"},
+        "rejected": {"capabilities": "object", "blocking_findings": "array", "native_alternatives": "object"}
+      }
+    },
     "inspect_fits": {
       "revision": 1,
       "backend": "Core with Astropy and NumPy. PNG quicklook uses Matplotlib. The limited NumPy fallback inspects the primary image.",
