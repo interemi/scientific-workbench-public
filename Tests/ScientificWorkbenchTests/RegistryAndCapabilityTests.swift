@@ -88,6 +88,7 @@ extension ScientificWorkbenchTests {
         "public_surface_registry.yaml": "canonical_registry: nested/stub.yaml\n",
         "nested/stub.yaml": "canonical_registry: canonical/public_surface_registry.yaml\n",
         "nested/canonical/public_surface_registry.yaml": """
+        registry_schema_version: 1 # versioned canonical snapshot
         entries:
           - id: sample.tool
             label: sample.py tool
@@ -107,13 +108,66 @@ extension ScientificWorkbenchTests {
     defer { try? FileManager.default.removeItem(at: root) }
     let catalog = SkillRootCatalog(roots: [.init(role: .mother, url: root)])
 
-    let entries = try CapabilityRegistryLoader().load(catalog: catalog)
+    let loader = CapabilityRegistryLoader()
+    let entries = try loader.load(catalog: catalog)
+    let mother = try #require(catalog.root(for: .mother))
+    let resolution = try loader.resolveRegistry(for: mother)
 
     #expect(entries.map(\.id) == ["sample.tool"])
     #expect(entries[0].owningSkillRoot == root.path)
     #expect(entries[0].owningSkillRole == SkillRootRole.mother.rawValue)
     #expect(entries[0].registrySourcePath?.hasSuffix("nested/canonical/public_surface_registry.yaml") == true)
     #expect(entries[0].registryFingerprint?.isEmpty == false)
+    #expect(resolution.schemaVersion == 1)
+    #expect(resolution.fingerprint == entries[0].registryFingerprint)
+  }
+
+  @Test
+  func registryLoaderAcceptsLegacyAndRejectsFutureCanonicalSchema() throws {
+    let fixture = try makeModularRegistryFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+    let loader = CapabilityRegistryLoader()
+    let mother = try #require(fixture.catalog.root(for: .mother))
+    #expect(try loader.resolveRegistry(for: mother).schemaVersion == 1)
+    #expect(try loader.load(catalog: fixture.catalog).count == 5)
+
+    let terminal = fixture.astro.appendingPathComponent(".cache/public_surface_registry.yaml")
+    try ("registry_schema_version: 2\n" + modularRegistryYAML).write(
+      to: terminal, atomically: true, encoding: .utf8
+    )
+    do {
+      _ = try loader.load(catalog: fixture.catalog)
+      Issue.record("The loader accepted a future schema on an installed child.")
+    } catch let error as RegistryError {
+      guard case let .unsupportedRegistrySchema(path, value, supported) = error else {
+        Issue.record("Unexpected registry error: \(error)")
+        return
+      }
+      #expect(path.hasSuffix("scientific-data-astro/.cache/public_surface_registry.yaml"))
+      #expect(value == "2")
+      #expect(supported == 1)
+    }
+  }
+
+  @Test
+  func registryParserRejectsAmbiguousSchemaDeclarations() throws {
+    let loader = CapabilityRegistryLoader()
+    for header in [
+      "registry_schema_version: 1\nregistry_schema_version: 1\n",
+      "registry_schema_version: \"1\"\n",
+      "registry_schema_version: 01\n",
+      "  registry_schema_version: 1\n",
+    ] {
+      do {
+        _ = try loader.parse(header + modularRegistryYAML)
+        Issue.record("The parser accepted an invalid schema declaration.")
+      } catch let error as RegistryError {
+        guard case .invalidRegistrySchemaDeclaration = error else {
+          Issue.record("Unexpected registry error: \(error)")
+          continue
+        }
+      }
+    }
   }
 
   @Test

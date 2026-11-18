@@ -11,6 +11,19 @@ For external tools and safe first checks, see
 
 ## Registry snapshot
 
+The bundled public surface registry declares `registry_schema_version: 1`.
+This field versions the registry format. The skill's `release` field versions
+the skill distribution, and a tool's `contract_version` versions its result
+envelope.
+
+Scientific Workbench and the Python router read older registries with an
+omitted schema field as version 1. An explicit version must be an unquoted
+positive integer at the top level. A duplicate, malformed, or unsupported
+version blocks registry loading and identifies the source file. Keep the
+skill roots together as a matched set when updating a bundled registry.
+An incompatible format change requires a new schema version and a documented
+migration or compatibility alias.
+
 The canonical registry contains 61 entries:
 
 | Surface | Count |

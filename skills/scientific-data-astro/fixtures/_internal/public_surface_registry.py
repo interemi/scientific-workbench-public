@@ -20,6 +20,8 @@ VISIBLE_BLOCK_ORDER = [
 ]
 
 DEFAULT_MAX_REGISTRY_DEPTH = 8
+REGISTRY_SCHEMA_VERSION = 1
+REGISTRY_SCHEMA_KEY = "registry_schema_version"
 
 
 def registry_path(path: str | Path | None = None) -> Path:
@@ -39,11 +41,11 @@ def _coerce_scalar(value: str):
     return value
 
 
-def _load_registry_without_yaml(path: Path) -> dict[str, list[dict]]:
+def _load_registry_without_yaml(text: str) -> dict[str, object]:
     top_level: dict[str, object] = {}
     entries: list[dict] = []
     current: dict | None = None
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
+    for raw_line in text.splitlines():
         stripped = raw_line.strip()
         if not stripped or stripped.startswith("#") or stripped == "entries:":
             continue
@@ -55,6 +57,8 @@ def _load_registry_without_yaml(path: Path) -> dict[str, list[dict]]:
         if ":" not in stripped:
             continue
         key, value = stripped.split(":", 1)
+        if key.strip() == REGISTRY_SCHEMA_KEY:
+            continue
         if current is None:
             top_level[key.strip()] = _coerce_scalar(value)
             continue
@@ -63,6 +67,30 @@ def _load_registry_without_yaml(path: Path) -> dict[str, list[dict]]:
         entries.append(current)
     top_level["entries"] = entries
     return top_level
+
+
+def declared_registry_schema_version(text: str, source: str | Path) -> int | None:
+    declarations = []
+    for line in text.splitlines():
+        key, colon, value = line.partition(":")
+        key = key.strip()
+        if not colon or key not in {REGISTRY_SCHEMA_KEY, f'"{REGISTRY_SCHEMA_KEY}"', f"'{REGISTRY_SCHEMA_KEY}'"}:
+            continue
+        if line[:1].isspace() or key != REGISTRY_SCHEMA_KEY:
+            raise ValueError(f"{source}: {REGISTRY_SCHEMA_KEY} must be an unquoted top-level key")
+        declarations.append(value)
+    if not declarations:
+        return None
+    parts = declarations[0].split(maxsplit=1)
+    if (len(declarations) != 1 or not parts or (len(parts) == 2 and not parts[1].startswith("#"))
+            or parts[0].startswith("0") or not parts[0].isascii() or not parts[0].isdecimal()):
+        raise ValueError(f"{source}: declare at most one unquoted positive integer {REGISTRY_SCHEMA_KEY}")
+    if parts[0] != str(REGISTRY_SCHEMA_VERSION):
+        raise ValueError(
+            f"{source}: the public surface registry requires schema version {parts[0]}. "
+            f"This build supports version {REGISTRY_SCHEMA_VERSION}."
+        )
+    return REGISTRY_SCHEMA_VERSION
 
 
 def _is_within(path: Path, root: Path) -> bool:
@@ -111,7 +139,9 @@ def load_public_surface_registry(
         raise FileNotFoundError(f"public surface registry is missing: {source}")
     visited.add(source)
 
-    payload = yaml.safe_load(source.read_text(encoding="utf-8")) if yaml is not None else _load_registry_without_yaml(source)
+    text = source.read_text(encoding="utf-8")
+    declared_registry_schema_version(text, source)
+    payload = yaml.safe_load(text) if yaml is not None else _load_registry_without_yaml(text)
     payload = payload or {}
     if isinstance(payload, dict) and payload.get("canonical_registry"):
         canonical = Path(payload["canonical_registry"])

@@ -9,6 +9,9 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from check_distribution_snapshot import ROOTS
+from resolve_skill_registry_evidence import resolve_registry_evidence
+
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_HELPER = (
@@ -57,7 +60,7 @@ def fail(message: str) -> None:
     raise SystemExit(f"workflow requirements check failed: {message}")
 
 
-def load_registry() -> list[dict]:
+def load_registry_helper():
     if not REGISTRY_HELPER.is_file():
         fail(f"missing registry helper: {REGISTRY_HELPER.relative_to(ROOT)}")
     spec = importlib.util.spec_from_file_location("scientific_workbench_registry", REGISTRY_HELPER)
@@ -65,7 +68,24 @@ def load_registry() -> list[dict]:
         fail("could not load the registry helper")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.load_public_surface_registry(MOTHER_REGISTRY, family_root=ROOT / "skills")
+    return module
+
+
+def load_registry() -> list[dict]:
+    module = load_registry_helper()
+    family = ROOT / "skills"
+    fingerprints = set()
+    entries = module.load_public_surface_registry(MOTHER_REGISTRY, family_root=family)
+    for name in sorted(ROOTS):
+        stub = family / name / "public_surface_registry.yaml"
+        evidence = resolve_registry_evidence(family, stub)
+        terminal = family / evidence["skill_registry_relative_path"]
+        version = module.declared_registry_schema_version(terminal.read_text(encoding="utf-8"), terminal)
+        require_equal(f"{name} explicit bundled registry schema", version, module.REGISTRY_SCHEMA_VERSION)
+        require_equal(f"{name} registry entries", module.load_public_surface_registry(stub, family_root=family), entries)
+        fingerprints.add(evidence["skill_registry_sha256"])
+    require_equal("bundled canonical registry fingerprint count", len(fingerprints), 1)
+    return entries
 
 
 def require_equal(label: str, actual: object, expected: object) -> None:

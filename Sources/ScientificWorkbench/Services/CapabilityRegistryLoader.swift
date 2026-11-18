@@ -24,6 +24,7 @@ struct CapabilityRegistryResolution: Hashable, Sendable {
   var stubPath: String
   var resolvedPath: String
   var fingerprint: String
+  var schemaVersion: Int
 }
 
 enum CapabilityRegistryDegradationReason: String, Hashable, Sendable {
@@ -58,6 +59,8 @@ private struct RegisteredCapability {
 }
 
 struct CapabilityRegistryLoader {
+  private static let schemaVersion = 1
+  private static let schemaVersionKey = "registry_schema_version"
   private let maximumCanonicalDepth = 8
   private let allowedCapabilityKinds: Set<String> = [
     "golden_path",
@@ -187,11 +190,7 @@ struct CapabilityRegistryLoader {
   private func loadRegistry(
     for root: SkillRootCatalog.Root
   ) throws -> LoadedCapabilityRegistry {
-    let resolution = try resolveRegistry(for: root)
-    let text = try String(
-      contentsOf: URL(fileURLWithPath: resolution.resolvedPath),
-      encoding: .utf8
-    )
+    let (resolution, text) = try resolveRegistryDocument(for: root)
     return LoadedCapabilityRegistry(
       root: root,
       resolution: resolution,
@@ -223,6 +222,7 @@ struct CapabilityRegistryLoader {
   }
 
   func parse(_ text: String) throws -> [CapabilityEntry] {
+    _ = try registrySchemaVersion(in: text, path: "<inline>")
     var uniqueByID: [String: CapabilityRegistryRawEntry] = [:]
     var orderedEntries: [CapabilityRegistryRawEntry] = []
     for rawEntry in try parseRawEntries(text) {
@@ -249,6 +249,12 @@ struct CapabilityRegistryLoader {
   }
 
   func resolveRegistry(for root: SkillRootCatalog.Root) throws -> CapabilityRegistryResolution {
+    try resolveRegistryDocument(for: root).resolution
+  }
+
+  private func resolveRegistryDocument(
+    for root: SkillRootCatalog.Root
+  ) throws -> (resolution: CapabilityRegistryResolution, text: String) {
     var registryURL = root.registryStubURL
     var visited: Set<String> = []
     var depth = 0
@@ -279,6 +285,7 @@ struct CapabilityRegistryLoader {
         throw RegistryError.canonicalRegistryCycle(standardizedPath)
       }
       let text = try String(contentsOf: registryURL, encoding: .utf8)
+      let schemaVersion = try registrySchemaVersion(in: text, path: standardizedPath)
       if let canonical = canonicalRegistryPath(in: text) {
         depth += 1
         guard depth <= maximumCanonicalDepth else {
@@ -292,14 +299,39 @@ struct CapabilityRegistryLoader {
       guard text.split(separator: "\n").contains(where: { $0.trimmingCharacters(in: .whitespaces) == "entries:" }) else {
         throw RegistryError.registryHasNoEntries(registryURL.path)
       }
-      return CapabilityRegistryResolution(
+      let resolution = CapabilityRegistryResolution(
         role: root.role,
         rootPath: root.path,
         stubPath: root.registryStubURL.path,
         resolvedPath: registryURL.path,
-        fingerprint: stableFingerprint(for: text)
+        fingerprint: stableFingerprint(for: text),
+        schemaVersion: schemaVersion
       )
+      return (resolution, text)
     }
+  }
+
+  private func registrySchemaVersion(in text: String, path: String) throws -> Int {
+    let declarations = try text.split(whereSeparator: \.isNewline).compactMap { line -> Substring? in
+      guard let colon = line.firstIndex(of: ":") else { return nil }
+      let key = line[..<colon].trimmingCharacters(in: .whitespaces)
+      guard unquote(key) == Self.schemaVersionKey else { return nil }
+      guard line.first?.isWhitespace == false, key == Self.schemaVersionKey else {
+        throw RegistryError.invalidRegistrySchemaDeclaration(path)
+      }
+      return line[line.index(after: colon)...]
+    }
+    guard let declaration = declarations.first else { return Self.schemaVersion }
+    let parts = declaration.split(maxSplits: 1, whereSeparator: \.isWhitespace)
+    guard declarations.count == 1, let value = parts.first,
+          parts.count == 1 || parts[1].hasPrefix("#"),
+          value.first != "0", value.allSatisfy({ $0.isASCII && $0.isNumber }) else {
+      throw RegistryError.invalidRegistrySchemaDeclaration(path)
+    }
+    guard value == String(Self.schemaVersion) else {
+      throw RegistryError.unsupportedRegistrySchema(path: path, value: String(value), supported: Self.schemaVersion)
+    }
+    return Self.schemaVersion
   }
 
   private func parseRawEntries(_ text: String) throws -> [CapabilityRegistryRawEntry] {
@@ -324,7 +356,8 @@ struct CapabilityRegistryLoader {
         continue
       }
 
-      guard var entry = current, let pair = parseKeyValue(trimmed) else { continue }
+      guard var entry = current, let pair = parseKeyValue(trimmed),
+            pair.key != Self.schemaVersionKey else { continue }
       entry[pair.key] = pair.value
       current = entry
     }
@@ -525,6 +558,8 @@ enum RegistryError: LocalizedError {
   case canonicalRegistryTooDeep(String)
   case canonicalRegistryOutsideSkillFamily(path: String, allowedRoots: [String])
   case registryHasNoEntries(String)
+  case invalidRegistrySchemaDeclaration(String)
+  case unsupportedRegistrySchema(path: String, value: String, supported: Int)
   case missingCapabilityScript(entryID: String, script: String)
   case ambiguousCapabilityOwner(entryID: String, roles: [SkillRootRole])
   case duplicateCapabilityMetadata(id: String, firstRegistry: String, duplicateRegistry: String)
@@ -562,6 +597,10 @@ enum RegistryError: LocalizedError {
         "(\(allowedRoots.joined(separator: ", "))): \(path)."
     case .registryHasNoEntries(let path):
       return "The public surface registry at \(path) does not contain entries."
+    case .invalidRegistrySchemaDeclaration(let path):
+      return "The public surface registry at \(path) must declare at most one unquoted positive integer registry_schema_version."
+    case .unsupportedRegistrySchema(let path, let value, let supported):
+      return "The public surface registry at \(path) requires schema version \(value). This build supports version \(supported)."
     case .missingCapabilityScript(let entryID, let script):
       return "Capability \(entryID) declares \(script), but no configured skill root contains that script."
     case .ambiguousCapabilityOwner(let entryID, let roles):

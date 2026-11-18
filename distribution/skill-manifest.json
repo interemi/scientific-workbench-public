@@ -1511,8 +1511,8 @@
     "scientific-data-analysis/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f80060424b1710062072e5377004d3266fb9273fa8a835b3d83d055550bacc81",
-      "size": 9241
+      "sha256": "3f60f41224621f4b9f5849a8060aa3c3c2aa731e99c27fbe51cd1391776d4338",
+      "size": 10635
     },
     "scientific-data-analysis/fixtures/_internal/run_bundle.py": {
       "executable": false,
@@ -4527,8 +4527,8 @@
     "scientific-data-astro/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "ed3588ddc98d830c02f1443ab55714412a9888e0500e84e6542eaf5999074724",
-      "size": 26433
+      "sha256": "58264d0ca23621f5d214981f2366d877670d8ece8749f174de09fd1d021e2b04",
+      "size": 26460
     },
     "scientific-data-astro/.cache/archived_references/references/astro-transferable-patterns.md": {
       "executable": false,
@@ -4797,8 +4797,8 @@
     "scientific-data-astro/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f80060424b1710062072e5377004d3266fb9273fa8a835b3d83d055550bacc81",
-      "size": 9241
+      "sha256": "3f60f41224621f4b9f5849a8060aa3c3c2aa731e99c27fbe51cd1391776d4338",
+      "size": 10635
     },
     "scientific-data-astro/fixtures/_internal/radial_velocity_systemic.py": {
       "executable": false,
@@ -5667,8 +5667,8 @@
     "scientific-data-documents/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "ed3588ddc98d830c02f1443ab55714412a9888e0500e84e6542eaf5999074724",
-      "size": 26433
+      "sha256": "58264d0ca23621f5d214981f2366d877670d8ece8749f174de09fd1d021e2b04",
+      "size": 26460
     },
     "scientific-data-documents/.cache/archived_references/references/academic-reporting.md": {
       "executable": false,
@@ -5811,8 +5811,8 @@
     "scientific-data-documents/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f80060424b1710062072e5377004d3266fb9273fa8a835b3d83d055550bacc81",
-      "size": 9241
+      "sha256": "3f60f41224621f4b9f5849a8060aa3c3c2aa731e99c27fbe51cd1391776d4338",
+      "size": 10635
     },
     "scientific-data-documents/fixtures/_internal/radial_velocity_systemic.py": {
       "executable": false,
@@ -7199,8 +7199,8 @@
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "ed3588ddc98d830c02f1443ab55714412a9888e0500e84e6542eaf5999074724",
-      "size": 26433
+      "sha256": "58264d0ca23621f5d214981f2366d877670d8ece8749f174de09fd1d021e2b04",
+      "size": 26460
     },
     "scientific-data-maintainer/.cache/archived_references/real-world-capability-classification-v1-7.md": {
       "executable": false,
@@ -7409,8 +7409,8 @@
     "scientific-data-maintainer/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f80060424b1710062072e5377004d3266fb9273fa8a835b3d83d055550bacc81",
-      "size": 9241
+      "sha256": "3f60f41224621f4b9f5849a8060aa3c3c2aa731e99c27fbe51cd1391776d4338",
+      "size": 10635
     },
     "scientific-data-maintainer/fixtures/_internal/run_bundle.py": {
       "executable": false,
@@ -10053,8 +10053,8 @@
     "scientific-data-notebooks/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "ed3588ddc98d830c02f1443ab55714412a9888e0500e84e6542eaf5999074724",
-      "size": 26433
+      "sha256": "58264d0ca23621f5d214981f2366d877670d8ece8749f174de09fd1d021e2b04",
+      "size": 26460
     },
     "scientific-data-notebooks/.cache/archived_references/references/coursework-notebook-comparison.md": {
       "executable": false,
@@ -10215,8 +10215,8 @@
     "scientific-data-notebooks/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f80060424b1710062072e5377004d3266fb9273fa8a835b3d83d055550bacc81",
-      "size": 9241
+      "sha256": "3f60f41224621f4b9f5849a8060aa3c3c2aa731e99c27fbe51cd1391776d4338",
+      "size": 10635
     },
     "scientific-data-notebooks/fixtures/_internal/radial_velocity_systemic.py": {
       "executable": false,

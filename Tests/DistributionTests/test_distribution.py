@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "script"))
 from check_distribution_snapshot import ROOT, ROOTS, verify
+from check_workflow_requirements import load_registry_helper
 from setup_environment import installation_environment, main, validate_destination
 
 
@@ -59,6 +60,41 @@ class DistributionSafetyTests(unittest.TestCase):
         (self.file.parent / "extra.py").write_text("unreviewed")
         with self.assertRaises(ValueError):
             verify(self.root)
+
+    def test_registry_schema_accepts_legacy_and_version_one(self):
+        helper = load_registry_helper()
+        stub = self.root / "registry.yaml"
+        terminal = self.root / "terminal.yaml"
+        stub.write_text("canonical_registry: terminal.yaml\nrelease: v2.8\n", encoding="utf-8")
+        entries = "entries:\n  - id: alpha\n    script: scripts/alpha.py\n"
+        for parser in [None, helper.yaml]:
+            with patch.object(helper, "yaml", parser):
+                for declaration in ["", "registry_schema_version: 1 # comment\n"]:
+                    terminal.write_text(declaration + entries, encoding="utf-8")
+                    rows = helper.load_public_surface_registry(stub, family_root=self.root)
+                    self.assertEqual([row["id"] for row in rows], ["alpha"])
+
+    def test_registry_schema_rejects_incompatible_or_ambiguous_versions(self):
+        helper = load_registry_helper()
+        stub = self.root / "registry.yaml"
+        terminal = self.root / "terminal.yaml"
+        stub.write_text("canonical_registry: terminal.yaml\n", encoding="utf-8")
+        entries = "entries:\n  - id: alpha\n"
+        declarations = {
+            "registry_schema_version: 2\n": r"requires schema version 2",
+            "registry_schema_version: 1\nregistry_schema_version: 1\n": r"unquoted positive integer",
+            "registry_schema_version: 01\n": r"unquoted positive integer",
+            "registry_schema_version: \"1\"\n": r"unquoted positive integer",
+            "  registry_schema_version: 1\n": r"unquoted top-level key",
+            "'registry_schema_version': 1\n": r"unquoted top-level key",
+        }
+        for parser in [None, helper.yaml]:
+            with patch.object(helper, "yaml", parser):
+                for declaration, error in declarations.items():
+                    with self.subTest(declaration=declaration, pyyaml=parser is not None):
+                        terminal.write_text(declaration + entries, encoding="utf-8")
+                        with self.assertRaisesRegex(ValueError, error):
+                            helper.load_public_surface_registry(stub, family_root=self.root)
 
     def test_existing_environment_is_preserved(self):
         destination = self.root / "existing/datanalysis"

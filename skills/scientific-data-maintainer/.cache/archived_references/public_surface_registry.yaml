@@ -1,3 +1,4 @@
+registry_schema_version: 1
 entries:
   - id: datanalysis_env.status
     label: datanalysis_env.py status
