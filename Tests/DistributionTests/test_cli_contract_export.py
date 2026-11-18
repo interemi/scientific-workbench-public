@@ -94,3 +94,16 @@ class CLIContractExportTests(unittest.TestCase):
         del summary["results"]["snr"]
         with self.assertRaisesRegex(ValueError, r"results\.snr must be number_or_null"):
             validate_summary_contract(summary)
+
+    def test_subcommands_can_share_a_tool_name_and_require_the_correct_mode(self):
+        summary = {
+            "tool": "astrometry_net_workbench",
+            "contract_version": "1.8",
+            "app_status": "BLOCKED_CONTROLADO",
+            "results": {"mode": "verify-existing-wcs", "blocked_reason": "No WCS", "measurement_summary": {}},
+        }
+        capability = "astrometry_net_workbench.verify-existing-wcs"
+        validate_summary_contract(summary, capability=capability)
+        summary["results"]["mode"] = "preflight"
+        with self.assertRaisesRegex(ValueError, "summary mode differs"):
+            validate_summary_contract(summary, capability=capability)

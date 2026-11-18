@@ -89,6 +89,78 @@
         "rejected": {"blocked_reason": "string", "measurement_summary": "object"}
       }
     },
+    "astrometry_net_workbench.verify-existing-wcs": {
+      "revision": 1,
+      "backend": "The Full profile provides the supported Astropy and plotting stack. Local verification uses the existing FITS WCS and does not call an astrometric solver.",
+      "inputs": [
+        {"argument": "path", "format": "FITS", "detail": "Readable FITS with an existing celestial WCS. Image data in the selected HDU enables visual QA."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Contains existing_wcs_quicklook.png when the selected WCS has a renderable image plane."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Center and corner sky positions in degrees, optional offset in arcseconds, and WCS round-trip residuals in pixels."},
+        {"argument": "--report-md", "format": "Markdown", "detail": "Existing WCS verification, caveats and reported diagnostics."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "FITS input and completed verification output records."}
+      ],
+      "warnings": "Header-only WCS or failed inverse round trips can yield WARNING. The check measures internal consistency without an independent catalog accuracy estimate.",
+      "failure": "A missing or unreadable file or absent celestial WCS can exit 2 with a diagnostic and empty measurements.",
+      "summary": {
+        "tool": "astrometry_net_workbench",
+        "mode": "verify-existing-wcs",
+        "version": "1.8",
+        "complete": {"wcs_center": "object", "wcs_hdu_index": "integer", "field_corners": "array", "center_offset_arcsec": "number_or_null", "pixel_round_trip": "object", "measurement_summary": "object"},
+        "rejected": {"blocked_reason": "string", "measurement_summary": "object"}
+      }
+    },
+    "sb2_double_gaussian_workbench.fit": {
+      "revision": 1,
+      "backend": "Dedicated datanalysis environment with NumPy, SciPy and Matplotlib. Fits two Gaussians per cross-correlation trace.",
+      "inputs": [
+        {"argument": "inputs", "format": "CSV", "detail": "One or more CCF tables with velocity_kms and ccf_value columns. Case and aperture metadata keep observations distinct."},
+        {"argument": "--fxcor-csv", "format": "CSV", "detail": "Optional parsed FXCOR results for a loose comparison. May be repeated."},
+        {"argument": "--case-id", "detail": "Override the case identifier for a set of orders belonging to the same observation."},
+        {"argument": "--min-separation", "unit": "km/s", "detail": "Finite positive minimum accepted separation of the fitted components."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Contains sb2_double_gaussian_orders.csv, summary.md and available PNG fit figures in figures/."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Per-order acceptance, velocities and uncertainties in km/s, and per-case component summaries."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "CCF and optional FXCOR input records and completed output records."}
+      ],
+      "warnings": "Failed or rejected individual orders yield WARNING and retain their diagnostics. A rejected order contributes no fitted velocity to the accepted case summary.",
+      "failure": "Invalid CCF or options can exit 2 before writing fit tables or figures. The summary retains input-validation issues where writable.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"order_rows": "array", "accepted_count": "integer", "rejected_count": "integer", "case_summaries": "array", "measurement_summary": "object"},
+        "rejected": {"input_validation_issues": "array", "measurement_summary": "object"}
+      }
+    },
+    "li6708_equivalent_width_workbench.measure": {
+      "revision": 1,
+      "backend": "Dedicated datanalysis environment with NumPy, Astropy and Matplotlib for local continuum fitting, integration and plotting.",
+      "inputs": [
+        {"argument": "fits_path", "format": "MULTISPE FITS or ASCII", "detail": "Spectrum in angstroms. ASCII uses wavelength and flux in the first two numeric columns."},
+        {"argument": "--order", "unit": "one-based index", "detail": "Echelle aperture containing the line. Omitting it permits automatic order selection."},
+        {"argument": "--line-center", "unit": "angstroms", "detail": "Rest wavelength around which to measure the line."},
+        {"argument": "--line-label", "detail": "Label for the measurement and plot."},
+        {"argument": "--target-name", "detail": "Optional target identifier."},
+        {"argument": "--continuum-window", "unit": "angstroms", "detail": "Two endpoints of a continuum interval. May be repeated."},
+        {"argument": "--integration-window", "unit": "angstroms", "detail": "Two endpoints of the equivalent-width integral."},
+        {"argument": "--continuum-degree", "detail": "Polynomial degree for the local continuum."},
+        {"argument": "--literature-ew-ma", "unit": "milliangstroms", "detail": "Optional reference equivalent width supplied by the user."},
+        {"argument": "--skip-systematic-grid", "detail": "Skip the window-perturbation grid. The grid uncertainty stays null and the noise proxy remains separate."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Contains li6708_summary.csv, li6708_summary.md, the line plot and the default summary JSON on a completed measurement."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Equivalent width in angstroms and milliangstroms, integration settings, separate uncertainty diagnostics and QA. Overrides the default summary location."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Spectrum and completed output records with measurement parameters."}
+      ],
+      "warnings": "Review the continuum placement and sampling. The window-grid scatter and the random-like noise proxy measure different effects.",
+      "failure": "Unsupported wavelength units or inadequate line or continuum data can exit 2 with diagnostic JSON and no completed measurement.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"ew_angstrom": "number", "ew_milliangstrom": "number", "uncertainty_milliangstrom": "number_or_null", "measurement_summary": "object"},
+        "rejected": {"error": "string", "measurement_summary": "object"}
+      }
+    },
     "photometric_solution": {
       "revision": 1,
       "backend": "Core in the dedicated datanalysis environment. NumPy and pandas fit the model, with Astropy table support and Matplotlib for the residual plot.",

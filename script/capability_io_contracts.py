@@ -51,15 +51,21 @@ def validate_parser_references(capability: str, contract: dict, parser: dict) ->
             raise ValueError(f"{capability}: invalid JSON field types for {outcome}")
 
 
-def validate_summary_contract(payload: dict) -> None:
+def validate_summary_contract(payload: dict, *, capability: str | None = None) -> None:
     """Check declared fields of a retained summary while allowing additional evidence."""
-    capability = payload.get("tool")
-    if not isinstance(capability, str):
+    tool = payload.get("tool")
+    identifier = capability or tool
+    if not isinstance(identifier, str):
         return
-    contract = load_io_contracts().get(capability)
+    contract = load_io_contracts().get(identifier)
     if contract is None:
+        if capability is not None:
+            raise ValueError(f"{capability}: missing I/O contract")
         return
     summary = contract["summary"]
+    capability = identifier
+    if tool != summary.get("tool", capability):
+        raise ValueError(f"{capability}: summary tool differs from I/O contract")
     if payload.get("contract_version") != summary["version"]:
         raise ValueError(f"{capability}: summary version differs from I/O contract")
     status = payload.get("app_status")
@@ -72,6 +78,8 @@ def validate_summary_contract(payload: dict) -> None:
     results = payload.get("results")
     if not isinstance(results, dict):
         raise ValueError(f"{capability}: missing summary results")
+    if "mode" in summary and results.get("mode") != summary["mode"]:
+        raise ValueError(f"{capability}: summary mode differs from I/O contract")
     for field, kind in summary[outcome].items():
         if field not in results or not JSON_TYPES[kind](results[field]):
             raise ValueError(f"{capability}: results.{field} must be {kind} for {status}")

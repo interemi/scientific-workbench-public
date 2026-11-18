@@ -92,6 +92,9 @@ extension ScientificWorkbenchTests {
     #expect(noise.outputs.first { $0.argument == "--manifest-json" }?.format == "JSON")
     #expect(noise.summary.complete["variance_terms_e2"] == "object")
     #expect(entries.first { $0.id == "inspect_fits" }?.ioContract?.summary.version == "1.8")
+    let wcs = try #require(entries.first { $0.id == "astrometry_net_workbench.verify-existing-wcs" }?.ioContract)
+    #expect(wcs.summary.tool == "astrometry_net_workbench")
+    #expect(wcs.summary.mode == "verify-existing-wcs")
     #expect(entries.first { $0.id == "profile_table" }?.ioContract == nil)
   }
 

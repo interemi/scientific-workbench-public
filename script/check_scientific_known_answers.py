@@ -92,10 +92,10 @@ def run(command: list[str], directory: Path, environment: dict[str, str]) -> sub
     return completed
 
 
-def read_json(path: Path) -> dict:
+def read_json(path: Path, *, capability: str | None = None) -> dict:
     require(path.is_file(), f"missing expected JSON: {path.name}")
     payload = json.loads(path.read_text(encoding="utf-8"))
-    validate_summary_contract(payload)
+    validate_summary_contract(payload, capability=capability)
     return payload
 
 
@@ -721,6 +721,16 @@ def sb2_cases(root: Path, environment: dict[str, str]) -> dict:
     check_manifest(manifest, inputs, [
         products / "sb2_double_gaussian_orders.csv", products / "summary.md", *figures, summary,
     ])
+    rejected_dir = root / "sb2-invalid-separation"
+    rejected_summary = rejected_dir / "summary.json"
+    rejected_products = rejected_dir / "products"
+    rejected = run([
+        sys.executable, str(ROOT / "skills/scientific-data-astro/scripts/sb2_double_gaussian_workbench.py"),
+        "fit", str(inputs[0]), "--output-dir", str(rejected_products), "--min-separation", "0",
+        "--summary-json", str(rejected_summary),
+    ], rejected_dir, environment)
+    require(rejected.returncode == 2 and read_json(rejected_summary)["app_status"] == "BLOCKED_CONTROLADO"
+            and not rejected_products.exists(), "invalid SB2 separation produced fit artifacts")
     require({source.name: sha256(source) for source in inputs} == originals, "SB2 inputs changed")
     return {"accepted_count": 3, "rejected_count": 1, "cases": cases, "input_sha256": originals}
 
@@ -729,6 +739,8 @@ def existing_wcs_cases(root: Path, environment: dict[str, str]) -> dict:
     import numpy as np
     from astropy.io import fits
     from PIL import Image
+
+    capability = "astrometry_net_workbench.verify-existing-wcs"
 
     # The celestial axes are deliberately swapped. The extension center lands on CRVAL.
     header = fits.Header({
@@ -773,7 +785,7 @@ def existing_wcs_cases(root: Path, environment: dict[str, str]) -> dict:
              "--summary-json", str(summary), "--manifest-json", str(manifest)],
             case, environment,
         )
-        payload = read_json(summary)
+        payload = read_json(summary, capability=capability)
         result = payload["results"]
         expected_status = "PASS" if has_image and not inverse_fails else "WARNING"
         require(completed.returncode == 0 and payload["app_status"] == expected_status,
@@ -812,6 +824,24 @@ def existing_wcs_cases(root: Path, environment: dict[str, str]) -> dict:
         check_manifest(manifest, [source], [summary, preview] if has_image else [summary])
         require(sha256(source) == original, "WCS verification changed the input")
         checks[name] = {"status": payload["app_status"], "round_trip": residual, "pointing_separation_arcsec": offset}
+    no_wcs = root / "input" / "without_celestial_wcs.fits"
+    fits.PrimaryHDU(plane).writeto(no_wcs)
+    original = sha256(no_wcs)
+    case = root / "wcs-missing-celestial-axes"
+    summary = case / "summary.json"
+    manifest = case / "manifest.json"
+    rejected = run(
+        [sys.executable, str(ROOT / "skills/scientific-data-astro/scripts/astrometry_net_workbench.py"),
+         "verify-existing-wcs", str(no_wcs), "--output-dir", str(case / "products"),
+         "--summary-json", str(summary), "--manifest-json", str(manifest)],
+        case, environment,
+    )
+    diagnostic = read_json(summary, capability=capability)
+    require(rejected.returncode == 2 and diagnostic["app_status"] == "BLOCKED_CONTROLADO"
+            and not diagnostic["results"]["measurement_summary"]["measurements"] and not manifest.exists(),
+            "no-WCS input produced a completed verification")
+    require(sha256(no_wcs) == original, "WCS verification changed the no-WCS input")
+    checks[case.name] = {"status": diagnostic["app_status"], "input_sha256": original}
     return checks
 
 
