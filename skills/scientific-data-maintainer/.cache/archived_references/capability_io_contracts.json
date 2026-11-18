@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "capabilities": {
+    "inspect_fits": {
+      "revision": 1,
+      "backend": "Core with Astropy and NumPy. PNG quicklook uses Matplotlib. The limited NumPy fallback inspects the primary image.",
+      "inputs": [
+        {"argument": "path", "format": "FITS", "detail": "Readable original or copied FITS file with one or more HDUs."},
+        {"argument": "--extension", "detail": "HDU name or zero-based index for preview and pixel lookup."},
+        {"argument": "--crop", "unit": "pixels", "detail": "Preview region as x0,y0,width,height. Its origin is zero-based."},
+        {"argument": "--pixel", "unit": "pixels", "detail": "Zero-based x,y in the original image. A cube uses its first plane. Values retain the declared BUNIT where available."},
+        {"argument": "--header-key", "detail": "Additional FITS keyword to retain. May be repeated."},
+        {"argument": "--sample-size", "unit": "elements", "detail": "Positive approximate sample size for image statistics."},
+        {"argument": "--max-columns", "unit": "columns", "detail": "Maximum table columns described per HDU."},
+        {"argument": "--preview-if-available", "detail": "Requires --preview. Retains a diagnostic and summary if the bounded quicklook is unavailable."},
+        {"argument": "--force-simple-fallback", "detail": "Use the limited primary-image reader. Full HDU, WCS and pixel lookup support require Astropy."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "HDU descriptions, sampled data statistics, headers and available WCS."},
+        {"argument": "--preview", "format": "PNG", "detail": "Display-only quicklook when the selected image can be rendered."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input and completed output records and processing parameters."}
+      ],
+      "warnings": "Unavailable bounded quicklooks and low finite-pixel coverage can produce WARNING with a retained summary.",
+      "failure": "Unavailable or unreadable input and invalid coordinates can exit 2 with a diagnostic summary when its destination is writable.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"path": "string", "hdus": "array"},
+        "rejected": {"path": "string", "issues": "array"}
+      }
+    },
+    "catalog_workbench.crossmatch-sky": {
+      "revision": 1,
+      "backend": "Core with Astropy, NumPy and SciPy for nearest-neighbour celestial matching.",
+      "inputs": [
+        {"argument": "left", "format": "Table", "detail": "Left catalog with at least one row and separate RA and Dec columns."},
+        {"argument": "right", "format": "Table", "detail": "Right catalog with the same coordinate frame and epoch as the left catalog. The guided form accepts text tables."},
+        {"argument": "--left-format", "detail": "Optional reader format for the left catalog."},
+        {"argument": "--right-format", "detail": "Optional reader format for the right catalog."},
+        {"argument": "--left-ra", "detail": "Name of the RA column in the left catalog."},
+        {"argument": "--left-dec", "detail": "Name of the left declination column."},
+        {"argument": "--right-ra", "detail": "Name of the RA column in the right catalog."},
+        {"argument": "--right-dec", "detail": "Name of the right declination column."},
+        {"argument": "--left-ra-unit", "unit": "deg, rad, or hourangle", "detail": "Angular unit for the left RA column."},
+        {"argument": "--right-ra-unit", "unit": "deg, rad, or hourangle", "detail": "Angular unit for the right RA column."},
+        {"argument": "--left-dec-unit", "unit": "deg or rad", "detail": "Angular unit for the left Dec column."},
+        {"argument": "--right-dec-unit", "unit": "deg or rad", "detail": "Angular unit for the right Dec column."},
+        {"argument": "--coordinate-frame", "detail": "ICRS for both inputs."},
+        {"argument": "--coordinate-epoch-jyear", "unit": "Julian year", "detail": "Positive common epoch if supplied. Required by the guided form. Positions are used as supplied."},
+        {"argument": "--radius-arcsec", "unit": "arcseconds", "detail": "Finite positive search radius up to 648000 arcseconds."}
+      ],
+      "outputs": [
+        {"argument": "output", "format": "Table", "detail": "Nearest accepted right-side match per left row, with match_sep_arcsec. The guided form writes ECSV."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Input and match counts, mapping and angular separation QA."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Both catalog input records, completed outputs and matching parameters."}
+      ],
+      "warnings": "Empty matches, a search radius above one degree, and repeated use of one right row can yield WARNING.",
+      "failure": "Invalid input, coordinate metadata, or an unwritable destination can exit 2. Output aliases of inputs are rejected on standard output before writing any files.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"operation": "string", "matched_rows": "integer", "unmatched_left_rows": "integer", "radius_arcsec": "number"},
+        "rejected": {"operation": "string", "message": "string"}
+      }
+    },
+    "photometry_noise_budget": {
+      "revision": 1,
+      "backend": "Python numerical model. No catalog, aperture image or external detector backend is required.",
+      "inputs": [
+        {"argument": "--units", "unit": "electrons or ADU", "detail": "Common unit of source, sky and dark counts."},
+        {"argument": "--source", "unit": "counts per frame", "detail": "Finite non-negative net source signal within the aperture."},
+        {"argument": "--sky-per-pixel", "unit": "counts per pixel per frame", "detail": "Finite non-negative background sky level."},
+        {"argument": "--dark-per-pixel", "unit": "counts per pixel per frame", "detail": "Finite non-negative integrated dark contribution."},
+        {"argument": "--gain", "unit": "electrons per ADU", "detail": "Positive detector gain when using ADU."},
+        {"argument": "--read-noise", "unit": "electrons RMS per pixel per frame", "detail": "Finite non-negative read noise in either input count unit mode."},
+        {"argument": "--n-pixels", "unit": "pixels", "detail": "Positive effective aperture area. Fractional pixels are supported."},
+        {"argument": "--sky-estimate-pixels", "unit": "pixels", "detail": "Positive effective background sample area for the background-estimation variance term."},
+        {"argument": "--n-frames", "unit": "frames", "detail": "Positive integer count of combined frames."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Variance components in electrons squared, total noise in electrons and dimensionless SNR."},
+        {"argument": "--output-json", "format": "JSON", "detail": "Legacy summary destination used when --summary-json is absent."},
+        {"argument": "--report-md", "format": "Markdown", "detail": "Noise budget, assumptions and QA in a readable report."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Parameter and output records for the completed calculation."}
+      ],
+      "warnings": "Omitting background estimation or producing zero variance can yield WARNING. SNR is null when total noise is zero.",
+      "failure": "Invalid values or numerical overflow exit 2. The diagnostic retains empty measurements and the reason.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"variance_terms_e2": "object", "total_noise_e": "number", "snr": "number_or_null", "measurement_summary": "object"},
+        "rejected": {"blocked_reason": "string", "measurement_summary": "object"}
+      }
+    },
+    "photometric_solution": {
+      "revision": 1,
+      "backend": "Core in the dedicated datanalysis environment. NumPy and pandas fit the model, with Astropy table support and Matplotlib for the residual plot.",
+      "inputs": [
+        {"argument": "input_table", "format": "Table", "detail": "Standard-star table such as CSV, TSV, ECSV or FITS. Use one consistent magnitude system and passband per fit."},
+        {"argument": "--inst-mag-col", "unit": "mag", "detail": "Instrumental magnitude column."},
+        {"argument": "--std-mag-col", "unit": "mag", "detail": "Catalog or standard magnitude column."},
+        {"argument": "--airmass-col", "unit": "dimensionless", "detail": "Airmass column for fitting extinction."},
+        {"argument": "--color-col", "unit": "mag", "detail": "Color index column for the optional color term."},
+        {"argument": "--error-col", "unit": "mag", "detail": "Positive uncertainty on the standard minus instrumental magnitude difference for weighted fitting."},
+        {"argument": "--include-color-term", "detail": "Fit a linear color coefficient when the color column is supplied."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Coefficients, method, uncertainties or null, residuals and QA."},
+        {"argument": "--output-json", "format": "JSON", "detail": "Optional additional copy of the same summary."},
+        {"argument": "--coefficients-csv", "format": "CSV", "detail": "Fitted coefficients with their units and uncertainties."},
+        {"argument": "--residual-csv", "format": "CSV", "detail": "Per-standard fit diagnostics and residuals in mag."},
+        {"argument": "--residual-plot", "format": "PNG", "detail": "Residual diagnostic plot."},
+        {"argument": "--report-md", "format": "Markdown", "detail": "Method, fit diagnostics and quality flags."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input and completed output records for the solution."}
+      ],
+      "warnings": "Sparse coverage, high residual scatter or uncertain coefficients can produce WARNING. The extinction sign follows the standard-minus-instrumental convention.",
+      "failure": "Unreadable, insufficient or rank-deficient standards can exit 2 with an empty coefficient set and a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"parameters": "object", "row_count": "integer", "fitted_model": "string", "rms_residual_mag": "number", "measurement_summary": "object"},
+        "rejected": {"parameters": "object", "error": "string", "measurement_summary": "object"}
+      }
+    }
+  }
+}

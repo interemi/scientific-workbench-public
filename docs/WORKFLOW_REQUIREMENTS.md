@@ -55,6 +55,15 @@ describes argument syntax. Consult the
 [setup matrix](CAPABILITY_SETUP_MATRIX.md) and the command's emitted summary
 and manifest for scientific inputs, produced artifacts and run status.
 
+The capabilities with an I/O contract also show **Inputs and outputs** in the
+app and an `io_contract` in the export. Each revision defines the backend,
+argument roles, scientific units, written files, and required summary fields
+for completed and rejected runs. The known-answer gate checks those fields in
+the JSON files produced by synthetic runs. A rejected command may write its
+diagnostic only to standard output when the requested path cannot safely be
+used. Older installed skill snapshots can still load the capability registry
+and run their supported routes.
+
 ## Registry coverage
 
 The canonical registry contains 61 entries:

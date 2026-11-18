@@ -81,6 +81,21 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func bundledRegistryLoadsScientificInputAndOutputContracts() throws {
+    let checkout = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent().deletingLastPathComponent()
+    let mother = checkout.appendingPathComponent("skills/scientific-data-analysis").path
+    let entries = try CapabilityRegistryLoader().load(skillRoot: mother)
+    let noise = try #require(entries.first { $0.id == "photometry_noise_budget" }?.ioContract)
+    #expect(noise.revision == 1)
+    #expect(noise.inputs.first { $0.argument == "--gain" }?.unit == "electrons per ADU")
+    #expect(noise.outputs.first { $0.argument == "--manifest-json" }?.format == "JSON")
+    #expect(noise.summary.complete["variance_terms_e2"] == "object")
+    #expect(entries.first { $0.id == "inspect_fits" }?.ioContract?.summary.version == "1.8")
+    #expect(entries.first { $0.id == "profile_table" }?.ioContract == nil)
+  }
+
+  @Test
   func registryLoaderResolvesCanonicalRegistryRecursively() throws {
     let root = try makeScenarioFixture(
       name: "canonical-registry",
@@ -118,6 +133,7 @@ extension ScientificWorkbenchTests {
     #expect(entries[0].owningSkillRole == SkillRootRole.mother.rawValue)
     #expect(entries[0].registrySourcePath?.hasSuffix("nested/canonical/public_surface_registry.yaml") == true)
     #expect(entries[0].registryFingerprint?.isEmpty == false)
+    #expect(entries[0].ioContract == nil)
     #expect(resolution.schemaVersion == 1)
     #expect(resolution.fingerprint == entries[0].registryFingerprint)
   }

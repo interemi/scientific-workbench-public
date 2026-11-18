@@ -164,6 +164,7 @@ struct CapabilityEntry: Identifiable, Hashable, Sendable {
   let owningSkillRole: String?
   let registrySourcePath: String?
   let registryFingerprint: String?
+  let ioContract: CapabilityIOContract?
 
   init(
     id: String,
@@ -183,7 +184,8 @@ struct CapabilityEntry: Identifiable, Hashable, Sendable {
     owningSkillRoot: String? = nil,
     owningSkillRole: String? = nil,
     registrySourcePath: String? = nil,
-    registryFingerprint: String? = nil
+    registryFingerprint: String? = nil,
+    ioContract: CapabilityIOContract? = nil
   ) {
     self.id = id
     self.label = label
@@ -203,6 +205,7 @@ struct CapabilityEntry: Identifiable, Hashable, Sendable {
     self.owningSkillRole = owningSkillRole
     self.registrySourcePath = registrySourcePath
     self.registryFingerprint = registryFingerprint
+    self.ioContract = ioContract
   }
 
   var isMaintainerOnly: Bool {

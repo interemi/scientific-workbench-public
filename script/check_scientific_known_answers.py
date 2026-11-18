@@ -20,6 +20,8 @@ import subprocess
 import sys
 from unittest.mock import patch
 
+from capability_io_contracts import validate_summary_contract
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FITS_SHA256 = "c40732799d2792ed9131899c2ad5a3b13317004a96e4d40a0d6aa959afc740de"
@@ -92,7 +94,9 @@ def run(command: list[str], directory: Path, environment: dict[str, str]) -> sub
 
 def read_json(path: Path) -> dict:
     require(path.is_file(), f"missing expected JSON: {path.name}")
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    validate_summary_contract(payload)
+    return payload
 
 
 def check_manifest(path: Path, inputs: list[Path], outputs: list[Path]) -> None:
@@ -229,6 +233,17 @@ def inspect_fits_case(root: Path, environment: dict[str, str]) -> dict:
             "FITS display-only preview is absent or invalid")
     check_manifest(manifest, [source], [summary, preview])
     crop_origin_error = check_fits_crop(source, root / "fits-crop", wcs, environment)
+    rejected_dir = root / "fits-invalid-pixel"
+    rejected_summary = rejected_dir / "summary.json"
+    rejected_manifest = rejected_dir / "manifest.json"
+    rejected = run([
+        sys.executable, str(ROOT / "skills/scientific-data-astro/scripts/inspect_fits.py"),
+        str(source), "--pixel", "8,0", "--summary-json", str(rejected_summary),
+        "--manifest-json", str(rejected_manifest),
+    ], rejected_dir, environment)
+    require(rejected.returncode == 2 and read_json(rejected_summary)["app_status"] == "BLOCKED_CONTROLADO",
+            "out-of-range FITS pixel did not retain a blocked diagnostic")
+    require(not rejected_manifest.exists(), "out-of-range FITS pixel wrote a success manifest")
     require(sha256(source) == original_hash, "FITS input changed")
     return {
         "input_sha256": original_hash, "shape_pixels": [8, 8],
@@ -237,6 +252,7 @@ def inspect_fits_case(root: Path, environment: dict[str, str]) -> dict:
         "pixel_scale_arcsec": [float(scale) for scale in scales],
         "crop_origin_error_arcsec": crop_origin_error,
         "preview": "display_only",
+        "invalid_pixel_status": "BLOCKED_CONTROLADO",
     }
 
 
@@ -544,8 +560,23 @@ def photometric_cases(root: Path, environment: dict[str, str]) -> dict:
                         "unweighted fit invented uncertainty at zero residual degrees of freedom")
         check_manifest(manifest, [source], [summary, coefficients])
         results[case.name] = [measurement["uncertainty"] for measurement in measurements]
+    rejected_dir = root / "photometry_missing_column"
+    rejected_summary = rejected_dir / "summary.json"
+    rejected_coefficients = rejected_dir / "coefficients.csv"
+    rejected = run([
+        sys.executable, str(ROOT / "skills/scientific-data-astro/scripts/photometric_solution.py"),
+        str(source), "--std-mag-col", "missing", "--summary-json", str(rejected_summary),
+        "--coefficients-csv", str(rejected_coefficients),
+    ], rejected_dir, environment)
+    diagnostic = read_json(rejected_summary)
+    require(rejected.returncode == 2 and diagnostic["app_status"] == "BLOCKED_CONTROLADO"
+            and diagnostic["results"]["parameters"] == {} and not rejected_coefficients.exists(),
+            "missing standard magnitude column produced an incorrect calibration outcome")
     require(sha256(source) == original, "photometry input changed")
-    return {"input_sha256": original, "residual_degrees_of_freedom": 0, "coefficient_uncertainties": results}
+    return {
+        "input_sha256": original, "residual_degrees_of_freedom": 0, "coefficient_uncertainties": results,
+        "missing_column_status": diagnostic["app_status"],
+    }
 
 
 def lithium_equivalent_width_cases(root: Path, environment: dict[str, str]) -> dict:

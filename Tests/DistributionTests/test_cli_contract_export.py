@@ -8,6 +8,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPORTER = ROOT / "script/render_cli_contracts.py"
+sys.path.insert(0, str(ROOT / "script"))
+
+from capability_io_contracts import validate_summary_contract
 
 
 class CLIContractExportTests(unittest.TestCase):
@@ -25,6 +28,7 @@ class CLIContractExportTests(unittest.TestCase):
 
         export = json.loads(process.stdout)
         self.assertEqual(export["schema_version"], 1)
+        self.assertEqual(export["io_schema_version"], 1)
         records = {row["id"]: row for row in export["commands"]}
         self.assertEqual(set(records), {
             "photometry_noise_budget", "stilts_workbench",
@@ -38,6 +42,9 @@ class CLIContractExportTests(unittest.TestCase):
         self.assertEqual(noise_args["source"]["value_type"], "number")
         self.assertEqual(noise_args["units"]["choices"], ["electrons", "adu"])
         self.assertEqual(noise_args["units"]["default"], "electrons")
+        self.assertEqual(noise["io_contract"]["revision"], 1)
+        self.assertEqual(noise["io_contract"]["summary"]["complete"]["snr"], "number_or_null")
+        self.assertNotIn("io_contract", records["companion_route_check"])
 
         crossmatch = records["catalog_workbench.crossmatch-sky"]
         self.assertEqual(crossmatch["argv"], [
@@ -66,3 +73,24 @@ class CLIContractExportTests(unittest.TestCase):
         self.assertEqual(process.returncode, 2)
         self.assertIn("unknown registry IDs: unknown-capability", process.stderr)
         self.assertEqual(process.stdout, "")
+
+    def test_retained_summary_rejects_a_missing_or_wrong_typed_result(self):
+        summary = {
+            "tool": "photometry_noise_budget",
+            "contract_version": "1.8",
+            "app_status": "WARNING",
+            "results": {
+                "variance_terms_e2": {},
+                "total_noise_e": 0,
+                "snr": None,
+                "measurement_summary": {},
+                "additional_evidence": "compatible",
+            },
+        }
+        validate_summary_contract(summary)
+        summary["results"]["snr"] = "unavailable"
+        with self.assertRaisesRegex(ValueError, r"results\.snr must be number_or_null"):
+            validate_summary_contract(summary)
+        del summary["results"]["snr"]
+        with self.assertRaisesRegex(ValueError, r"results\.snr must be number_or_null"):
+            validate_summary_contract(summary)

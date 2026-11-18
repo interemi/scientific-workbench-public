@@ -98,7 +98,8 @@ struct CapabilityRegistryLoader {
     }
 
     var unavailableOptionalRoots: [CapabilityRegistryUnavailableRoot] = []
-    var loadedRegistries = [try loadRegistry(for: motherRoot)]
+    let motherRegistry = try loadRegistry(for: motherRoot)
+    var loadedRegistries = [motherRegistry]
     for role in SkillRootRole.allCases where role != .mother {
       guard let root = rootsByRole[role] else {
         unavailableOptionalRoots.append(
@@ -146,6 +147,10 @@ struct CapabilityRegistryLoader {
     }
 
     let availableCatalog = SkillRootCatalog(roots: loadedRegistries.map(\.root))
+    let ioContracts = try CapabilityIOContractCatalog.load(
+      besideRegistryAt: motherRegistry.resolution.resolvedPath,
+      knownIDs: Set(orderedIDs)
+    )
     let entries = try orderedIDs.compactMap { id -> CapabilityEntry? in
       guard let registered = registeredByID[id] else { return nil }
       let owner = try availableCatalog.executionRoot(for: registered.rawEntry)
@@ -156,7 +161,8 @@ struct CapabilityRegistryLoader {
       return buildEntry(
         from: registered.rawEntry,
         owningRoot: owner,
-        registryResolution: ownerResolution ?? registered.resolution
+        registryResolution: ownerResolution ?? registered.resolution,
+        ioContract: ioContracts[id]
       )
     }
     return CapabilityRegistryLoadResult(
@@ -492,7 +498,8 @@ struct CapabilityRegistryLoader {
   private func buildEntry(
     from raw: CapabilityRegistryRawEntry,
     owningRoot: SkillRootCatalog.Root?,
-    registryResolution: CapabilityRegistryResolution?
+    registryResolution: CapabilityRegistryResolution?,
+    ioContract: CapabilityIOContract? = nil
   ) -> CapabilityEntry {
     CapabilityEntry(
       id: raw.id,
@@ -512,7 +519,8 @@ struct CapabilityRegistryLoader {
       owningSkillRoot: owningRoot?.path,
       owningSkillRole: owningRoot?.role.rawValue,
       registrySourcePath: registryResolution?.resolvedPath,
-      registryFingerprint: registryResolution?.fingerprint
+      registryFingerprint: registryResolution?.fingerprint,
+      ioContract: ioContract
     )
   }
 

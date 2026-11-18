@@ -380,6 +380,10 @@ struct CapabilityDetailPanel: View {
 
             metadataGrid(capability)
 
+            if let contract = capability.ioContract {
+              CapabilityIOContractDetails(contract: contract)
+            }
+
             if let example = store.preparedFirstRunExample,
                store.inputPaths == example.inputPaths,
                capability.id == example.kind.capabilityID {
@@ -671,6 +675,39 @@ struct CapabilityDetailPanel: View {
   private func prepareSyntheticExample(_ kind: FirstRunExampleKind) {
     rawArguments = ""
     store.prepareFirstRunExample(kind)
+  }
+}
+
+private struct CapabilityIOContractDetails: View {
+  let contract: CapabilityIOContract
+
+  var body: some View {
+    DisclosureGroup("Inputs and outputs · revision \(contract.revision)") {
+      VStack(alignment: .leading, spacing: 10) {
+        Text(contract.backend)
+        argumentSection("Inputs and units", arguments: contract.inputs)
+        argumentSection("Outputs", arguments: contract.outputs)
+        Text(contract.warnings)
+        Text(contract.failure)
+      }
+      .font(.callout)
+      .textSelection(.enabled)
+      .padding(.vertical, 8)
+    }
+  }
+
+  private func argumentSection(_ title: String, arguments: [CapabilityIOContract.Argument]) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text(title).fontWeight(.semibold)
+      ForEach(arguments, id: \.argument) { field in
+        VStack(alignment: .leading, spacing: 2) {
+          Text([field.argument, field.format, field.unit].compactMap { $0 }.joined(separator: " · "))
+            .font(.callout.monospaced())
+          Text(field.detail)
+            .foregroundStyle(.secondary)
+        }
+      }
+    }
   }
 }
 

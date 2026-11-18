@@ -15,6 +15,7 @@ import tempfile
 
 from check_distribution_snapshot import ROOT, ROOTS
 from check_workflow_requirements import load_registry
+from capability_io_contracts import IO_SCHEMA_VERSION, load_io_contracts, validate_parser_references
 
 
 SCHEMA_VERSION = 1
@@ -165,8 +166,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         commands = command_records(load_registry())
+        contracts = load_io_contracts()
+        registry_ids = {command["id"] for command in commands}
+        unknown_contracts = set(contracts) - registry_ids
+        if unknown_contracts:
+            raise ValueError(f"I/O contracts reference unknown registry IDs: {sorted(unknown_contracts)}")
         if args.capability:
-            unknown = set(args.capability) - {command["id"] for command in commands}
+            unknown = set(args.capability) - registry_ids
             if unknown:
                 parser.error(f"unknown registry IDs: {', '.join(sorted(unknown))}")
             commands = [command for command in commands if command["id"] in args.capability]
@@ -174,7 +180,16 @@ def main(argv: list[str] | None = None) -> int:
             scratch = Path(directory)
             with ThreadPoolExecutor(max_workers=4) as pool:
                 schemas = list(pool.map(lambda command: load_command_schema(command, scratch), commands))
-        output = json.dumps({"schema_version": SCHEMA_VERSION, "commands": schemas}, indent=2, allow_nan=False)
+        for command in schemas:
+            contract = contracts.get(command["id"])
+            if contract is not None:
+                validate_parser_references(command["id"], contract, command["parser"])
+                command["io_contract"] = contract
+        output = json.dumps({
+            "schema_version": SCHEMA_VERSION,
+            "io_schema_version": IO_SCHEMA_VERSION,
+            "commands": schemas,
+        }, indent=2, allow_nan=False)
     except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
         print(f"CLI contract export failed: {error}", file=sys.stderr)
         return 1

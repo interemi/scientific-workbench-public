@@ -7196,6 +7196,12 @@
       "sha256": "cdecc0ba6358f7bc10203a3d1dbfb086b30d1cd6d47e24b7c887b50c3168684f",
       "size": 9870
     },
+    "scientific-data-maintainer/.cache/archived_references/capability_io_contracts.json": {
+      "executable": false,
+      "kind": "file",
+      "sha256": "582c1f3fc8333cf6c18bc8f1388157e872f8aadebc7572046a78cf21d473663d",
+      "size": 10426
+    },
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
