@@ -144,6 +144,10 @@ jobs:
               or not (status.get("selected_env_root") or "").endswith("/scientific-workbench/datanalysis")):
               raise SystemExit("Installed core environment discovery did not report ok")
           PY
+      - name: Export registered CLI argument schemas
+        run: |
+          "$RUNNER_TEMP/scientific-workbench/datanalysis/bin/python" \
+            script/render_cli_contracts.py > "$CI_EVIDENCE_DIR/cli-contracts.json"
       - name: Validate synthetic workflows and snapshot integrity
         run: |
           "$RUNNER_TEMP/scientific-workbench/datanalysis/bin/python" \

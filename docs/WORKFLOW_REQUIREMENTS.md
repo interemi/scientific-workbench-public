@@ -31,6 +31,32 @@ when the value contains spaces. The app uses this syntax for replacement text,
 notebook and deliverable titles, forecasting fields, routing requests, and
 reviewed crossmatch column names.
 
+## Inspecting registered CLI arguments
+
+From the checkout root, set `SW_PY` to the Python interpreter for your
+[installed Core profile](../INSTALL.md). The exporter writes JSON to standard
+output. Omit `--capability` to inspect all 61 registered commands, including the
+six maintainer gates.
+
+```bash
+"$SW_PY" script/render_cli_contracts.py --capability catalog_workbench.crossmatch-sky
+```
+
+The version 1 export pairs each registry ID and owning script with the parser
+reached by its own help command. Each parser record includes its positional
+arguments, flags, arity, types, defaults, choices, accumulation behavior and
+subcommands. A value under `default_relative_to_checkout` resolves from the
+repository root. The portable validation workflow retains the full export as
+`cli-contracts.json` with its diagnostic evidence.
+
+Compare the exports before and after a CLI change. Preserve compatible aliases
+or document migration when changing an established command. The export
+describes argument syntax. Consult the
+[setup matrix](CAPABILITY_SETUP_MATRIX.md) and the command's emitted summary
+and manifest for scientific inputs, produced artifacts and run status.
+
+## Registry coverage
+
 The canonical registry contains 61 entries:
 
 | Surface | Count |

@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""Export a versioned inventory of the bundled command-line parsers."""
+
+from __future__ import annotations
+
+import argparse
+from concurrent.futures import ThreadPoolExecutor
+import json
+import os
+from pathlib import Path
+import runpy
+import subprocess
+import sys
+import tempfile
+
+from check_distribution_snapshot import ROOT, ROOTS
+from check_workflow_requirements import load_registry
+
+
+SCHEMA_VERSION = 1
+FAMILY = ROOT / "skills"
+MOTHER_SCRIPTS = FAMILY / "scientific-data-analysis/scripts"
+VALUE_TYPES = {None: "string", str: "string", int: "integer", float: "number", Path: "path"}
+
+
+class HelpRequested(BaseException):
+    """Interrupt the normal help path before a workflow can start."""
+
+    def __init__(self, parser: argparse.ArgumentParser):
+        self.parser = parser
+
+
+def capture_help(parser: argparse.ArgumentParser, file=None) -> None:
+    raise HelpRequested(parser)
+
+
+def describe_argument(action: argparse.Action) -> dict:
+    argument = {
+        "name": action.dest,
+        "flags": action.option_strings,
+        "required": action.required,
+        "arity": 1 if action.nargs is None else action.nargs,
+        "accumulates": isinstance(action, argparse._AppendAction),
+        "value_type": "flag" if action.nargs == 0 else VALUE_TYPES[action.type],
+    }
+    if action.choices is not None:
+        argument["choices"] = list(action.choices)
+    if action.nargs == 0:
+        argument["flag_value"] = action.const
+    if action.default != argparse.SUPPRESS:
+        default = action.default
+        if isinstance(default, str) and Path(default).is_absolute():
+            argument["default_relative_to_checkout"] = Path(default).relative_to(ROOT).as_posix()
+        else:
+            argument["default"] = default
+    if action.help:
+        argument["help"] = action.help
+    return argument
+
+
+def describe_parser(parser: argparse.ArgumentParser) -> dict:
+    """Read the parser declarations reached by this command's own --help."""
+    arguments = []
+    subcommands = {}
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            subcommands = {
+                "required": action.required,
+                "parsers": {name: describe_parser(child) for name, child in action.choices.items()},
+            }
+        elif action.help != argparse.SUPPRESS and not isinstance(action, argparse._HelpAction):
+            arguments.append(describe_argument(action))
+    return {
+        "option_abbreviations": parser.allow_abbrev,
+        "arguments": arguments,
+        "subcommands": subcommands,
+        "mutually_exclusive": [
+            {"required": group.required, "arguments": [action.dest for action in group._group_actions]}
+            for group in parser._mutually_exclusive_groups
+        ],
+    }
+
+
+def bundled_script(relative: str) -> Path:
+    parts = Path(relative).parts
+    if (len(parts) != 3 or parts[0] not in ROOTS or parts[1] != "scripts"
+            or Path(relative).suffix != ".py"):
+        raise ValueError(f"invalid CLI entrypoint {relative!r}")
+    target = (FAMILY / relative).resolve(strict=True)
+    if not target.is_file() or not target.is_relative_to(FAMILY / parts[0]):
+        raise ValueError(f"CLI entrypoint is outside its owning skill: {relative}")
+    return target
+
+
+def inspect_parser(relative: str, tail: list[str]) -> dict:
+    """Run in an isolated interpreter so imports cannot leak across skills."""
+    script = bundled_script(relative)
+    sys.argv[:] = [str(script), *tail, "--help"]
+    sys.path.insert(0, str(script.parent))
+    argparse.ArgumentParser.print_help = capture_help
+    try:
+        runpy.run_path(str(script), run_name="__main__")
+    except HelpRequested as capture:
+        return describe_parser(capture.parser)
+    except SystemExit as error:
+        raise ValueError(f"command exited during help before exposing a parser ({error.code})") from error
+    raise ValueError("command returned without exposing a parser")
+
+
+def command_records(entries: list[dict]) -> list[dict]:
+    sys.path.insert(0, str(MOTHER_SCRIPTS))
+    try:
+        from scientific_workflow_router import module_metadata_for
+    finally:
+        sys.path.pop(0)
+
+    commands = []
+    for entry in entries:
+        capability = entry["id"]
+        route = module_metadata_for(entry["label"], capability)
+        owner = route.get("child_skill_path")
+        if owner not in ROOTS:
+            raise ValueError(f"{capability} has no verified router owner")
+        name, _, subcommand = capability.partition(".")
+        if Path(entry["script"]).stem != name:
+            raise ValueError(f"{capability} differs from its registry script stem")
+        relative = f"{owner}/{entry['script']}"
+        bundled_script(relative)
+        commands.append({
+            "id": capability,
+            "skill": owner,
+            "argv": [f"skills/{relative}", *([subcommand] if subcommand else [])],
+            "kind": entry["kind"],
+            "platform": entry["platform"],
+            "requires_datanalysis": entry["requires_datanalysis"],
+            "preflight_mode": entry["preflight_mode"],
+        })
+    return commands
+
+
+def load_command_schema(command: dict, scratch: Path) -> dict:
+    script, *tail = command["argv"]
+    environment = {
+        **os.environ,
+        "DATAANALYSIS_PYTHON": sys.executable,
+        "MPLCONFIGDIR": str(scratch / "matplotlib"),
+    }
+    process = subprocess.run(
+        [sys.executable, "-B", __file__, "--inspect-parser", script.removeprefix("skills/"), *tail],
+        cwd=scratch, env=environment, capture_output=True, text=True, timeout=30,
+    )
+    if process.returncode:
+        reason = process.stderr.strip().splitlines()
+        raise ValueError(f"{command['id']}: {reason[-1] if reason else f'exit {process.returncode}'}")
+    try:
+        schema = json.loads(process.stdout)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{command['id']}: parser probe did not return JSON") from error
+    return {**command, "parser": schema}
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--capability", action="append", help="Limit output to this registry ID. Repeatable.")
+    args = parser.parse_args(argv)
+    try:
+        commands = command_records(load_registry())
+        if args.capability:
+            unknown = set(args.capability) - {command["id"] for command in commands}
+            if unknown:
+                parser.error(f"unknown registry IDs: {', '.join(sorted(unknown))}")
+            commands = [command for command in commands if command["id"] in args.capability]
+        with tempfile.TemporaryDirectory(prefix="swb-cli-contracts-") as directory:
+            scratch = Path(directory)
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                schemas = list(pool.map(lambda command: load_command_schema(command, scratch), commands))
+        output = json.dumps({"schema_version": SCHEMA_VERSION, "commands": schemas}, indent=2, allow_nan=False)
+    except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+        print(f"CLI contract export failed: {error}", file=sys.stderr)
+        return 1
+    print(output)
+    return 0
+
+
+if __name__ == "__main__":
+    if sys.argv[1:2] == ["--inspect-parser"]:
+        print(json.dumps(inspect_parser(sys.argv[2], sys.argv[3:]), allow_nan=False))
+    else:
+        raise SystemExit(main())
