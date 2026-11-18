@@ -32,44 +32,52 @@ for local chat/planning; an individual capability command does not need an
 Ollama model merely to run. See [optional backends](OPTIONAL_BACKENDS.md) for
 tools that must be installed separately.
 
+The capability tables come from the same public surface registry used by
+the router and Scientific Workbench. The workflow requirements check
+detects changes to these tables. To regenerate them, run
+`python3 script/check_workflow_requirements.py --render-catalog` and review
+the output before replacing this page.
+
+<!-- BEGIN GENERATED CAPABILITY CATALOG -->
+
 ## Core and routing: 5 capabilities
 
 | Capability | What it is for |
 | --- | --- |
 | `datanalysis_env.status` | Report which dedicated Python environment is selected and whether it can be discovered. |
-| `datanalysis_healthcheck` | Summarize the available Python science stack and identify missing components. |
+| `datanalysis_healthcheck` | Check whether the dedicated datanalysis environment has the packages needed for astronomy and notebook work. |
 | `env_doctor` | Diagnose machine, interpreter, and optional-backend readiness before a run. |
-| `companion_route_check` | Suggest which part of the skill family fits a task description; it does not perform the task. |
+| `companion_route_check` | Suggest a local skill or companion plugin for a task description and return routing advice. |
 | `external_astro_tools_preflight` | Check whether named astronomy programs such as Java/STILTS, TOPCAT, or APT can be used. |
 
 ## Observational astronomy: 24 capabilities
 
 | Capability | What it is for |
 | --- | --- |
-| `inspect_fits` | Inspect FITS extensions, headers, and available image or WCS metadata without changing the file. |
-| `fits_rgb_batch` | Derive an RGB visualization from aligned filter images and record its inputs and quality checks. |
-| `rgb_visual_fits_export` | Put an RGB visualization into a display-oriented FITS product; it is not a calibrated science image. |
-| `stilts_workbench` | Prepare or run supported STILTS table operations after checking the external Java backend. |
-| `astrometry_net_workbench.preflight` | Check whether an image and the chosen local or web Astrometry.net route are ready for solving. |
+| `inspect_fits` | Inspect FITS extensions (HDUs), headers, available WCS metadata, and image previews from a read-only input. |
+| `fits_rgb_batch` | Align grouped FITS images with WCS when available, build RGB or pseudo-RGB, and retain manifests and quality checks. |
+| `rgb_visual_fits_export` | Export a rendered RGB PNG as a display-only FITS cube and channel images with a manifest. |
+| `stilts_workbench` | Convert, filter, and crossmatch tables with a configured STILTS/TOPCAT backend. |
+| `astrometry_net_workbench.preflight` | Check inputs, hints, and readiness for a local or web Astrometry.net solve. |
 | `astrometry_net_workbench.verify-existing-wcs` | Assess an existing celestial WCS without requesting a new astrometric solution. |
-| `radial_velocity_workbench.inspect` | Inspect a radial-velocity table, its time/velocity/uncertainty columns, and basic plausibility. |
+| `radial_velocity_workbench.inspect` | Inspect time, radial velocity, and uncertainty columns in a table before a Systemic-style analysis. |
 | `radial_velocity_workbench.validate-manifest` | Validate the structure of a prepared radial-velocity session manifest. |
 | `legacy_spectroscopy_envcheck` | Check the environment and copied practice tree needed by legacy spectroscopy routes. |
 | `echelle_multispec_inventory` | Inventory orders and dispersion information in a copied MULTISPEC spectrum. |
 | `fxcor_iraf_workbench.prepare-session` | Create a safe working copy and manifest for a legacy IRAF FXCOR session. |
-| `fxcor_iraf_workbench.run-auto` | Execute a prepared FXCOR session when IRAF is available; retain its actual logs and measurements. |
-| `legacy_rv_coursework_workbench.analyze` | Consolidate supplied FXCOR or radial-velocity coursework tables using explicit mappings. |
-| `sb2_double_gaussian_workbench.fit` | Fit two peaks in a cross-correlation function as a starting point for SB2 review. |
-| `li6708_equivalent_width_workbench.measure` | Estimate Li 6708 equivalent width from a reviewed spectrum and continuum choice. |
-| `legacy_external_reference_check` | Compare a supplied radial-velocity summary with a supported fixed reference for plausibility. |
+| `fxcor_iraf_workbench.run-auto` | Execute a prepared FXCOR session when IRAF is available. Retain its actual logs and measurements. |
+| `legacy_rv_coursework_workbench.analyze` | Summarize heliocentric radial velocities and projected rotation from parsed FXCOR orders and FITS metadata, with an optional FWHM calibration. |
+| `sb2_double_gaussian_workbench.fit` | Fit two Gaussian peaks per cross-correlation trace and report provisional SB2 velocities for review. |
+| `li6708_equivalent_width_workbench.measure` | Measure equivalent width near Li I at 6707.8 Å in a reviewed ASCII or FITS spectrum. |
+| `legacy_external_reference_check` | Compare selected coursework results with fixed literature references for PW And and GZ Leo. |
 | `istarmod_workbench.inspect-tree` | Inspect whether a user-provided legacy iSTARMOD-like tree has the expected layout. |
 | `istarmod_workbench.prepare-copy` | Create a derived working copy of that tree without modifying the source. |
 | `legacy_spectroscopy_report_builder.scaffold` | Create a new LaTeX coursework-report scaffold. |
 | `legacy_spectroscopy_report_builder.populate` | Populate a fresh scaffold from explicitly selected derived JSON summaries. |
 | `photometric_solution` | Fit photometric calibration coefficients from standard-star measurements. |
 | `photometry_noise_budget` | Estimate detector/aperture signal-to-noise contributions from supplied values and assumptions. |
-| `apt_workbench` | Preflight and, when configured, use the external Aperture Photometry Tool on reviewed copies. |
-| `teareduce_router` | Recommend and preflight a CCD-reduction route; it does not itself execute TEAREDUCE. |
+| `apt_workbench` | Check APT batch readiness and, with the backend configured, run on reviewed copies using saved preferences and retain logs. |
+| `teareduce_router` | Recommend a native CCD-reduction route or the separately installed TEAREDUCE workflow and identify the next checks. |
 
 ## Documents and reporting: 14 capabilities
 
@@ -77,7 +85,7 @@ tools that must be installed separately.
 | --- | --- |
 | `document_intake_workbench` | Inventory a copied folder of documents and report readability or format concerns. |
 | `presentation_workbench.inspect` | Inspect slide content, structure, and editability in a copied presentation. |
-| `presentation_workbench.existing-deck-style-audit` | Review layout and style consistency and trace figure sources in an existing deck. |
+| `presentation_workbench.existing-deck-style-audit` | Review layout, figure placement, captions, and traceable figure sources in an existing deck. |
 | `iwork_workbench` | Inspect or preview supported Pages and Keynote bundles, with optional macOS export routes. |
 | `office_roundtrip.docx-style-inventory` | List Word paragraph/run styles before a controlled edit. |
 | `office_roundtrip.docx-styled-replace` | Replace explicitly selected styled text in a new DOCX output and read it back. |
@@ -96,16 +104,18 @@ tools that must be installed separately.
 | --- | --- |
 | `profile_table` | Report a table's shape, columns, types, and missingness before analysis. |
 | `duckdb_workbench` | Explore selected tables with bounded SQL when the optional DuckDB backend is present. |
-| `cross_domain_data_workbench` | Inventory a mixed tabular data package and prepare a first-pass cross-domain view. |
+| `cross_domain_data_workbench` | Inventory a mixed tabular data package and prepare a first-pass report with optional SQL exploration. |
 | `bootstrap_analysis_notebook` | Create a starter notebook for a chosen domain without pretending it has been run. |
 | `notebook_workbench.execute-copy` | Execute a staged copy of a notebook and preserve cell errors, logs, and outputs. |
-| `coursework_notebook_fidelity_check` | Check whether a received notebook and declared sidecars can be reproduced structurally. |
+| `coursework_notebook_fidelity_check` | Check the structure of a received coursework notebook, including its answer cells, declared sidecars, and Plotly portability. |
 | `notebook_branch_compare` | Compare notebook or result branches for missing and duplicate outputs. |
 | `spectra_ascii_coursework_workbench` | Build a derived coursework bundle from a reduced ASCII spectrum and reviewed choices. |
 | `timeseries_forecasting_workbench` | Prepare a time-series forecast notebook and report with a held-out horizon. |
 | `inspect_data_container` | Inspect the structure of a supported HDF5, NetCDF, Zarr, or archive container before extraction. |
 | `catalog_workbench.crossmatch-sky` | Match two sky catalogs from explicit coordinates and a chosen angular radius. |
-| `physical_qa` | Run bounded physical sanity checks on FITS, spectrum, or table inputs; warnings require scientific judgment. |
+| `physical_qa` | Check basic physical plausibility of FITS data, spectra, and scientific tables and report findings for review. |
+
+<!-- END GENERATED CAPABILITY CATALOG -->
 
 These are descriptions of intended actions, **not guarantees of scientific
 validity or universal availability**. Use copied or synthetic inputs and a new

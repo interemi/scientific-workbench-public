@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import re
 import sys
@@ -21,10 +22,19 @@ REGISTRY_HELPER = (
 MOTHER_REGISTRY = ROOT / "skills/scientific-data-analysis/public_surface_registry.yaml"
 REQUIREMENTS_DOC = ROOT / "docs/WORKFLOW_REQUIREMENTS.md"
 CAPABILITY_MATRIX_DOC = ROOT / "docs/CAPABILITY_SETUP_MATRIX.md"
+CAPABILITY_CATALOG_DOC = ROOT / "docs/SKILLS_AND_CAPABILITIES.md"
 CAPABILITY_EVIDENCE_DOC = ROOT / "docs/CAPABILITY_VALIDATION_EVIDENCE.md"
 APP_CAPABILITY_MODEL = ROOT / "Sources/ScientificWorkbench/Models/CapabilityEntry.swift"
 README_DOC = ROOT / "README.md"
 PRODUCT_ROADMAP_DOC = ROOT / "docs/PRODUCT_IMPROVEMENT_ROADMAP.md"
+CATALOG_START = "<!-- BEGIN GENERATED CAPABILITY CATALOG -->"
+CATALOG_END = "<!-- END GENERATED CAPABILITY CATALOG -->"
+CATALOG_SECTIONS = {
+    "core / routing": "Core and routing",
+    "astronomy observational": "Observational astronomy",
+    "documents + reporting": "Documents and reporting",
+    "notebooks + cross-domain": "Notebooks and cross-domain data",
+}
 
 EXPECTED_BLOCKS = {
     "core / routing": 5,
@@ -107,8 +117,49 @@ def check_readiness_summary(path: Path, expected: dict[str, int]) -> None:
     require_equal(f"readiness counts in {path.relative_to(ROOT)}", actual, expected)
 
 
-def main() -> int:
+def render_catalog(document: str, entries: list[dict]) -> str:
+    before, start, remaining = document.partition(CATALOG_START)
+    _, end, after = remaining.partition(CATALOG_END)
+    if not start or not end or document.count(CATALOG_START) != 1 or document.count(CATALOG_END) != 1:
+        fail("the public capability catalog needs one pair of ordered generation markers")
+
+    grouped = {block: [] for block in CATALOG_SECTIONS}
+    for entry in entries:
+        if entry["kind"] == "maintainer_only":
+            continue
+        block = entry["visible_block"]
+        if block not in grouped:
+            fail(f"unknown public catalog group for {entry['id']}: {block}")
+        description = entry["short_description"].strip()
+        if not description or len(description.splitlines()) != 1:
+            fail(f"the public catalog description for {entry['id']} must be one non-empty line")
+        description = description.replace("|", r"\|")
+        grouped[block].append(f"| `{entry['id']}` | {description} |")
+
+    sections = []
+    for block, title in CATALOG_SECTIONS.items():
+        rows = grouped[block]
+        count_label = "capability" if len(rows) == 1 else "capabilities"
+        sections.append("\n".join([
+            f"## {title}: {len(rows)} {count_label}",
+            "", "| Capability | What it is for |", "| --- | --- |", *rows,
+        ]))
+    return before + start + "\n\n" + "\n\n".join(sections) + "\n\n" + end + after
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--render-catalog", action="store_true", help="Print the regenerated catalog to standard output.")
+    args = parser.parse_args(argv)
     entries = load_registry()
+    catalog = CAPABILITY_CATALOG_DOC.read_text(encoding="utf-8")
+    regenerated = render_catalog(catalog, entries)
+    if args.render_catalog:
+        print(regenerated, end="")
+        return 0
+    if regenerated != catalog:
+        fail("the public capability catalog differs from the registry. Regenerate it with --render-catalog.")
+
     user_entries = [entry for entry in entries if entry.get("kind") != "maintainer_only"]
     maintainer_entries = [entry for entry in entries if entry.get("kind") == "maintainer_only"]
 

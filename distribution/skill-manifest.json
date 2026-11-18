@@ -4527,8 +4527,8 @@
     "scientific-data-astro/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "58264d0ca23621f5d214981f2366d877670d8ece8749f174de09fd1d021e2b04",
-      "size": 26460
+      "sha256": "37965a12d843ec22a43ef450d289b17219d815b3646473232786af25e7eaba8f",
+      "size": 26391
     },
     "scientific-data-astro/.cache/archived_references/references/astro-transferable-patterns.md": {
       "executable": false,
@@ -5667,8 +5667,8 @@
     "scientific-data-documents/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "58264d0ca23621f5d214981f2366d877670d8ece8749f174de09fd1d021e2b04",
-      "size": 26460
+      "sha256": "37965a12d843ec22a43ef450d289b17219d815b3646473232786af25e7eaba8f",
+      "size": 26391
     },
     "scientific-data-documents/.cache/archived_references/references/academic-reporting.md": {
       "executable": false,
@@ -7199,8 +7199,8 @@
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "58264d0ca23621f5d214981f2366d877670d8ece8749f174de09fd1d021e2b04",
-      "size": 26460
+      "sha256": "37965a12d843ec22a43ef450d289b17219d815b3646473232786af25e7eaba8f",
+      "size": 26391
     },
     "scientific-data-maintainer/.cache/archived_references/real-world-capability-classification-v1-7.md": {
       "executable": false,
@@ -10053,8 +10053,8 @@
     "scientific-data-notebooks/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "58264d0ca23621f5d214981f2366d877670d8ece8749f174de09fd1d021e2b04",
-      "size": 26460
+      "sha256": "37965a12d843ec22a43ef450d289b17219d815b3646473232786af25e7eaba8f",
+      "size": 26391
     },
     "scientific-data-notebooks/.cache/archived_references/references/coursework-notebook-comparison.md": {
       "executable": false,
