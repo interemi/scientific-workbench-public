@@ -4,6 +4,69 @@ import Testing
 
 extension ScientificWorkbenchTests {
   @Test
+  @MainActor
+  func reviewedDOCXReplacementKeepsLeadingHyphensInTextValues() async throws {
+    let root = try makeScenarioFixture(
+      name: "docx-literal-replacement",
+      files: [
+        "original.docx": "status: -draft",
+        "scripts/datanalysis_env.py": """
+        import argparse
+        from pathlib import Path
+        import sys
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument("input", type=Path)
+        parser.add_argument("output", type=Path)
+        parser.add_argument("--find", required=True)
+        parser.add_argument("--replace", required=True)
+        args, _ = parser.parse_known_args(sys.argv[4:])
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(args.input.read_text().replace(args.find, args.replace))
+        """,
+      ]
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+    let suite = "Scientific-Workbench-Tests-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false)
+    let source = root.appendingPathComponent("original.docx")
+    let sourceText = try String(contentsOf: source, encoding: .utf8)
+    store.skillRootPath = root.path
+    store.outputRootPath = root.appendingPathComponent("runs").path
+    store.pythonExecutable = "/usr/bin/python3"
+    store.inputPaths = [source.path]
+    store.documentStyleReview = DOCXStyleReview(
+      inputPath: source.path, status: .pass, requirements: [:],
+      matches: [DOCXStyleMatch(
+        location: "body", paragraphIndex: 1, tableIndex: nil, rowIndex: nil, cellIndex: nil,
+        runIndex: 1, text: sourceText, bold: true, italic: false, underline: false,
+        paragraphStyle: nil, characterStyle: nil
+      )],
+      findings: [], limitations: [],
+      originalFingerprint: try DocumentWorkflowService().fingerprint(path: source.path)
+    )
+    store.docxFindText = "-draft"
+    store.docxReplacementText = "-final revision"
+    store.docxReplacementConfirmed = true
+    let preview = try #require(store.documentStyleDiff.first?.after)
+    let capability = CapabilityEntry(
+      id: "office_roundtrip.docx-styled-replace", label: "Replace styled DOCX text",
+      script: "scripts/office_roundtrip.py", visibleBlock: "documents + reporting",
+      kind: "supporting_tool", supportLevel: "stable", platform: "portable",
+      requiresDatanalysis: false, preflightMode: "none", smokeTier: "core",
+      shortDescription: "Write a reviewed copy."
+    )
+
+    let job = try #require(await store.runReviewedDOCXReplacement(capability: capability))
+    #expect(job.status == .succeeded)
+    let output = URL(fileURLWithPath: job.runDirectory).appendingPathComponent("artifacts/edited_copy.docx")
+    #expect(try String(contentsOf: output, encoding: .utf8) == preview)
+    #expect(try String(contentsOf: source, encoding: .utf8) == sourceText)
+  }
+
+  @Test
   func documentWorkflowStagesCopyAndDetectsOriginalChanges() throws {
     let root = FileManager.default.temporaryDirectory
       .appendingPathComponent("Scientific-Workbench-DocumentCopy-\(UUID().uuidString)", isDirectory: true)

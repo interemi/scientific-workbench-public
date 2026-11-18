@@ -1897,8 +1897,8 @@ final class WorkbenchStore: ObservableObject {
       var arguments = [
         staged.stagedPath,
         runURL.appendingPathComponent("artifacts/edited_copy.docx").path,
-        "--find", docxFindText,
-        "--replace", docxReplacementText,
+        "--find=\(docxFindText)",
+        "--replace=\(docxReplacementText)",
         "--require-confirmation",
         "--confirmation-id", "scientific-workbench:\(UUID().uuidString)",
         "--diff-json", runURL.appendingPathComponent("previews/style_diff.json").path,

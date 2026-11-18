@@ -24,6 +24,13 @@ skill roots together as a matched set when updating a bundled registry.
 An incompatible format change requires a new schema version and a documented
 migration or compatibility alias.
 
+When reproducing a guided command, keep free-text values that begin with a
+hyphen in the same argument as their option. For example, use
+`--find=-draft` or `'--title=-draft observations'`. Quote the complete argument
+when the value contains spaces. The app uses this syntax for replacement text,
+notebook and deliverable titles, forecasting fields, routing requests, and
+reviewed crossmatch column names.
+
 The canonical registry contains 61 entries:
 
 | Surface | Count |

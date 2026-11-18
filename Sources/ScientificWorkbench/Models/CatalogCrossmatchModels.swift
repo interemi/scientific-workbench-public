@@ -79,7 +79,7 @@ struct CatalogCrossmatchMappedColumn: Equatable, Sendable {
   let unit: CatalogCrossmatchCoordinateUnit
 
   func arguments(role: String) -> [String] {
-    ["--\(role)", name, "--\(role)-unit", unit.rawValue]
+    ["--\(role)=\(name)", "--\(role)-unit", unit.rawValue]
   }
 }
 

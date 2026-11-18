@@ -183,7 +183,7 @@ struct GuidedCapabilityControls: View {
         await store.runGuided(capability: capability, inputPathsOverride: [input]) { runURL in
           var arguments = [
             "--output-dir", runURL.appendingPathComponent("artifacts/forecasting").path,
-            "--title", forecastTitle.trimmed,
+            "--title=\(forecastTitle.trimmed)",
             "--language", forecastLanguage,
             "--runtime-profile", runtimeProfile,
             "--data-path", input,
@@ -248,7 +248,7 @@ struct GuidedCapabilityControls: View {
             runURL.appendingPathComponent("artifacts/deliverable").path,
             "--kind", deliverableKind,
             "--format", deliverableFormat,
-            "--title", deliverableTitle.trimmed,
+            "--title=\(deliverableTitle.trimmed)",
             "--language", deliverableLanguage,
             "--summary-json", runURL.appendingPathComponent("summary.json").path,
             "--manifest-json", runURL.appendingPathComponent("manifest.json").path,
@@ -305,7 +305,7 @@ struct GuidedCapabilityControls: View {
         ) { runURL in
           var arguments = [
             runURL.appendingPathComponent("artifacts/analysis_notebook.ipynb").path,
-            "--title", notebookTitle.trimmed,
+            "--title=\(notebookTitle.trimmed)",
             "--domain", notebookDomain,
             "--language", notebookLanguage,
             "--runtime-profile", notebookRuntime,
@@ -339,7 +339,7 @@ struct GuidedCapabilityControls: View {
         canRun: !companionTask.trimmed.isEmpty
       ) {
         await store.runGuided(capability: capability) { runURL in
-          var arguments = ["--task", companionTask.trimmed]
+          var arguments = ["--task=\(companionTask.trimmed)"]
           for path in store.inputPaths {
             arguments += ["--file", path]
           }
@@ -417,7 +417,7 @@ struct GuidedCapabilityControls: View {
   private func appendOption(_ option: String, value: String, to arguments: inout [String]) {
     let trimmed = value.trimmed
     guard !trimmed.isEmpty else { return }
-    arguments += [option, trimmed]
+    arguments.append("\(option)=\(trimmed)")
   }
 }
 

@@ -11,7 +11,7 @@ extension ScientificWorkbenchTests {
     let rightPath = root.appendingPathComponent("right.tsv")
     defer { try? FileManager.default.removeItem(at: root) }
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    try "ra_deg,dec_deg,source_id\n120.0,-30.0,L1\n120.1,-30.1,L2\n"
+    try "-ra_deg,dec_deg,source_id\n120.0,-30.0,L1\n120.1,-30.1,L2\n"
       .write(to: leftPath, atomically: true, encoding: .utf8)
     try "source_id\tra\tdec\nR1\t120.0001\t-30.0001\nR2\t121.0\t-31.0\n"
       .write(to: rightPath, atomically: true, encoding: .utf8)
@@ -38,16 +38,16 @@ extension ScientificWorkbenchTests {
 
     #expect(left.formatLabel == "comma")
     #expect(right.formatLabel == "tab")
-    #expect(left.columns.map(\.name) == ["ra_deg", "dec_deg", "source_id"])
+    #expect(left.columns.map(\.name) == ["-ra_deg", "dec_deg", "source_id"])
     #expect(service.validate(left: left, right: right, selection: reviewed).status == .pass)
 
     let prepared = try service.prepare(left: left, right: right, selection: reviewed)
     let arguments = prepared.arguments(runURL: root.appendingPathComponent("run"))
-    #expect(arguments.dropFirst(3).prefix(20).elementsEqual([
-      "--left-ra", "ra_deg", "--left-ra-unit", "deg",
-      "--left-dec", "dec_deg", "--left-dec-unit", "deg",
-      "--right-ra", "ra", "--right-ra-unit", "deg",
-      "--right-dec", "dec", "--right-dec-unit", "deg",
+    #expect(arguments.dropFirst(3).prefix(16).elementsEqual([
+      "--left-ra=-ra_deg", "--left-ra-unit", "deg",
+      "--left-dec=dec_deg", "--left-dec-unit", "deg",
+      "--right-ra=ra", "--right-ra-unit", "deg",
+      "--right-dec=dec", "--right-dec-unit", "deg",
       "--left-format", "comma", "--right-format", "tab",
     ]))
     #expect(arguments.suffix(10).elementsEqual([
@@ -87,6 +87,7 @@ extension ScientificWorkbenchTests {
       skillRoot: skillRoot.path
     )
     #expect(command.arguments.contains("crossmatch-sky"))
+    #expect(command.arguments.contains("--left-ra=-ra_deg"))
     #expect(command.arguments.contains(leftPath.path))
     #expect(command.arguments.contains(rightPath.path))
 
