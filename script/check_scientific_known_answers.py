@@ -993,6 +993,120 @@ def general_spectrum_cases(root: Path, environment: dict[str, str]) -> dict:
             "residual_rms_electron_per_second": actual_rms, "input_sha256": originals}
 
 
+def spectroscopy_pipeline_cases(root: Path, environment: dict[str, str]) -> dict:
+    import csv
+
+    import numpy as np
+    from astropy.io import fits
+
+    spectrum = root / "input" / "general_spectrum.fits"
+    anchors = root / "input" / "wavelength_anchors.ecsv"
+    flux, header = fits.getdata(spectrum, header=True)
+    profile = np.exp(-0.5 * ((np.arange(41) - 20) / 1.8)**2)
+    gaussian, flat = (root / "input" / name for name in ("gaussian_order.fits", "flat_order.fits"))
+    fits.PrimaryHDU(100 + 1000 * profile[:, None] * flux[None, :], header).writeto(gaussian)
+    fits.PrimaryHDU(100 + 1000 * profile[:, None] * np.ones((1, flux.size)), header).writeto(flat)
+    originals = {path.name: sha256(path) for path in (gaussian, flat, anchors)}
+
+    script = ROOT / "skills/scientific-data-astro/scripts/spectroscopy_pipeline_workbench.py"
+    case = root / "spectroscopy_pipeline"
+    products = case / "products"
+    summary = case / "summary.json"
+    manifest = case / "manifest.json"
+    options = ["--calibration-table", str(anchors), "--line-window", "655", "0.5"]
+    partial = run(
+        [sys.executable, str(script), str(gaussian), str(flat), *options,
+         "--output-dir", str(products), "--summary-json", str(summary), "--manifest-json", str(manifest)],
+        case, environment,
+    )
+    require(partial.returncode == 1, f"partial spectroscopy batch must return code 1: {partial.stderr[-700:]}")
+    payload = read_json(summary)
+    result = payload["results"]
+    require(payload["app_status"] == "FAIL" and result["completed_science_count"] == 1
+            and result["blocked_science_count"] == 1 and result["failed_science_count"] == 0,
+            "spectroscopy batch concealed a blocked frame or dropped a completed frame")
+    good, blocked = result["science_products"]
+    require(good["status"] == "warning" and good["axis_unit"] == "nm" and good["flux_unit"] == "electron/s"
+            and abs(good["line_fit_center"] - 655) < 0.002 and good["line_fit_center_uncertainty"] > 0
+            and good["line_fit_residual_rms"] > 0 and "Gaussian" in good["line_fit_method"]
+            and any("extrapolates" in message for message in good["qa_findings"]),
+            "the spectroscopy batch lost calibrated fit values, formal errors, or calibration warnings")
+    require(blocked["status"] == "blocked" and blocked["returncode"] == 2
+            and "no measurable flux variation" in blocked["failure_reason"]
+            and blocked["line_fit_center"] is None and blocked["output_table"] is None,
+            "the blocked frame acquired a measurement or lost its failure reason")
+    report = (products / "reports/report.md").read_text(encoding="utf-8")
+    require("no measurable flux variation" in report and "655.000086 ± 0.000108 nm" in report
+            and "extrapolates" in report and "Absolute wavelength uncertainty is unavailable" in report,
+            "the spectroscopy batch report lost uncertainty, units, or quality information")
+    with (products / "reports/science_products.csv").open(encoding="utf-8") as handle:
+        csv_good, csv_blocked = list(csv.DictReader(handle))
+    require(csv_good["axis_unit"] == "nm" and csv_good["line_fit_center_uncertainty"] != ""
+            and json.loads(csv_good["qa_findings"]) == good["qa_findings"]
+            and csv_blocked["status"] == "blocked" and csv_blocked["line_fit_center"] == "",
+            "the spectroscopy batch CSV does not match the per-frame evidence")
+    good_dir = products / "products/gaussian_order"
+    blocked_dir = products / "products/flat_order"
+    spectral_outputs = [good_dir / name for name in ("summary.json", "manifest.json", "spectrum.ecsv", "spectrum.png", "trace.png", "spectrum.html")]
+    check_manifest(manifest, [gaussian, flat, anchors], [
+        products / "reports/science_products.csv", products / "reports/report.md", summary,
+        *[path for path in spectral_outputs if path.exists()], blocked_dir / "summary.json",
+    ])
+
+    complete = root / "spectroscopy_pipeline_complete"
+    complete_summary = complete / "summary.json"
+    complete_run = run(
+        [sys.executable, str(script), str(gaussian), *options,
+         "--output-dir", str(complete / "products"), "--summary-json", str(complete_summary)],
+        complete, environment,
+    )
+    require(complete_run.returncode == 0 and read_json(complete_summary)["app_status"] == "WARNING",
+            "a completed batch with calibration warnings should still return code 0")
+    previous_table = complete / "products/products/gaussian_order/spectrum.ecsv"
+    previous_table_hash = sha256(previous_table)
+    retry = root / "spectroscopy_pipeline_blocked_retry"
+    retry_summary = retry / "summary.json"
+    blocked_run = run(
+        [sys.executable, str(script), str(gaussian), "--calibration-table", str(anchors),
+         "--line-window", "900", "0.5", "--output-dir", str(complete / "products"), "--summary-json", str(retry_summary)],
+        retry, environment,
+    )
+    failure = read_json(retry_summary)
+    failed_row = failure["results"]["science_products"][0]
+    require(blocked_run.returncode == 2 and failure["app_status"] == "BLOCKED_CONTROLADO"
+            and failed_row["output_table"] is None and failed_row["manifest_json"] is None
+            and sha256(previous_table) == previous_table_hash,
+            "a blocked retry adopted or modified the previous derived spectrum table")
+    incompatible_bias = root / "input" / "incompatible_master_bias.fits"
+    fits.PrimaryHDU(np.zeros((8, 8))).writeto(incompatible_bias)
+    originals[incompatible_bias.name] = sha256(incompatible_bias)
+    rejected = root / "spectroscopy_pipeline_failed_reduction"
+    rejected_summary = rejected / "summary.json"
+    rejected_manifest = rejected / "manifest.json"
+    rejected_products = rejected / "products"
+    reduction = run(
+        [sys.executable, str(script), str(gaussian), "--master-bias", str(incompatible_bias),
+         "--output-dir", str(rejected_products), "--summary-json", str(rejected_summary),
+         "--manifest-json", str(rejected_manifest)],
+        rejected, environment,
+    )
+    result = read_json(rejected_summary)
+    require(reduction.returncode == 1 and result["app_status"] == "FAIL"
+            and result["results"]["skipped_science_count"] == 1 and not result["results"]["science_products"]
+            and "CCD reduction failed" in result["results"]["calibration"]["failure_reason"],
+            "a CCD reduction failure must skip extraction and remain visible")
+    check_manifest(rejected_manifest, [gaussian, incompatible_bias], [
+        rejected_products / "reports/science_products.csv", rejected_products / "reports/report.md", rejected_summary,
+    ])
+    require({path.name: sha256(path) for path in (gaussian, flat, anchors, incompatible_bias)} == originals,
+            "pipeline inputs changed")
+    return {
+        "partial_exit": partial.returncode, "warning_exit": complete_run.returncode, "blocked_exit": blocked_run.returncode,
+        "line_center_nm": good["line_fit_center"], "formal_center_error_nm": good["line_fit_center_uncertainty"],
+        "input_sha256": originals,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -1032,6 +1146,7 @@ def main() -> int:
         evidence["photometry_noise"] = photometry_noise_cases(output, environment)
         evidence["legacy_spectroscopy"] = legacy_spectroscopy_cases(output, environment)
         evidence["general_spectroscopy"] = general_spectrum_cases(output, environment)
+        evidence["spectroscopy_pipeline"] = spectroscopy_pipeline_cases(output, environment)
         evidence["status"] = "PASS"
     except Exception as error:
         evidence["failure"] = str(error)

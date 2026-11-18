@@ -358,6 +358,15 @@ also records the residual RMS, sample count, and equivalent width from
 direct integration for comparison. Uncertainty for the direct integral
 is unavailable. A failed fit returns a reason in the summary.
 
+For a set of 2D frames, the bundled `spectroscopy_pipeline_workbench.py`
+writes a batch report, a science-products CSV, and per-frame summaries.
+Each completed fit keeps its unit, formal errors, residual diagnostics,
+and quality findings. A blocked frame retains its reason. Completed
+frames remain available if a later frame is blocked. For automation,
+the command returns 0 for a completed batch (including warnings), 1
+for a partial batch or execution failure, and 2 if every frame is
+blocked. Use a fresh output directory to retain the previous batch report.
+
 ### Review legacy radial velocities and rotation
 
 The expert `legacy_rv_coursework_workbench.analyze` route consumes parsed

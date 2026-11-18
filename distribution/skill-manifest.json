@@ -5013,8 +5013,8 @@
     "scientific-data-astro/fixtures/spectroscopy_pipeline_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "82262ae0637a30b5bc38228caec1d23221e4d4c21460889be9db00c7be16e3d2",
-      "size": 17320
+      "sha256": "aaa31a26e197863838bd6acffddb3a81236ff1b8b50b9ceb92b3f39989f33b3f",
+      "size": 25328
     },
     "scientific-data-astro/fixtures/stilts_workbench.py": {
       "executable": false,
