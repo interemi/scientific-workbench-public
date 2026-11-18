@@ -4827,8 +4827,8 @@
     "scientific-data-astro/fixtures/aperture_photometry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "17f78b43780cf96e613c66173cb8050476b71bf36649b1e5093b59efadb63709",
-      "size": 11928
+      "sha256": "49c583ea39fd0ac6419c03e71af7b2133da528fdb8feaf30e59388e884545706",
+      "size": 17748
     },
     "scientific-data-astro/fixtures/app_run_bundle.py": {
       "executable": false,

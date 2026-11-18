@@ -218,6 +218,27 @@ provide full dates and a consistent declaration before the run can start.
 Missing, nonnumeric, and nonfinite dates block preparation with a row count.
 The source table is read-only.
 
+### Measure circular aperture flux from FITS
+
+The bundled `aperture_photometry.py` command uses zero-based pixel
+coordinates. It sums finite aperture pixels and subtracts the local
+annulus median times their count. The summary identifies the selected
+HDU, its `BUNIT`, and omitted pixels and truncated apertures.
+
+For an image in electrons, the source term uses gain 1. For an ADU
+image, supply a positive `--gain` in electrons per ADU. For an HDU
+without `BUNIT`, use `--units electrons` or `--units adu` if the
+detector units are known. A total uncertainty requires supported units
+and, for ADU, a gain. The measured flux and background scatter remain
+available in that case. JSON records the unavailable total as `null`
+and CSV leaves the corresponding cell empty.
+
+The error model combines positive source Poisson variance, background
+scatter within the aperture, and the uncertainty of the annulus median.
+It assumes independent pixels and uses a Gaussian approximation for
+the median term. Correlated noise, gain uncertainty, and calibration
+systematics are outside this first-pass model.
+
 ### Guided photometric calibration
 
 The expert route `photometric_solution.py` fits a first-order photometric

@@ -1107,6 +1107,95 @@ def spectroscopy_pipeline_cases(root: Path, environment: dict[str, str]) -> dict
     }
 
 
+def aperture_photometry_cases(root: Path, environment: dict[str, str]) -> dict:
+    import csv
+
+    import numpy as np
+    from astropy.io import fits
+
+    data = np.full((33, 33), 100.0)
+    annulus_offsets = sorted((x, y) for x in range(-8, 9) for y in range(-8, 9) if 36 <= x*x + y*y <= 64)
+    for x, y in annulus_offsets[:20]:
+        data[16+y, 16+x] -= 2
+    for x, y in annulus_offsets[-20:]:
+        data[16+y, 16+x] += 2
+    data[16, 16] += 400
+    adu = root / "input" / "aperture_adu.fits"
+    fits.PrimaryHDU(data, header=fits.Header({"BUNIT": "ADU"})).writeto(adu)
+    no_unit = root / "input" / "aperture_no_unit.fits"
+    fits.PrimaryHDU(data).writeto(no_unit)
+    data[16, 16] -= 410
+    electrons = root / "input" / "aperture_negative_electrons.fits"
+    fits.PrimaryHDU(data, header=fits.Header({"BUNIT": "electron"})).writeto(electrons)
+    hashes = {path.name: sha256(path) for path in [adu, no_unit, electrons]}
+    # The 13 aperture pixels contain one source pixel and 12 sky pixels. In the annulus
+    # 40 pixels have offsets of magnitude 2 and the other 48 are at the median.
+    sky_variance = 160 / 87
+    aperture_variance = 13 * sky_variance
+    median_variance = 169 * (math.pi / 2) * sky_variance / 88
+    script = ROOT / "skills/scientific-data-astro/scripts/aperture_photometry.py"
+    cases = [
+        ("aperture_adu_gain", adu, ["--gain", "2"], 400, "ADU", 200, "PASS", None),
+        ("aperture_adu_no_gain", adu, [], 400, "ADU", None, "WARNING", "uncertainty_gain_unavailable"),
+        ("aperture_no_units", no_unit, [], 400, None, None, "WARNING", "uncertainty_units_unavailable"),
+        ("aperture_declared_adu", no_unit, ["--units", "adu", "--gain", "2"], 400, "ADU", 200, "PASS", None),
+        ("aperture_electrons_negative", electrons, [], -10, "electron", 0, "WARNING", "non_positive_net_flux"),
+    ]
+    results = {}
+    for name, source, options, flux, unit, source_variance, status, flag in cases:
+        case = root / name
+        summary, table = case / "summary.json", case / "apertures.csv"
+        completed = run(
+            [sys.executable, str(script), str(source), "--center", "16", "16",
+             "--radius", "2", "--annulus-inner", "6", "--annulus-outer", "8",
+             "--summary-json", str(summary), "--output-csv", str(table), *options],
+            case, environment,
+        )
+        require(completed.returncode == 0, f"{name} did not finish: {completed.stderr[-600:]}")
+        payload = read_json(summary)
+        row = payload["results"]["apertures"][0]
+        require(payload["app_status"] == status and row["quality_flags"] == ([flag] if flag else []),
+                f"{name} quality status differs")
+        require(row["net_flux"] == flux and row["flux_unit"] == unit and row["source_poisson_variance"] == source_variance
+                and row["n_aperture_pixels"] == 13 and row["n_annulus_pixels"] == 88,
+                f"{name} aperture size, units, or source variance differs")
+        require(abs(row["background_aperture_variance"] - aperture_variance) < 1e-12
+                and abs(row["background_median_variance"] - median_variance) < 1e-12,
+                f"{name} background uncertainty differs from the reference")
+        if source_variance is None:
+            require(row["uncertainty"] is None and "uncertainty=unavailable" in completed.stdout,
+                    f"{name} published a total uncertainty without detector information")
+        else:
+            expected = math.sqrt(source_variance + aperture_variance + median_variance)
+            require(abs(row["uncertainty"] - expected) < 1e-12, f"{name} total uncertainty differs")
+        with table.open(encoding="utf-8") as handle:
+            exported = next(csv.DictReader(handle))
+        require((not exported["uncertainty"]) == (row["uncertainty"] is None), "CSV total uncertainty differs")
+        results[name] = {"status": status, "flux": flux, "unit": unit, "uncertainty": row["uncertainty"]}
+    masked = root / "input" / "aperture_masked_extension.fits"
+    data[16, 16] += 410
+    data[16, 17] = np.nan
+    fits.HDUList([fits.PrimaryHDU(header=fits.Header({"BUNIT": "electron"})),
+                  fits.ImageHDU(data, header=fits.Header({"BUNIT": "ADU"}))]).writeto(masked)
+    hashes[masked.name] = sha256(masked)
+    case = root / "aperture_masked"
+    summary = case / "summary.json"
+    completed = run(
+        [sys.executable, str(script), str(masked), "--extension", "1", "--center", "16", "16",
+         "--radius", "2", "--annulus-inner", "6", "--annulus-outer", "8", "--gain", "2", "--summary-json", str(summary)],
+        case, environment,
+    )
+    payload = read_json(summary)
+    row = payload["results"]["apertures"][0]
+    require(completed.returncode == 0 and payload["app_status"] == "WARNING"
+            and payload["results"]["hdu_index"] == 1 and row["flux_unit"] == "ADU"
+            and row["x_centroid"] == row["y_centroid"] == 16 and row["aperture_finite_fraction"] == 12/13
+            and row["quality_flags"] == ["aperture_nonfinite"],
+            "masked aperture or selected-HDU BUNIT behavior differs")
+    require({path.name: sha256(path) for path in [adu, no_unit, electrons, masked]} == hashes, "aperture FITS inputs changed")
+    return {"cases": results, "input_sha256": hashes}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -1147,6 +1236,7 @@ def main() -> int:
         evidence["legacy_spectroscopy"] = legacy_spectroscopy_cases(output, environment)
         evidence["general_spectroscopy"] = general_spectrum_cases(output, environment)
         evidence["spectroscopy_pipeline"] = spectroscopy_pipeline_cases(output, environment)
+        evidence["aperture_photometry"] = aperture_photometry_cases(output, environment)
         evidence["status"] = "PASS"
     except Exception as error:
         evidence["failure"] = str(error)
