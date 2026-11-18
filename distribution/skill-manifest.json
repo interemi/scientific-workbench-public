@@ -5007,8 +5007,8 @@
     "scientific-data-astro/fixtures/spectral_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "76b79056938570ed55c0101f76ba41a4c5cab9aa67c743cfd5e39fe0bdbb04e9",
-      "size": 41417
+      "sha256": "c5406739fd43ba702cad0de6b46f0007fdb5409a202e88e47d09499dcbcd93eb",
+      "size": 49256
     },
     "scientific-data-astro/fixtures/spectroscopy_pipeline_workbench.py": {
       "executable": false,

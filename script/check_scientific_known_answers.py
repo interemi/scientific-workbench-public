@@ -925,6 +925,74 @@ def legacy_spectroscopy_cases(root: Path, environment: dict[str, str]) -> dict:
             "selected_orders": len(selected), "vsini_kms": rotation["value"], "input_sha256": original}
 
 
+def general_spectrum_cases(root: Path, environment: dict[str, str]) -> dict:
+    import numpy as np
+    from astropy import units as u
+    from astropy.io import fits
+    from astropy.table import Table
+
+    # Calibration is linear in the zero-based index. The original FITS header uses angstroms.
+    pixels = np.arange(1001)
+    wavelength = 650 + 0.01 * pixels
+    center, sigma, depth = 655, 0.035, 0.35
+    noise = np.random.default_rng(17).normal(0, 0.002, len(pixels))
+    flux = 1 - depth * np.exp(-0.5 * ((wavelength - center) / sigma)**2) + noise
+    spectrum = root / "input" / "general_spectrum.fits"
+    header = fits.Header({"CTYPE1": "WAVE", "CUNIT1": "Angstrom", "CRPIX1": 1, "CRVAL1": 6500,
+                          "CDELT1": 0.1, "BUNIT": "electron/s"})
+    fits.PrimaryHDU(flux, header).writeto(spectrum)
+    anchors = root / "input" / "wavelength_anchors.ecsv"
+    Table({"pixel": [100, 900], "wavelength": [651, 659] * u.nm}).write(anchors)
+    originals = {path.name: sha256(path) for path in [spectrum, anchors]}
+    case = root / "general_spectroscopy"
+    summary, manifest = case / "summary.json", case / "manifest.json"
+    script = ROOT / "skills/scientific-data-astro/scripts/spectral_workbench.py"
+    base = [sys.executable, str(script), str(spectrum), "--calibration-table", str(anchors), "--calibration-degree", "3"]
+    completed = run(
+        [*base, "--line-window", str(center), "0.5", "--summary-json", str(summary), "--manifest-json", str(manifest)],
+        case, environment,
+    )
+    require(completed.returncode == 0, f"general spectroscopy exited {completed.returncode}: {completed.stderr[-700:]}")
+    result = read_json(summary)
+    line = result["results"]["line_fit"]
+    calibration = result["results"]["calibration"]
+    expected_fwhm = 2 * math.sqrt(2 * math.log(2)) * sigma
+    expected_ew = depth * sigma * math.sqrt(2 * math.pi)
+    require(abs(line["center"] - center) < 0.002 and abs(line["fwhm"] - expected_fwhm) < 0.002
+            and abs(line["equivalent_width_fit"] - expected_ew) < 0.002, "Gaussian line differs from the synthetic reference")
+    errors = line["formal_uncertainties"]
+    require(all(0 < errors[key] < 0.003 for key in ["center", "fwhm", "equivalent_width"])
+            and line["equivalent_width_integral_uncertainty"] is None,
+            "formal Gaussian uncertainties or direct integral uncertainty semantics differ")
+    fit_x = np.asarray(line["fit_x"])
+    fitted_pixels = np.rint((fit_x - 650) * 100).astype(int)
+    actual_rms = float(np.sqrt(np.mean((flux[fitted_pixels] - line["fit_model"])**2)))
+    require(abs(line["residual_rms"] - actual_rms) < 1e-12 and line["residual_degrees_of_freedom"] == len(fit_x) - 4,
+            "Gaussian residual RMS or degrees of freedom differ")
+    require(line["axis_unit"] == calibration["wavelength_unit"] == "nm"
+            and line["flux_unit"] == "electron/s" and result["results"]["axis_label"] == "Wavelength [nm]",
+            "wavelength calibration retained a stale input unit")
+    require(result["app_status"] == "WARNING" and calibration["degree"] == 1
+            and calibration["requested_degree"] == 3 and calibration["residual_degrees_of_freedom"] == 0
+            and calibration["residual_rms"] < 1e-10 and calibration["extrapolated_sample_count"] == 200
+            and any("extrapolates" in finding for finding in result["qa"]["findings"]),
+            "calibration degree, residuals or quality flags differ")
+    check_manifest(manifest, [spectrum, anchors], [summary])
+    failure_case = root / "general_spectroscopy_empty_line"
+    blocked_summary = failure_case / "summary.json"
+    plot = failure_case / "plot.png"
+    failure = run([*base, "--line-window", "900", "0.5", "--summary-json", str(blocked_summary), "--plot", str(plot)],
+                  failure_case, environment)
+    blocked = read_json(blocked_summary)
+    require(failure.returncode == 2 and blocked["app_status"] == "BLOCKED_CONTROLADO" and not plot.exists()
+            and blocked["results"]["line_fit"] is None and "five distinct samples" in blocked["results"]["blocked_reason"],
+            "invalid line window must block with a reason and without producing a plot")
+    require({path.name: sha256(path) for path in [spectrum, anchors]} == originals, "spectral inputs changed")
+    return {"line_center_nm": line["center"], "formal_center_error_nm": errors["center"],
+            "fwhm_nm": line["fwhm"], "equivalent_width_nm": line["equivalent_width_fit"],
+            "residual_rms_electron_per_second": actual_rms, "input_sha256": originals}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -963,6 +1031,7 @@ def main() -> int:
         evidence["existing_wcs"] = existing_wcs_cases(output, environment)
         evidence["photometry_noise"] = photometry_noise_cases(output, environment)
         evidence["legacy_spectroscopy"] = legacy_spectroscopy_cases(output, environment)
+        evidence["general_spectroscopy"] = general_spectrum_cases(output, environment)
         evidence["status"] = "PASS"
     except Exception as error:
         evidence["failure"] = str(error)
@@ -971,7 +1040,7 @@ def main() -> int:
         (output / "verification.json").write_text(
             json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-    print(f"Scientific known-answer PASS: FITS/WCS, crossmatch, photometry, Li I, SB2, and legacy RV/rotation. Evidence: {output}")
+    print(f"Scientific known-answer PASS: FITS/WCS, crossmatch, photometry, and spectroscopy. Evidence: {output}")
     return 0
 
 

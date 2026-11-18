@@ -336,6 +336,28 @@ center errors. The formal errors assume independent orders and exclude
 calibration and template systematics. Inspect the order table and plots
 before interpreting the combined estimates.
 
+### Review a general spectral line fit
+
+The bundled `spectral_workbench.py` command accepts a spectrum and
+`--line-window CENTER WIDTH`. Both numbers use the active spectral axis.
+Check the axis unit in the source metadata or in the optional
+`--calibration-table` before choosing the window. The calibration fits a
+polynomial against zero-based dispersion pixel indices. Its declared
+wavelength unit replaces the source axis unit. A plain table without a
+unit declaration leaves that unit unspecified.
+
+The JSON summary records the effective polynomial degree, anchor
+residual RMS, available degrees of freedom, and any extrapolation. Anchor
+residuals describe the calibration fit. Absolute wavelength uncertainty
+remains unavailable.
+
+The line fit uses an unweighted Gaussian and a constant continuum in
+raw-flux space. The reported formal errors use the local parameter
+covariance and omit calibration and continuum systematics. The summary
+also records the residual RMS, sample count, and equivalent width from
+direct integration for comparison. Uncertainty for the direct integral
+is unavailable. A failed fit returns a reason in the summary.
+
 ### Review legacy radial velocities and rotation
 
 The expert `legacy_rv_coursework_workbench.analyze` route consumes parsed
