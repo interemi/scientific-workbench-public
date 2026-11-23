@@ -104,6 +104,10 @@ extension ScientificWorkbenchTests {
     let scaffold = try #require(entries.first { $0.id == "bootstrap_analysis_notebook" }?.ioContract)
     #expect(scaffold.summary.tool == "bootstrap_analysis_notebook.py")
     #expect(scaffold.outputs.first { $0.argument == "output" }?.format == "IPYNB")
+    let styledReplace = try #require(entries.first { $0.id == "office_roundtrip.docx-styled-replace" }?.ioContract)
+    #expect(styledReplace.inputs.contains { $0.argument == "--confirmation-id" })
+    #expect(styledReplace.outputs.first { $0.argument == "output" }?.format == "DOCX")
+    #expect(styledReplace.summary.version == "2.0")
   }
 
   @Test

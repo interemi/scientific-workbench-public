@@ -152,6 +152,97 @@ def check_tabular_io_contracts(output, environment):
     return records
 
 
+def check_document_io_contracts(output, environment):
+    from docx import Document
+
+    scripts = ROOT / "skills/scientific-data-documents/scripts"
+    evidence = output / "document-io"
+    sources = evidence / "sources"
+    sources.mkdir(parents=True)
+    original_docx = sources / "synthetic.docx"
+    document = Document()
+    paragraph = document.add_paragraph()
+    paragraph.add_run("Stellar flux").bold = True
+    paragraph.add_run(" and Stellar flux in a plain run")
+    document.save(original_docx)
+    baseline = sources / "methods.md"
+    baseline.write_text(
+        "# Methods\nWe generated synthetic observations and included every sample in the comparison.\n\n"
+        "# Results\nThe derived flux was 2 ADU. This demonstration describes a synthetic input only "
+        "and makes no claim about an observed astronomical source.\n",
+        encoding="utf-8",
+    )
+    candidate = sources / "revised.md"
+    candidate.write_text(baseline.read_text(encoding="utf-8").replace("2 ADU", "3 ADU"), encoding="utf-8")
+    before_table = sources / "before.csv"
+    after_table = sources / "after.csv"
+    before_table.write_text("source,flux\na,2\n", encoding="ascii")
+    after_table.write_text("source,flux\na,3\n", encoding="ascii")
+    originals = {path: path.read_bytes() for path in sources.iterdir()}
+
+    edited = evidence / "edited.docx"
+    replace = [original_docx, edited, "--find", "Stellar flux", "--replace", "Synthetic flux",
+               "--require-bold", "--require-confirmation"]
+    missing = sources / "missing.md"
+    latex = evidence / "latex"
+    deliverable = evidence / "deliverable"
+    intake = evidence / "intake"
+    completed = {0: {"PASS", "WARNING"}}
+    blocked = {2: {"BLOCKED_CONTROLADO"}}
+    failed = {2: {"FAIL"}}
+    cases = [
+        ("intake", "document_intake_workbench", [original_docx, baseline, "--output-dir", intake], completed),
+        ("intake-missing", "document_intake_workbench", [missing, "--output-dir", evidence / "unused"], blocked),
+        ("styles", "office_roundtrip.docx-style-inventory",
+         [original_docx, "--require-bold", "--output-csv", evidence / "styles.csv"], completed),
+        ("styles-missing", "office_roundtrip.docx-style-inventory", [sources / "missing.docx"], failed),
+        ("replacement-unconfirmed", "office_roundtrip.docx-styled-replace", replace, failed),
+        ("replacement", "office_roundtrip.docx-styled-replace",
+         [*replace, "--confirmation-id", "synthetic-review", "--diff-json", evidence / "style-diff.json"], completed),
+        ("latex-scaffold", "latex_workbench.scaffold", [latex, "--title", "Synthetic source"], completed),
+        ("latex-existing", "latex_workbench.scaffold", [latex, "--title", "Overwrite probe"], blocked),
+        ("latex-review", "latex_workbench.review", [latex, "--report-md", evidence / "latex-review.md"], completed),
+        ("latex-missing", "latex_workbench.review", [missing], failed),
+        ("writeup", "scientific_writeup_review", [baseline, "--report-md", evidence / "writeup.md"], completed),
+        ("writeup-missing", "scientific_writeup_review", [missing], blocked),
+        ("deliverable", "deliverable_factory.scaffold", [deliverable, "--title", "Synthetic handoff"], completed),
+        ("deliverable-existing", "deliverable_factory.scaffold", [deliverable, "--title", "Overwrite probe"], blocked),
+        ("document-diff", "semantic_diff", [baseline, candidate, "--output-md", evidence / "document-diff.md"], completed),
+        ("table-diff", "semantic_diff", [before_table, after_table], completed),
+        ("diff-missing", "semantic_diff", [baseline, missing], failed),
+    ]
+    records = {}
+    for name, capability, args, expected in cases:
+        tool, _, subcommand = capability.partition(".")
+        route = [subcommand] if subcommand else []
+        records[name] = run_io_probe(
+            evidence, environment, name, capability, [scripts / f"{tool}.py", *route, *args], expected,
+        )
+        if name == "replacement-unconfirmed" and edited.exists():
+            raise ValueError("unconfirmed DOCX replacement wrote an edited file")
+        if name in {"latex-scaffold", "deliverable"}:
+            written = latex if name == "latex-scaffold" else deliverable
+            originals.update({path: path.read_bytes() for path in written.iterdir() if path.is_file()})
+    if any(path.read_bytes() != content for path, content in originals.items()):
+        raise ValueError("a document operation modified a protected synthetic input or scaffold")
+
+    runs = Document(edited).paragraphs[0].runs
+    if runs[0].text != "Synthetic flux" or runs[0].bold is not True or runs[1].text != " and Stellar flux in a plain run":
+        raise ValueError("DOCX replacement did not preserve the style and the unselected run")
+    inventory = json.loads((evidence / "styles.json").read_text(encoding="utf-8"))
+    if inventory["results"]["inventory"]["match_count"] != 1:
+        raise ValueError("DOCX inventory did not identify exactly one bold run")
+    table_diff = json.loads((evidence / "table-diff.json").read_text(encoding="utf-8"))["results"]
+    if table_diff["comparison_type"] != "table" or table_diff["cell_change_count"] != 1:
+        raise ValueError("semantic diff did not retain the single synthetic table change")
+    products = [intake / "inventory.csv", intake / "report.md", evidence / "styles.csv",
+                evidence / "style-diff.json", latex / "main.tex", evidence / "latex-review.md",
+                evidence / "writeup.md", deliverable / "deliverable.md", evidence / "document-diff.md"]
+    if not all(path.is_file() and path.stat().st_size > 0 for path in products):
+        raise ValueError("a documented synthetic document output was not written")
+    return records
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -190,6 +281,7 @@ def main(argv=None):
                 validate_profile_readiness(doctor, args.profile)
                 evidence["core_io_contracts"] = check_core_io_contracts(output, doctor, environment)
                 evidence["tabular_io_contracts"] = check_tabular_io_contracts(output, environment)
+                evidence["document_io_contracts"] = check_document_io_contracts(output, environment)
         summary = json.loads((output / "smoke-summary.json").read_text())
         evidence["passed_features"] = validate_summary(summary, args.profile)
         known_answer = json.loads((output / "known-answer/verification.json").read_text())

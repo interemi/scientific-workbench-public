@@ -99,6 +99,183 @@
         "rejected": {"capabilities": "object", "blocking_findings": "array", "native_alternatives": "object"}
       }
     },
+    "document_intake_workbench": {
+      "revision": 1,
+      "backend": "Core document readers. Deep PDF recovery and OCR depend on the installed format-specific tools.",
+      "inputs": [
+        {"argument": "inputs", "format": "Documents or directories", "detail": "One or more readable documents or roots containing mixed document sets."},
+        {"argument": "--deep-pdf", "detail": "Request PDF recovery and OCR alongside normal semantic inspection."},
+        {"argument": "--max-files", "unit": "files", "detail": "Maximum number of discovered documents to inspect."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Inventory CSV, report Markdown and per-document inspection products in a new directory."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Intake scope, document findings and partial or failed item evidence."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Discovered document inputs and completed output records."},
+        {"argument": "--run-dir", "format": "Directory", "detail": "App-ready bundle location with default summary and manifest destinations."}
+      ],
+      "warnings": "Unreadable items, unsupported explicit files and discovery limits can produce partial intake findings.",
+      "failure": "An invalid input set or unsafe output path exits non-zero. A rejected operation can retain a diagnostic instead of an inventory.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"intake": "object"},
+        "rejected": {"inputs": "array"}
+      }
+    },
+    "office_roundtrip.docx-style-inventory": {
+      "revision": 1,
+      "backend": "Core with python-docx. Uses explicit character styles on DOCX runs.",
+      "inputs": [
+        {"argument": "input", "format": "DOCX", "detail": "Readable document with explicit run formatting."},
+        {"argument": "--require-bold", "detail": "Select runs marked bold."},
+        {"argument": "--require-italic", "detail": "Select runs marked italic."},
+        {"argument": "--require-underline", "detail": "Select runs marked underlined."}
+      ],
+      "outputs": [
+        {"argument": "--output-csv", "format": "CSV", "detail": "Selected styled runs with location and style."},
+        {"argument": "--report-md", "format": "Markdown", "detail": "Readable style inventory and its limitations."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Style requirements and match inventory, or the inspection diagnostic."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source document and written reports."}
+      ],
+      "warnings": "Zero matches can produce WARNING. Verify that an exported DOCX retains explicit run styles.",
+      "failure": "An unreadable DOCX can exit 2 with a retained inspection error.",
+      "summary": {
+        "version": "2.0",
+        "complete": {"inventory": "object"},
+        "rejected": {"inventory": "object"}
+      }
+    },
+    "office_roundtrip.docx-styled-replace": {
+      "revision": 1,
+      "backend": "Core with python-docx. Replaces exact text within matching individual runs and reads back the result.",
+      "inputs": [
+        {"argument": "input", "format": "DOCX", "detail": "Readable source document preserved as input."},
+        {"argument": "--find", "detail": "Exact text to find within a single run."},
+        {"argument": "--replace", "detail": "Exact replacement text."},
+        {"argument": "--require-bold", "detail": "Only replace in runs marked bold."},
+        {"argument": "--require-italic", "detail": "Only replace in runs marked italic."},
+        {"argument": "--require-underline", "detail": "Only replace in runs marked underlined."},
+        {"argument": "--require-confirmation", "detail": "Require an externally recorded approval identifier before writing."},
+        {"argument": "--confirmation-id", "detail": "Opaque identifier for the reviewed approval."}
+      ],
+      "outputs": [
+        {"argument": "output", "format": "DOCX", "detail": "Edited copy at a path separate from the source."},
+        {"argument": "--diff-json", "format": "JSON", "detail": "Touched runs, text differences and style readback."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Replacement counts, confirmation record, readback and limitations."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source and written document and diff records."}
+      ],
+      "warnings": "Text split across runs may yield zero replacements. Review the diff and the copied document.",
+      "failure": "Missing required confirmation, invalid input or unsafe paths can exit 2. A missing confirmation prevents writing the edited copy.",
+      "summary": {
+        "version": "2.0",
+        "complete": {"replacement": "object"},
+        "rejected": {"replacement": "object"}
+      }
+    },
+    "latex_workbench.scaffold": {
+      "revision": 1,
+      "backend": "Local Python renders LaTeX templates without invoking a TeX engine.",
+      "inputs": [
+        {"argument": "--title", "detail": "Project title."},
+        {"argument": "--author", "detail": "Author text for the scaffold."},
+        {"argument": "--language", "detail": "Template language."},
+        {"argument": "--kind", "detail": "Supported LaTeX template family."},
+        {"argument": "--overwrite", "detail": "Explicit permission to replace scaffold-owned files in the output directory."}
+      ],
+      "outputs": [
+        {"argument": "output", "format": "Directory", "detail": "LaTeX project source such as main.tex and bibliography support."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Template context, created files and detected collisions."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Scaffold parameters and written files."}
+      ],
+      "warnings": "The scaffold is a starting point for the report. It requires later content review and compilation.",
+      "failure": "Existing scaffold files without overwrite permission exit 2 with collisions recorded.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"output_dir": "string", "created_files": "array", "overwrote_existing_files": "boolean"},
+        "rejected": {"output_dir": "string", "collisions": "array"}
+      }
+    },
+    "latex_workbench.review": {
+      "revision": 1,
+      "backend": "Local Python inspects LaTeX references, structure and portability without compiling.",
+      "inputs": [
+        {"argument": "path", "format": "TeX file or project", "detail": "Readable main TeX source or a directory containing a discoverable main document."}
+      ],
+      "outputs": [
+        {"argument": "--report-md", "format": "Markdown", "detail": "Review of structure, includes, figures and bibliography."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Main document, detected structure and portability findings."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Inspected input and written review records."}
+      ],
+      "warnings": "Missing references and portability issues require author review. Compilation is a separate capability.",
+      "failure": "Missing or unreadable project input can exit 2 with a review diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"main_tex": "string", "inspection": "object", "findings": "array"},
+        "rejected": {"main_tex": "string", "findings": "array"}
+      }
+    },
+    "scientific_writeup_review": {
+      "revision": 1,
+      "backend": "Local Python uses heuristic checks for scientific prose and follows supported TeX sources.",
+      "inputs": [
+        {"argument": "input", "format": "TeX, Markdown or text", "detail": "Readable draft with enough scientific text to review sections, claims and methods."}
+      ],
+      "outputs": [
+        {"argument": "--report-md", "format": "Markdown", "detail": "Author-facing review findings and checklist."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Sources, detected sections, metrics and review checklist."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Reviewed source records and completed outputs."}
+      ],
+      "warnings": "Methodology and claim checks are advisory. Review the draft and underlying evidence before acting on findings.",
+      "failure": "Missing or insufficient source text can exit 2 with a controlled diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"input_path": "string", "sections": "array", "metrics": "object", "checklist": "object"},
+        "rejected": {"input_path": "string", "sections": "array"}
+      }
+    },
+    "deliverable_factory.scaffold": {
+      "revision": 1,
+      "backend": "Local Python generates a reusable deliverable template.",
+      "inputs": [
+        {"argument": "--kind", "detail": "Supported report, status, handoff or other template family."},
+        {"argument": "--format", "format": "Markdown, LaTeX or HTML", "detail": "Requested source format."},
+        {"argument": "--title", "detail": "Title used in the generated file."},
+        {"argument": "--language", "detail": "English, Spanish or bilingual template text."},
+        {"argument": "--overwrite", "detail": "Explicit permission to replace an existing scaffold target."}
+      ],
+      "outputs": [
+        {"argument": "output_dir", "format": "Directory", "detail": "Contains the generated deliverable source."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Scaffold parameters and written target."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Selected format, target, created files and collisions."}
+      ],
+      "warnings": "Template fields require project-specific content before delivery.",
+      "failure": "An existing target without overwrite permission exits 2 with collision evidence.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"target": "string", "format": "string", "created_files": "array"},
+        "rejected": {"target": "string", "collisions": "array"}
+      }
+    },
+    "semantic_diff": {
+      "revision": 1,
+      "backend": "Core table readers and document excerpt extraction, with format-specific readers when installed.",
+      "inputs": [
+        {"argument": "baseline", "format": "Table or document", "detail": "Earlier version to compare."},
+        {"argument": "candidate", "format": "Table or document", "detail": "Later version for the same comparison."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Table changes or a bounded document text and metadata comparison."},
+        {"argument": "--output-json", "format": "JSON", "detail": "Optional alternate JSON destination."},
+        {"argument": "--output-md", "format": "Markdown", "detail": "Readable comparison report."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Both source versions and completed outputs."}
+      ],
+      "warnings": "Document comparisons use bounded extracted text. Inspect any reported completeness limits before drawing conclusions.",
+      "failure": "Missing or unreadable inputs can exit 2 with an error report.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"comparison_type": "string"},
+        "rejected": {"error": "string"}
+      }
+    },
     "profile_table": {
       "revision": 1,
       "backend": "Core with pandas or Astropy. The optional Dask reader supports out-of-core profiling for compatible formats.",
