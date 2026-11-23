@@ -76,11 +76,12 @@ argument roles, scientific units, written files, and required summary fields
 for completed and rejected runs. The known-answer gate checks those fields in
 scientific synthetic runs. Portable validation exercises environment reports,
 table profiling, container inspection, physical QA, notebook preparation and
-review, and document intake, editing and review. Environment discovery
-retains its fields at the root of the summary. A rejected command may write its
-diagnostic only to standard output when the requested path cannot safely be
-used. Older installed skill snapshots can still load the capability registry
-and run their supported routes.
+review, and document intake, editing and review. Summary fields are under
+`results` unless the contract sets `summary.container` to `root`. If
+`summary.rejected_container` is set, it locates the fields for rejected runs.
+A rejected command may write its diagnostic only to standard output when the
+requested path cannot safely be used. Older installed skill snapshots can
+still load the capability registry and run their supported routes.
 
 ## Registry coverage
 

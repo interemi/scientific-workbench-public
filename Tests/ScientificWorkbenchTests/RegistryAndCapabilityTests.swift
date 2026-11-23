@@ -108,6 +108,9 @@ extension ScientificWorkbenchTests {
     #expect(styledReplace.inputs.contains { $0.argument == "--confirmation-id" })
     #expect(styledReplace.outputs.first { $0.argument == "output" }?.format == "DOCX")
     #expect(styledReplace.summary.version == "2.0")
+    let visualExport = try #require(entries.first { $0.id == "rgb_visual_fits_export" }?.ioContract)
+    #expect(visualExport.summary.rejectedContainer == "root")
+    #expect(visualExport.outputs.first { $0.argument == "output_fits" }?.unit == "normalized display intensity")
   }
 
   @Test

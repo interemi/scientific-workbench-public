@@ -115,6 +115,11 @@ def io_changes(before: dict, after: dict, capability: str) -> list[str]:
     for key, default in (("tool", capability), ("container", "results"), ("mode", None), ("version", None)):
         if old_summary.get(key, default) != new_summary.get(key, default):
             changes.append(f"{capability}: summary {key} changed")
+    if "rejected_container" in old_summary or "rejected_container" in new_summary:
+        old_rejected = old_summary.get("rejected_container", old_summary.get("container", "results"))
+        new_rejected = new_summary.get("rejected_container", new_summary.get("container", "results"))
+        if old_rejected != new_rejected:
+            changes.append(f"{capability}: rejected summary container changed")
     for outcome in ("complete", "rejected"):
         for field, kind in sorted(old_summary[outcome].items()):
             actual = new_summary[outcome].get(field)

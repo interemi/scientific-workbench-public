@@ -427,6 +427,138 @@
         "rejected": {"blocked_reason": "string", "error_type": "string"}
       }
     },
+    "astrometry_net_workbench.preflight": {
+      "revision": 1,
+      "backend": "Local Astropy header and image inspection, with discovery of available astrometry backends.",
+      "inputs": [
+        {"argument": "path", "format": "FITS or image", "detail": "Local input to assess before deciding whether to reuse WCS or schedule a solve."},
+        {"argument": "--radius-deg", "unit": "degrees", "detail": "Override the suggested search radius."},
+        {"argument": "--scale-est", "unit": "arcseconds per pixel", "detail": "Optional prior estimate of pixel scale."},
+        {"argument": "--scale-err", "unit": "percent", "detail": "Relative uncertainty to apply to the estimated pixel scale."},
+        {"argument": "--scale-lower", "unit": "arcseconds per pixel", "detail": "Override the lower pixel-scale bound."},
+        {"argument": "--scale-upper", "unit": "arcseconds per pixel", "detail": "Override the upper pixel-scale bound."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "WCS and image evidence, backend readiness and suggested solve hints."},
+        {"argument": "--report-md", "format": "Markdown", "detail": "Readable preflight and recommended next action."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input and preflight output records."}
+      ],
+      "warnings": "Missing optional backends or incomplete metadata can yield WARNING. Candidate solve hints require review.",
+      "failure": "A missing or unreadable input can exit 2 with a retained preflight diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "tool": "astrometry_net_workbench",
+        "mode": "preflight",
+        "complete": {"input_exists": "boolean", "fit_assessment": "object", "dependency_preflight": "object", "suggested_solve_hints": "object"},
+        "rejected": {"input_path": "string", "blocked_reason": "string"}
+      }
+    },
+    "radial_velocity_workbench.inspect": {
+      "revision": 1,
+      "backend": "Local Python parser for Systemic-style radial-velocity data.",
+      "inputs": [
+        {"argument": "input_path", "format": "SYS, VELS or directory", "detail": "Dataset or Systemic system descriptor. Tabular times use Julian-day-like values in days. Declare VELS velocity units in metadata such as # value_units = km/s."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Inspection mode, dataset coverage and available time, velocity and uncertainty ranges."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Inspected inputs and written summary records."}
+      ],
+      "warnings": "Missing or invalid uncertainties and malformed samples remain visible for review. Inspect timescale and velocity-unit declarations before combining datasets.",
+      "failure": "Missing or unsupported inputs can exit 2 with a blocked diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"mode": "string", "inspected_input": "string"},
+        "rejected": {"input_path": "string", "blocked_reason": "string"}
+      }
+    },
+    "radial_velocity_workbench.validate-manifest": {
+      "revision": 1,
+      "backend": "Local Python validates the structure, completeness and supported domains of a manual session manifest.",
+      "inputs": [
+        {"argument": "session_manifest", "format": "JSON", "detail": "Manual radial-velocity session manifest created or prepared for the report workflow."},
+        {"argument": "--language", "detail": "Override the language of validation findings."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Completeness, missing figures or metrics, numeric and domain findings."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input session and validation output records."}
+      ],
+      "warnings": "An incomplete valid draft can produce WARNING. Validation does not fit a model or amend session files.",
+      "failure": "Unreadable or malformed manifests can exit 2. Invalid scientific domains can exit 1 with failed validation findings.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"command": "string", "findings": "array", "completeness": "object", "domain_errors": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "results": "object"}
+      }
+    },
+    "echelle_multispec_inventory": {
+      "revision": 1,
+      "backend": "Astropy FITS reading and local MULTISPE calibration parsing in the selected astronomy environment.",
+      "inputs": [
+        {"argument": "input", "format": "MULTISPE FITS or directory", "detail": "Readable spectrum or directory of spectral FITS files to inventory."},
+        {"argument": "--report-md", "detail": "Request the Markdown inventory report in the output directory."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Per-file and per-order inventory CSV files with recorded wavelength metadata."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Counts, supported wavelength coverage and per-file failures. Defaults to summary.json in the output directory."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Spectral input records, written inventory files and report."}
+      ],
+      "warnings": "Unsupported dispersion or incomplete metadata remains visible per file or order. Interpret wavelength coverage with the unit declared by the calibration.",
+      "failure": "Missing inputs or a collection with no usable inventory can exit 2 with a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"file_count": "integer", "order_count": "integer", "files": "array", "failed_files": "array"},
+        "rejected": {"file_count": "integer", "order_count": "integer", "failed_files": "array"}
+      }
+    },
+    "legacy_rv_coursework_workbench.analyze": {
+      "revision": 1,
+      "backend": "Local NumPy, Astropy and plotting support process preserved FXCOR products. The analysis does not execute IRAF.",
+      "inputs": [
+        {"argument": "inputs", "format": "CSV or JSON", "detail": "Parsed FXCOR measurements or a summary referencing parsed tables. Velocity and uncertainty columns are in km/s."},
+        {"argument": "--fits-root", "format": "Directory", "detail": "Root containing object and template FITS files for header-based context."},
+        {"argument": "--calibration-csv", "format": "CSV", "detail": "Optional calibration from FWHM in pixels to projected rotation in km/s."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "All and filtered order tables, per-case estimates, diagnostics and report."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Per-case radial velocities, projected rotation and explicit uncertainty and quality evidence."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input tables, calibration and output records."}
+      ],
+      "warnings": "Provisional corrections, unsupported cases and out-of-calibration values need review. The analysis records quality evidence alongside estimates.",
+      "failure": "Missing or invalid inputs exit non-zero with validation issues and an empty measurement set.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"rv_summaries": "array", "rv_diagnostics": "array", "vsini_rows": "array", "measurement_summary": "object"},
+        "rejected": {"input_validation_issues": "array", "measurement_summary": "object"}
+      }
+    },
+    "rgb_visual_fits_export": {
+      "revision": 1,
+      "backend": "Pillow decodes rendered RGB PNG data and Astropy writes FITS display products.",
+      "inputs": [
+        {"argument": "input_png", "format": "PNG", "detail": "Rendered RGB image to export as normalized display intensity."},
+        {"argument": "--previous-png", "format": "PNG", "detail": "Optional earlier image for side-by-side comparison."},
+        {"argument": "--object-name", "detail": "Optional object name for FITS metadata."},
+        {"argument": "--reason", "detail": "Short reason for the export."},
+        {"argument": "--previous-label", "detail": "Label for the previous comparison image."},
+        {"argument": "--new-label", "detail": "Label for the new comparison image."},
+        {"argument": "--force", "detail": "Explicit permission to overwrite managed destination files."}
+      ],
+      "outputs": [
+        {"argument": "output_fits", "format": "FITS", "unit": "normalized display intensity", "detail": "RGB cube and three channel extensions for visualization."},
+        {"argument": "--comparison-png", "format": "PNG", "detail": "Side-by-side comparison destination when a previous PNG is supplied."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Export provenance. Defaults to a sidecar beside the output FITS."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Channel layout, units and display-only calibration scope."}
+      ],
+      "warnings": "Use the output for display. Extract photometry from calibrated source data.",
+      "failure": "Missing inputs or unsafe output paths can exit 2. The diagnostic is carried by the top-level error and QA fields.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"rgb_cube_shape": "array", "bunit": "string", "calibration_scope": "string", "channel_extensions": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object"}
+      }
+    },
     "inspect_fits": {
       "revision": 1,
       "backend": "Core with Astropy and NumPy. PNG quicklook uses Matplotlib. The limited NumPy fallback inspects the primary image.",

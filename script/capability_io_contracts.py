@@ -47,8 +47,9 @@ def validate_parser_references(capability: str, contract: dict, parser: dict) ->
     if unknown or missing:
         raise ValueError(f"{capability}: I/O arguments differ from parser: missing={sorted(missing)}, unknown={sorted(unknown)}")
     summary = contract["summary"]
-    if summary.get("container", "results") not in {"root", "results"}:
-        raise ValueError(f"{capability}: unsupported summary field container")
+    for key in ("container", "rejected_container"):
+        if key in summary and summary[key] not in {"root", "results"}:
+            raise ValueError(f"{capability}: unsupported summary field container")
     for outcome in ("complete", "rejected"):
         if not summary[outcome] or set(summary[outcome].values()) - JSON_TYPES.keys():
             raise ValueError(f"{capability}: invalid JSON field types for {outcome}")
@@ -79,10 +80,13 @@ def validate_summary_contract(payload: dict, *, capability: str | None = None) -
     else:
         raise ValueError(f"{capability}: unrecognized summary status {status!r}")
     container = summary.get("container", "results")
-    results = payload if container == "root" else payload.get("results")
+    if outcome == "rejected":
+        container = summary.get("rejected_container", container)
+    nested_results = payload.get("results")
+    results = payload if container == "root" else nested_results
     if not isinstance(results, dict):
         raise ValueError(f"{capability}: missing summary results")
-    if "mode" in summary and results.get("mode") != summary["mode"]:
+    if "mode" in summary and (not isinstance(nested_results, dict) or nested_results.get("mode") != summary["mode"]):
         raise ValueError(f"{capability}: summary mode differs from I/O contract")
     for field, kind in summary[outcome].items():
         if field not in results or not JSON_TYPES[kind](results[field]):

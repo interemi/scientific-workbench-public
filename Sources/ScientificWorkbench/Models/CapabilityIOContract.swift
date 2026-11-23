@@ -10,6 +10,7 @@ struct CapabilityIOContract: Decodable, Hashable, Sendable {
 
   struct Summary: Decodable, Hashable, Sendable {
     let container: String?
+    let rejectedContainer: String?
     let tool: String?
     let mode: String?
     let version: String

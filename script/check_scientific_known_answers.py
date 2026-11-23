@@ -1257,6 +1257,97 @@ def aperture_photometry_cases(root: Path, environment: dict[str, str]) -> dict:
     return {"cases": results, "input_sha256": hashes}
 
 
+def additional_astro_contract_cases(root: Path, environment: dict[str, str]) -> dict:
+    import numpy as np
+    from astropy.io import fits
+    from PIL import Image
+
+    scripts = ROOT / "skills/scientific-data-astro/scripts"
+    products = root / "additional-astro"
+    sources = products / "input"
+    sources.mkdir(parents=True)
+    image = sources / "synthetic.fits"
+    image.write_bytes(make_fits())
+    vels = sources / "synthetic.vels"
+    vels.write_text("# value_units = km/s\n2459000.5 0.001 0.0002\n2459001.5 0.002 0.0002\n", encoding="ascii")
+    session = sources / "session.json"
+    session.write_text('{"schema_version":"1.0","language":"en","fitted_model":{"planet_count":0},"planets":[]}', encoding="ascii")
+    broken = sources / "malformed.json"
+    broken.write_text("{", encoding="ascii")
+    spectrum = sources / "linear-multispec.fits"
+    header = fits.Header({
+        "OBJECT": "SYNTHETIC_MULTISPEC",
+        "CTYPE1": "MULTISPE",
+        "WAT0_001": "system=equispec",
+        "WAT1_001": "wtype=multispec label=Wavelength units=angstroms",
+        "WAT2_001": 'wtype=multispec spec1="1 1 0 6500 1 24 0 0 0"',
+    })
+    fits.PrimaryHDU(np.ones((1, 24), dtype="float32"), header=header).writeto(spectrum)
+    png = sources / "synthetic.png"
+    Image.new("RGB", (4, 3), (30, 70, 120)).save(png)
+    digests = {path: sha256(path) for path in sources.iterdir()}
+
+    preflight = "astrometry_net_workbench.preflight"
+    inspect = "radial_velocity_workbench.inspect"
+    validate = "radial_velocity_workbench.validate-manifest"
+    inventory = "echelle_multispec_inventory"
+    visual = "rgb_visual_fits_export"
+    completed = {0: {"PASS", "WARNING"}}
+    blocked = {2: {"BLOCKED_CONTROLADO"}}
+    inventory_dir = products / "inventory" / "orders"
+    visual_path = products / "visual" / "display.fits"
+    missing = sources / "missing.fits"
+    cases = [
+        ("preflight", preflight, [image], completed),
+        ("preflight-missing", preflight, [missing], blocked),
+        ("vels", inspect, [vels], completed),
+        ("vels-missing", inspect, [sources / "missing.vels"], blocked),
+        ("session", validate, [session], {0: {"WARNING"}}),
+        ("session-malformed", validate, [broken], blocked),
+        ("inventory", inventory, [spectrum, "--output-dir", inventory_dir, "--report-md"], completed),
+        ("inventory-missing", inventory, [missing, "--output-dir", products / "inventory-missing" / "orders"], blocked),
+        ("visual", visual, [png, visual_path], completed),
+        ("visual-missing", visual, [sources / "missing.png", products / "visual-missing" / "display.fits"], blocked),
+        ("legacy-missing", "legacy_rv_coursework_workbench.analyze",
+         [sources / "missing.csv", "--output-dir", products / "legacy-missing" / "rv"], blocked),
+    ]
+    records = {}
+    for name, capability, arguments, expected in cases:
+        tool, _, subcommand = capability.partition(".")
+        route = [subcommand] if subcommand else []
+        folder = products / name
+        summary = folder / "summary.json"
+        result = run(
+            [sys.executable, str(scripts / f"{tool}.py"), *route, *map(str, arguments), "--summary-json", str(summary)],
+            folder, environment,
+        )
+        payload = read_json(summary, capability=capability)
+        status = payload["app_status"]
+        require(status in expected.get(result.returncode, set()),
+                f"{capability} {name}: unexpected exit {result.returncode} with {status}")
+        records[name] = {"returncode": result.returncode, "app_status": status}
+        data = payload["results"]
+        if name == "vels":
+            require(data["sample_count"] == 2 and data["jd_span_days"] == 1 and data["value_units"] == "km/s",
+                    "radial velocity inspection lost count, span or input units")
+        elif name == "inventory":
+            require(data["order_count"] == 1 and (inventory_dir / "orders_inventory.csv").is_file(),
+                    "MULTISPE inventory did not retain the single linear order")
+        elif name == "visual":
+            require(data["calibration_scope"] == "display_only_not_flux_calibrated",
+                    "visual FITS export must declare its display calibration scope")
+            with fits.open(visual_path) as hdus:
+                require([hdu.name for hdu in hdus] == ["PRIMARY", "RGB_CUBE", "RED", "GREEN", "BLUE"]
+                        and all(hdu.header["BUNIT"] == "normalized_display_intensity" for hdu in hdus),
+                        "visual FITS lost its display unit or channel extensions")
+                expected_pixel = np.array([30, 70, 120]) / 255
+                np.testing.assert_allclose(hdus["RGB_CUBE"].data[:, 0, 0], expected_pixel, rtol=1e-6)
+                np.testing.assert_allclose([hdu.data[0, 0] for hdu in hdus[2:]], expected_pixel, rtol=1e-6)
+    require(all(sha256(path) == digest for path, digest in digests.items()),
+            "an astronomy contract check modified a protected synthetic input")
+    return records
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -1298,6 +1389,7 @@ def main() -> int:
         evidence["general_spectroscopy"] = general_spectrum_cases(output, environment)
         evidence["spectroscopy_pipeline"] = spectroscopy_pipeline_cases(output, environment)
         evidence["aperture_photometry"] = aperture_photometry_cases(output, environment)
+        evidence["additional_astro_contracts"] = additional_astro_contract_cases(output, environment)
         evidence["status"] = "PASS"
     except Exception as error:
         evidence["failure"] = str(error)

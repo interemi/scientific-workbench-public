@@ -102,6 +102,14 @@ class CLIContractCompatibilityTests(unittest.TestCase):
         del self.baseline["commands"][0]["io_contract"]
         self.assertEqual(self.compare(), [])
 
+    def test_relocating_rejected_summary_fields_requires_review(self):
+        self.updated["io_contract"]["summary"]["rejected_container"] = "root"
+        self.assertEqual(self.compare(), ["sample.inspect: rejected summary container changed"])
+
+    def test_explicit_inherited_rejected_container_is_compatible(self):
+        self.updated["io_contract"]["summary"]["rejected_container"] = "results"
+        self.assertEqual(self.compare(), [])
+
     def test_duplicate_ids_are_rejected(self):
         self.candidate["commands"].append(self.updated)
         with self.assertRaisesRegex(ValueError, "unique IDs"):
