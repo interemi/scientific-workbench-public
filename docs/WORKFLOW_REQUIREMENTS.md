@@ -49,9 +49,24 @@ subcommands. A value under `default_relative_to_checkout` resolves from the
 repository root. The portable validation workflow retains the full export as
 `cli-contracts.json` with its diagnostic evidence.
 
-Compare the exports before and after a CLI change. Preserve compatible aliases
-or document migration when changing an established command. The export
-describes argument syntax. Consult the
+Retain an export from before a CLI change and compare it with the export from
+the proposed revision. Use the same command selection in both exports.
+
+```bash
+"$SW_PY" script/check_cli_contract_compatibility.py baseline.json candidate.json
+```
+
+Exit 0 means the declaration comparison found compatible changes. Exit 1 lists
+changes that require review, including removed commands or flags, new required
+inputs, narrowed choices, changed defaults, unit changes and removed or retyped
+result fields. Exit 2 indicates an unreadable or unsupported export. Preserve
+the old route or flag as a documented alias where possible. If a change breaks
+an established contract, raise its revision and document the migration, including
+what existing scripts and result readers need to change. Keep the comparison
+report with the release evidence. The comparison covers exported declarations
+and complements the run-based checks for actual behavior.
+
+The export describes argument syntax. Consult the
 [setup matrix](CAPABILITY_SETUP_MATRIX.md) and the command's emitted summary
 and manifest for scientific inputs, produced artifacts and run status.
 
