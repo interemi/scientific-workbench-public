@@ -38,7 +38,12 @@ def load_io_contracts() -> dict:
 def validate_parser_references(capability: str, contract: dict, parser: dict) -> None:
     if type(contract["revision"]) is not int or contract["revision"] < 1:
         raise ValueError(f"{capability}: I/O contract revision must be a positive integer")
-    provided = {name for arg in parser["arguments"] for name in (arg["flags"] or [arg["name"]])}
+    arguments = parser["arguments"]
+    subcommands = parser["subcommands"]
+    if not arguments and subcommands.get("required") and len(subcommands["parsers"]) == 1:
+        only_subcommand, = subcommands["parsers"].values()
+        arguments = only_subcommand["arguments"]
+    provided = {name for arg in arguments for name in (arg["flags"] or [arg["name"]])}
     referenced = [field["argument"] for role in ("inputs", "outputs") for field in contract[role]]
     if len(referenced) != len(set(referenced)):
         raise ValueError(f"{capability}: repeated argument in the I/O contract")
@@ -68,11 +73,16 @@ def validate_summary_contract(payload: dict, *, capability: str | None = None) -
         return
     summary = contract["summary"]
     capability = identifier
-    if tool != summary.get("tool", capability):
-        raise ValueError(f"{capability}: summary tool differs from I/O contract")
+    status = payload.get("app_status")
+    expected_tool = summary.get("tool", capability)
+    if tool != expected_tool:
+        # The CLI path guard runs before the subcommand body and reports the executable stem.
+        error = payload.get("error")
+        if not (status == "BLOCKED_CONTROLADO" and tool == expected_tool.partition(".")[0]
+                and isinstance(error, dict) and error.get("code") == "unsafe_output_input_collision"):
+            raise ValueError(f"{capability}: summary tool differs from I/O contract")
     if payload.get("contract_version") != summary["version"]:
         raise ValueError(f"{capability}: summary version differs from I/O contract")
-    status = payload.get("app_status")
     if status in {"PASS", "WARNING"}:
         outcome = "complete"
     elif status in {"BLOCKED_CONTROLADO", "FAIL", "ROTO"}:

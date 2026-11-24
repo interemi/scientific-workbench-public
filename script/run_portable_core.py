@@ -7,6 +7,7 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import platform
+import shutil
 import subprocess
 import sys
 from zipfile import ZipFile
@@ -620,6 +621,141 @@ def check_latex_compile_io_contract(output, environment):
     return records
 
 
+def check_legacy_astro_io_contracts(output, environment, compile_report=False):
+    evidence = output / "legacy-astro-io"
+    sources = evidence / "sources"
+    fixture = output / "known-answer"
+    practice = sources / "synthetic practice"
+    fits_root, istarmod = practice / "fits_p1", practice / "iSTARMOD"
+    shutil.copytree(fixture / "input" / "legacy_spectra", fits_root)
+    shutil.copy2(fixture / "input" / "fwhm_calibration.csv", practice / "FWHM_vsini_datafit.csv")
+    rv_summary = fixture / "legacy_spectroscopy" / "summary.json"
+    istarmod.mkdir()
+    for name, content in {
+        "sample.sm": "Synthetic configuration for inspection only.\n",
+        "iStarmod.py": "# Synthetic program marker, never executed.\n",
+        "lambdas.dat": "6707.8\n",
+        "rvvalues.dat": "10.0\n",
+        "syn_old.fits": "Synthetic stale output marker.\n",
+    }.items():
+        (istarmod / name).write_text(content, encoding="utf-8")
+    malformed = sources / "malformed-summary.json"
+    malformed.write_text("{", encoding="utf-8")
+    original_paths = [rv_summary, *(path for path in sources.rglob("*") if path.is_file())]
+    originals = {path: sha256(path.read_bytes()).hexdigest() for path in original_paths}
+
+    astro = ROOT / "skills/scientific-data-astro/scripts"
+    envcheck = "legacy_spectroscopy_envcheck"
+    inspect = "istarmod_workbench.inspect-tree"
+    prepare = "istarmod_workbench.prepare-copy"
+    reference = "legacy_external_reference_check"
+    scaffold = "legacy_spectroscopy_report_builder.scaffold"
+    populate = "legacy_spectroscopy_report_builder.populate"
+    report_tool = astro / "legacy_spectroscopy_report_builder.py"
+    star_tool = astro / "istarmod_workbench.py"
+    reference_tool = astro / "legacy_external_reference_check.py"
+    project = evidence / "report"
+    copied = evidence / "istarmod-copy"
+    missing = sources / "missing"
+    passed = {0: {"PASS"}}
+    warned = {0: {"WARNING"}}
+    blocked = {2: {"BLOCKED_CONTROLADO"}}
+    cases = [
+        ("envcheck", envcheck, [astro / f"{envcheck}.py", practice], {**warned, **blocked}),
+        ("envcheck-missing", envcheck, [astro / f"{envcheck}.py", missing], blocked),
+        ("inspect", inspect, [star_tool, "inspect-tree", istarmod], warned),
+        ("inspect-missing", inspect, [star_tool, "inspect-tree", missing], blocked),
+        ("prepare", prepare, [star_tool, "prepare-copy", istarmod, "--output-dir", copied], warned),
+        ("prepare-missing", prepare, [star_tool, "prepare-copy", missing, "--output-dir", evidence / "invalid-copy"], blocked),
+        ("reference", reference, [reference_tool, "check", "--rv-summary", rv_summary,
+                                  "--output-dir", evidence / "reference"], warned),
+        ("reference-missing", reference, [reference_tool, "check", "--rv-summary", missing,
+                                          "--output-dir", evidence / "invalid-reference"], blocked),
+        ("scaffold", scaffold, [report_tool, "scaffold", project, "--title", "Synthetic spectroscopy"], passed),
+    ]
+    records = {name: run_io_probe(evidence, environment, name, capability, arguments, expected)
+               for name, capability, arguments, expected in cases}
+    records["prepare-overlap"] = run_io_probe(
+        evidence, environment, "prepare-overlap", prepare,
+        [star_tool, "prepare-copy", istarmod, "--output-dir", istarmod / "invalid-copy"], blocked, stdout_only=True,
+    )
+    objective = project / "sections/01_objetivo_materiales.tex"
+    before = objective.read_bytes()
+    marker = project / "main.tex"
+    scaffold_main = marker.read_bytes()
+    scaffold_tree = {path: path.read_bytes() for path in project.rglob("*.tex")}
+    for name, capability, arguments in [
+        ("scaffold-existing", scaffold, [report_tool, "scaffold", project]),
+        ("populate-missing", populate, [report_tool, "populate", missing]),
+        ("populate-bad-json", populate, [report_tool, "populate", project, "--rv-summary", malformed]),
+    ]:
+        records[name] = run_io_probe(evidence, environment, name, capability, arguments, blocked)
+    if {path: path.read_bytes() for path in project.rglob("*.tex")} != scaffold_tree:
+        raise ValueError("a rejected spectroscopy report request modified the scaffold")
+    run_project = evidence / "report-with-run-record"
+    shutil.copytree(project, run_project)
+    manifest_path = evidence / "populate-manifest.json"
+    records["populate"] = run_io_probe(
+        evidence, environment, "populate", populate,
+        [report_tool, "populate", project, "--rv-summary", rv_summary,
+         "--istarmod-summary", evidence / "prepare.json", "--manifest-json", manifest_path], passed,
+    )
+    sections = project / "sections"
+    star_section = sections / "06_istarmod.tex"
+    rotation = (sections / "05_vsini.tex").read_text(encoding="utf-8")
+    report = star_section.read_text(encoding="utf-8")
+    written = json.loads((evidence / "populate.json").read_text(encoding="utf-8"))["results"]["populated_sections"]
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    outputs = {Path(item["path"]).expanduser(): item["sha256"] for item in manifest["outputs"]}
+    if (written != sorted(path.name for path in sections.glob("*.tex") if path != objective)
+            or any(outputs.get(sections / filename) != sha256((sections / filename).read_bytes()).hexdigest()
+                   for filename in written)
+            or objective in outputs or objective.read_bytes() != before or marker.read_bytes() != scaffold_main):
+        raise ValueError("the spectroscopy report lost its exact written sections or changed untouched TeX")
+    if ("preparación de la copia" not in report or "Archivos copiados: 3" not in report
+            or "Estado de la corrida" in report or "Archivo .sm usado" in report
+            or "15.0 km/s" not in rotation or "None" in rotation or "no disponible" not in rotation):
+        raise ValueError("the spectroscopy report mislabeled preparation or unavailable rotation")
+    if compile_report:
+        compiler = ROOT / "skills/scientific-data-documents/scripts/latex_workbench.py"
+        build = evidence / "compiled-report"
+        project_files = {path: sha256(path.read_bytes()).hexdigest()
+                         for path in project.rglob("*") if path.is_file()}
+        records["compile-populated"] = run_io_probe(
+            evidence, environment, "compile-populated", "latex_workbench.compile",
+            [compiler, "compile", marker, "--output-dir", build], passed,
+        )
+        if (not (build / "main.pdf").read_bytes().startswith(b"%PDF-")
+                or {path: sha256(path.read_bytes()).hexdigest() for path in project.rglob("*") if path.is_file()}
+                   != project_files):
+            raise ValueError("the populated spectroscopy report did not compile on an unchanged source tree")
+
+    run_summary = evidence / "synthetic-run.json"
+    run_summary.write_text(json.dumps({
+        "tool": "istarmod_workbench.run-sm", "status": "ok",
+        "results": {"sm_file": "sample.sm", "returncode": 0},
+    }), encoding="utf-8")
+    records["populate-with-run-record"] = run_io_probe(
+        evidence, environment, "populate-with-run-record", populate,
+        [report_tool, "populate", run_project, "--istarmod-summary", run_summary], passed,
+    )
+    run_section = run_project / "sections/06_istarmod.tex"
+    if "Código de salida: 0" not in run_section.read_text(encoding="utf-8"):
+        raise ValueError("the report did not recognize retained execution evidence")
+    inspected = json.loads((evidence / "inspect.json").read_text(encoding="utf-8"))["results"]
+    env = json.loads((evidence / "envcheck.json").read_text(encoding="utf-8"))["results"]
+    comparison = json.loads((evidence / "reference.json").read_text(encoding="utf-8"))["results"]
+    if (env["detected_practice_assets"]["fits_count"] != 2 or not env["istarmod_local_ready"]
+            or inspected["sm_count"] != 1 or inspected["rvvalues_count"] != 1
+            or set(path.name for path in copied.iterdir()) != {"sample.sm", "iStarmod.py", "lambdas.dat", ".istarmod_prepare.json"}
+            or any(comparison["reference_matches"].values()) or not comparison["warnings"]
+            or (istarmod / "invalid-copy").exists() or (evidence / "invalid-copy").exists()
+            or (evidence / "invalid-reference").exists() or missing.exists()
+            or any(sha256(path.read_bytes()).hexdigest() != digest for path, digest in originals.items())):
+        raise ValueError("legacy spectroscopy inspection, protection or comparison evidence is incomplete")
+    return records
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -678,6 +814,9 @@ def main(argv=None):
         if known_answer.get("status") != "PASS":
             raise ValueError("scientific known-answer checks did not pass")
         evidence["known_answer_status"] = known_answer["status"]
+        evidence["legacy_astro_io_contracts"] = check_legacy_astro_io_contracts(
+            output, environment, compile_report=args.profile == "full",
+        )
         evidence["known_answer_fits_sha256"] = known_answer["fits"]["input_sha256"]
         evidence["known_answer_crossmatch_sep_arcsec"] = known_answer["crossmatch"]["actual_sep_arcsec"]
         evidence["status"] = "PASS"

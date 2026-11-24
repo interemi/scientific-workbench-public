@@ -532,6 +532,135 @@
         "rejected": {"input_validation_issues": "array", "measurement_summary": "object"}
       }
     },
+    "legacy_spectroscopy_envcheck": {
+      "revision": 1,
+      "backend": "Local macOS environment and file discovery. Checks for IRAF commands, iSTARMOD files, FITS inputs and calibration without running those tools.",
+      "inputs": [
+        {"argument": "root", "format": "Directory", "detail": "Practice root. Detection looks for FITS under fits_p1 and optional calibration, documentation and iSTARMOD material."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Detected assets, tool availability, path risk and readiness findings."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Practice root and retained diagnostic records."}
+      ],
+      "warnings": "A warning can flag paths with spaces or non-ASCII characters, absent optional assets or a different interpreter. Discovery does not verify a usable IRAF or iSTARMOD run.",
+      "failure": "An invalid practice root, missing required assets or unavailable IRAF route can exit 2 with a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"practice_root": "string", "legacy_safe_workspace_needed": "boolean", "iraf_ready": "boolean", "istarmod_local_ready": "boolean", "detected_practice_assets": "object", "legacy_tools": "object", "warning_findings": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "legacy_external_reference_check": {
+      "revision": 1,
+      "backend": "Local comparison against fixed coursework reference parameters. Optional GZ Leo FITS uses timing metadata for orbital phase.",
+      "inputs": [
+        {"argument": "--rv-summary", "format": "JSON", "detail": "Legacy radial velocity and rotation summary, with velocities in km/s."},
+        {"argument": "--gzleo-fits", "format": "FITS", "detail": "Optional GZ Leo spectrum with timing metadata for a dimensionless orbital phase."},
+        {"argument": "--li-summary", "format": "JSON", "detail": "Optional Li I equivalent-width summary. Reference equivalent widths are in milliangstroms."},
+        {"argument": "--istarmod-summary", "format": "JSON", "detail": "Optional retained iSTARMOD execution summary for comparison diagnostics."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Contains external_reference_check.md and the default external_reference_check.json."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Available comparisons, explicit missing evidence, warnings and suggestions for manual review."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input summary and FITS records, and written comparison products."}
+      ],
+      "warnings": "Unmatched observations, missing timing or unavailable measurements may yield WARNING. Reference agreement and suggested component swaps need scientific review.",
+      "failure": "An unreadable required summary or unusable output path can exit 2 with a diagnostic.",
+      "summary": {
+        "tool": "legacy_external_reference_check.check",
+        "version": "1.8",
+        "complete": {"pw_and": "object", "gz_leo": "object", "reference_matches": "object", "warnings": "array", "component_swap_suspected": "boolean", "ccf_window_suggestion": "object"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "istarmod_workbench.inspect-tree": {
+      "revision": 1,
+      "backend": "Local Python file inventory. No iSTARMOD code or embedded interpreter is started.",
+      "inputs": [
+        {"argument": "path", "format": "Directory", "detail": "iSTARMOD tree to inspect for .sm recipes, calibration, runtime files, previous products and RV cache."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Detected recipes, runtime candidates, previous outputs and warnings."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Inspected tree and retained summary records."}
+      ],
+      "warnings": "Incomplete trees, prior outputs and cached RV values can yield WARNING. Detection does not verify scientific results or runtime compatibility.",
+      "failure": "An invalid tree or unsafe destinations can exit 2 with a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"tree_root": "string", "sm_files": "array", "sm_count": "integer", "embedded_python_candidates": "array", "old_output_count": "integer", "rvvalues_count": "integer"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "istarmod_workbench.prepare-copy": {
+      "revision": 1,
+      "backend": "Local Python copies eligible files. No third-party code or recipes are executed.",
+      "inputs": [
+        {"argument": "path", "format": "Directory", "detail": "Source iSTARMOD tree. Files inside it remain unchanged."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "New or empty destination outside the source. It holds a derived tree and .istarmod_prepare.json."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Copied and skipped counts and categories, with source recipe and prior-output counts."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source and derived tree records with the copy preparation summary."}
+      ],
+      "warnings": "Embedded runtimes, cache entries, previous outputs and symbolic links may be excluded. Preparation does not validate or execute a subtraction.",
+      "failure": "Invalid source or unsuitable destination can exit 2 with a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"source_root": "string", "copied_file_count": "integer", "skipped_count": "integer", "skipped_by_reason": "object", "source_sm_count": "integer", "source_rvvalues_count": "integer"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "legacy_spectroscopy_report_builder.scaffold": {
+      "revision": 1,
+      "backend": "Local Python writes a Spanish LaTeX scaffold. Compilation is a separate command.",
+      "inputs": [
+        {"argument": "--title", "detail": "Report title to insert into the generated TeX."},
+        {"argument": "--author", "detail": "Author text to insert into the generated TeX."}
+      ],
+      "outputs": [
+        {"argument": "output_dir", "format": "Directory", "detail": "Destination for main.tex, nine section files and the figures and tables directories."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Project destination, files created and section count."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Generated project record."}
+      ],
+      "warnings": "Sections start as placeholders for measurements and review evidence.",
+      "failure": "An existing scaffold or unusable output path can exit 2 with a diagnostic before changing the project.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"output_dir": "string", "section_count": "integer", "created_files": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "legacy_spectroscopy_report_builder.populate": {
+      "revision": 1,
+      "backend": "Local Python assembles generated LaTeX sections from workflow summaries and available artifacts.",
+      "inputs": [
+        {"argument": "project_dir", "format": "Directory", "detail": "Generated report copy to update. The selected sections in this project are rewritten."},
+        {"argument": "--envcheck", "format": "JSON", "detail": "Optional legacy readiness and detected practice assets."},
+        {"argument": "--inventory-summary", "format": "JSON", "detail": "Optional MULTISPEC inventory metadata and tables."},
+        {"argument": "--fxcor-summary", "format": "JSON", "detail": "Optional repeatable FXCOR summary with case and order evidence."},
+        {"argument": "--rv-summary", "format": "JSON", "detail": "Optional legacy RV and projected rotation summary. Velocities are reported in km/s and FWHM in pixels."},
+        {"argument": "--istarmod-summary", "format": "JSON", "detail": "Optional iSTARMOD preparation or execution evidence. A preparation summary yields preparation status only."},
+        {"argument": "--li-summary", "format": "JSON", "detail": "Optional repeatable Li I equivalent-width summary. Equivalent widths are reported in milliangstroms."},
+        {"argument": "--external-reference-summary", "format": "JSON", "detail": "Optional fixed literature comparison with review findings."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Actual updated section names and generated artifacts."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Workflow summary inputs, project and written section and artifact records."}
+      ],
+      "warnings": "Omitted or absent optional summaries leave their sections pending. Missing measurements remain explicitly unavailable. Review provisional velocities against the source summaries.",
+      "failure": "A missing scaffold, malformed JSON or invalid auxiliary destination can exit 2 with a structured diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"populated_sections": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
     "rgb_visual_fits_export": {
       "revision": 1,
       "backend": "Pillow decodes rendered RGB PNG data and Astropy writes FITS display products.",

@@ -21,6 +21,7 @@ class CLIContractExportTests(unittest.TestCase):
                  "--capability", "photometry_noise_budget",
                  "--capability", "stilts_workbench",
                  "--capability", "catalog_workbench.crossmatch-sky",
+                 "--capability", "legacy_external_reference_check",
                  "--capability", "companion_route_check"],
                 cwd=directory, capture_output=True, text=True, check=True, timeout=45,
             )
@@ -32,7 +33,7 @@ class CLIContractExportTests(unittest.TestCase):
         records = {row["id"]: row for row in export["commands"]}
         self.assertEqual(set(records), {
             "photometry_noise_budget", "stilts_workbench",
-            "catalog_workbench.crossmatch-sky", "companion_route_check",
+            "catalog_workbench.crossmatch-sky", "legacy_external_reference_check", "companion_route_check",
         })
 
         noise = records["photometry_noise_budget"]
@@ -59,6 +60,10 @@ class CLIContractExportTests(unittest.TestCase):
         self.assertTrue(stilts["required"])
         self.assertIn("preflight", stilts["parsers"])
         self.assertIn("crossmatch-sky", stilts["parsers"])
+
+        reference = records["legacy_external_reference_check"]
+        self.assertEqual(list(reference["parser"]["subcommands"]["parsers"]), ["check"])
+        self.assertEqual(reference["io_contract"]["inputs"][0]["argument"], "--rv-summary")
 
         routing = records["companion_route_check"]["parser"]["arguments"]
         file_arg = next(arg for arg in routing if arg["flags"] == ["--file"])

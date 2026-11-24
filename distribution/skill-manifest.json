@@ -4947,8 +4947,8 @@
     "scientific-data-astro/fixtures/legacy_spectroscopy_report_builder.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "a7248a0fdf18cfb09e657d1a35b2a8ae68a17168f30bc44bff2a2c86e062a0ab",
-      "size": 33852
+      "sha256": "adc9529424e8903a46cf81d01c0d9f8423545474dc218d50c2dd9f4453532c8b",
+      "size": 36271
     },
     "scientific-data-astro/fixtures/li6708_equivalent_width_workbench.py": {
       "executable": false,
@@ -7205,8 +7205,8 @@
     "scientific-data-maintainer/.cache/archived_references/capability_io_contracts.json": {
       "executable": false,
       "kind": "file",
-      "sha256": "b8b7dd2bfea87a3387b7328d2c0ac60d7cb504db8d219ecb94cc1e3800ac9f27",
-      "size": 82054
+      "sha256": "9ba5c325d1728d5d967117a56628c4be4d827b4eb5838cc9bb86323e1c1a8fd6",
+      "size": 91796
     },
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
