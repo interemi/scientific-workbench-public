@@ -4839,8 +4839,8 @@
     "scientific-data-astro/fixtures/apt_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "cb8e6c67e24ff706e74f33e25d7bf4f7ce1c8caa6af0e646a8b3e2d0cc3a1d45",
-      "size": 30215
+      "sha256": "1cd0ec86590227568d9d85516a64e8de33d1deed9de06de3f3786a56e5fbd241",
+      "size": 30710
     },
     "scientific-data-astro/fixtures/ascii_spectrum_workbench.py": {
       "executable": false,
@@ -7205,8 +7205,8 @@
     "scientific-data-maintainer/.cache/archived_references/capability_io_contracts.json": {
       "executable": false,
       "kind": "file",
-      "sha256": "9ba5c325d1728d5d967117a56628c4be4d827b4eb5838cc9bb86323e1c1a8fd6",
-      "size": 91796
+      "sha256": "caaf2c0f812539e4c84dd19c9beb3a7f19314488d9a78f833186fc7a1375952d",
+      "size": 112177
     },
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
@@ -7547,8 +7547,8 @@
     "scientific-data-maintainer/fixtures/audit_external_astro_tools_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "d7c362cbbb228bf344ea0611ef8b1ea7dda05ca3506843fa6f18976a74b1550e",
-      "size": 12687
+      "sha256": "47d18517ad9810b0069120b63ce5e79ba2f29cdb8d27de6759a7de5bd09d1366",
+      "size": 14227
     },
     "scientific-data-maintainer/fixtures/audit_fits_rgb_batch_regression.py": {
       "executable": false,

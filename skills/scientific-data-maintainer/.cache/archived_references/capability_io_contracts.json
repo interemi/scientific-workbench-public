@@ -73,6 +73,290 @@
         "rejected": {"files": "array"}
       }
     },
+    "stilts_workbench": {
+      "revision": 1,
+      "subcommands": {
+        "preflight": {
+          "revision": 1,
+          "backend": "Local executable and Java archive discovery.",
+          "inputs": [
+            {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+            {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+            {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+            {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+            {"argument": "--dry-run", "detail": "Retained routing option. Preflight always discovers the backend without launching a catalog job."},
+            {"argument": "--timeout-sec", "unit": "seconds", "detail": "Retained routing option for execution timeouts."}
+          ],
+          "outputs": [
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."}
+          ],
+          "warnings": "Review detected backend availability before running a catalog job.",
+          "failure": "An unavailable backend can exit 2 with native alternatives.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"found": "boolean", "blocking_findings": "array", "native_alternative": "object"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "convert": {
+          "revision": 1,
+          "backend": "Optional local STILTS executable or Java with a STILTS or TOPCAT archive.",
+          "inputs": [
+            {"argument": "input", "format": "Table", "detail": "Readable input table in a supported STILTS format."},
+            {"argument": "--ifmt", "detail": "Override the input table format."},
+            {"argument": "--ofmt", "detail": "Override the output table format."},
+            {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+            {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+            {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+            {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+            {"argument": "--dry-run", "detail": "Record the command for review. A dry run produces a plan without a new backend result."},
+            {"argument": "--timeout-sec", "unit": "seconds", "detail": "Maximum wait for a backend run."}
+          ],
+          "outputs": [
+            {"argument": "output", "format": "Table", "detail": "Destination table written by STILTS."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."},
+            {"argument": "--log-dir", "format": "Directory", "detail": "Command and captured stdout and stderr logs."}
+          ],
+          "warnings": "Review inferred formats and metadata when changing representations.",
+          "failure": "Unavailable backends and unsafe arguments can exit 2. A nonzero backend status, timeout or missing or stale product can exit 1.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"operation": "string", "backend_source": "string", "command": "string", "dry_run": "boolean", "returncode": "number_or_null"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "filter": {
+          "revision": 1,
+          "backend": "Optional local STILTS executable or Java with a STILTS or TOPCAT archive.",
+          "inputs": [
+            {"argument": "input", "format": "Table", "detail": "Readable input table in a supported STILTS format."},
+            {"argument": "--cmd", "detail": "Repeatable STILTS tpipe expression in evaluation order."},
+            {"argument": "--ifmt", "detail": "Override the input table format."},
+            {"argument": "--ofmt", "detail": "Override the output table format."},
+            {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+            {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+            {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+            {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+            {"argument": "--dry-run", "detail": "Record the command for review. A dry run produces a plan without a new backend result."},
+            {"argument": "--timeout-sec", "unit": "seconds", "detail": "Maximum wait for a backend run."}
+          ],
+          "outputs": [
+            {"argument": "output", "format": "Table", "detail": "Destination table written by STILTS."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."},
+            {"argument": "--log-dir", "format": "Directory", "detail": "Command and captured stdout and stderr logs."}
+          ],
+          "warnings": "Review the expressions and retained columns before using this table.",
+          "failure": "Unavailable backends and unsafe arguments can exit 2. A nonzero backend status, timeout or missing or stale product can exit 1.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"operation": "string", "backend_source": "string", "command": "string", "dry_run": "boolean", "returncode": "number_or_null"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "crossmatch-sky": {
+          "revision": 1,
+          "backend": "Optional local STILTS executable or Java with a STILTS or TOPCAT archive.",
+          "inputs": [
+            {"argument": "left", "format": "Table", "detail": "First readable catalog."},
+            {"argument": "right", "format": "Table", "detail": "Second readable catalog."},
+            {"argument": "--left-ra", "unit": "degrees", "detail": "RA column or expression in the left table."},
+            {"argument": "--left-dec", "unit": "degrees", "detail": "Dec column or expression in the left table."},
+            {"argument": "--right-ra", "unit": "degrees", "detail": "RA column or expression in the right table."},
+            {"argument": "--right-dec", "unit": "degrees", "detail": "Dec column or expression in the right table."},
+            {"argument": "--radius-arcsec", "unit": "arcseconds", "detail": "Maximum angular separation."},
+            {"argument": "--join", "detail": "Join policy for matching and unmatched rows."},
+            {"argument": "--find", "detail": "Policy for selecting matches."},
+            {"argument": "--ifmt1", "detail": "Override the first catalog format."},
+            {"argument": "--ifmt2", "detail": "Override the second catalog format."},
+            {"argument": "--ofmt", "detail": "Override the joined table format."},
+            {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+            {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+            {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+            {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+            {"argument": "--dry-run", "detail": "Record the command for review. A dry run produces a plan without a new backend result."},
+            {"argument": "--timeout-sec", "unit": "seconds", "detail": "Maximum wait for a backend run."}
+          ],
+          "outputs": [
+            {"argument": "output", "format": "Table", "detail": "Destination table written by STILTS."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."},
+            {"argument": "--log-dir", "format": "Directory", "detail": "Command and captured stdout and stderr logs."}
+          ],
+          "warnings": "Supply both catalogs in a common coordinate frame and appropriate epoch. Positional agreement alone does not establish a physical association.",
+          "failure": "Unavailable backends and unsafe arguments can exit 2. A nonzero backend status, timeout or missing or stale product can exit 1.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"operation": "string", "backend_source": "string", "command": "string", "dry_run": "boolean", "returncode": "number_or_null"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "votlint": {
+          "revision": 1,
+          "backend": "Optional local STILTS executable or Java with a STILTS or TOPCAT archive.",
+          "inputs": [
+            {"argument": "input", "format": "VOTable", "detail": "VOTable to check."},
+            {"argument": "--validate", "detail": "Enable validation checks."},
+            {"argument": "--no-validate", "detail": "Disable validation checks."},
+            {"argument": "--ucd", "detail": "Enable UCD checks."},
+            {"argument": "--no-ucd", "detail": "Disable UCD checks."},
+            {"argument": "--unit", "detail": "Select unit checking according to the STILTS options."},
+            {"argument": "--maxrepeat", "unit": "messages", "detail": "Maximum repeats of a diagnostic."},
+            {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+            {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+            {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+            {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+            {"argument": "--dry-run", "detail": "Record the command for review. A dry run produces a plan without a new backend result."},
+            {"argument": "--timeout-sec", "unit": "seconds", "detail": "Maximum wait for a backend run."}
+          ],
+          "outputs": [
+            {"argument": "report", "format": "Text", "detail": "Validation findings written by votlint."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."},
+            {"argument": "--log-dir", "format": "Directory", "detail": "Command and captured stdout and stderr logs."}
+          ],
+          "warnings": "Review the retained VOTable report before relying on its contents.",
+          "failure": "Unavailable backends and unsafe arguments can exit 2. A nonzero backend status, timeout or missing or stale product can exit 1.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"operation": "string", "backend_source": "string", "command": "string", "dry_run": "boolean", "returncode": "number_or_null"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        }
+      }
+    },
+    "apt_workbench": {
+      "revision": 1,
+      "subcommands": {
+        "preflight": {
+          "revision": 1,
+          "backend": "Local discovery of the optional APT executable and saved preferences.",
+          "inputs": [
+            {"argument": "--apt-command", "detail": "Explicit APT batch executable or wrapper."},
+            {"argument": "--apt-preferences", "format": "APT.pref", "detail": "Saved APT preferences for the photometry settings."}
+          ],
+          "outputs": [
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."}
+          ],
+          "warnings": "Missing preferences can yield WARNING even when an APT command is found.",
+          "failure": "An unavailable command or unusable summary destination can exit 2.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"apt": "object", "preferences": "object", "blocking_findings": "array", "warning_findings": "array"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "prepare-source-list": {
+          "revision": 1,
+          "backend": "Local Python table reader and APT source-list writer.",
+          "inputs": [
+            {"argument": "input_table", "format": "Table", "detail": "Readable table of image source positions."},
+            {"argument": "--x-col", "unit": "pixels", "detail": "Column containing image x positions in the APT coordinate convention."},
+            {"argument": "--y-col", "unit": "pixels", "detail": "Column containing image y positions in the APT coordinate convention."},
+            {"argument": "--id-col", "detail": "Optional identifier column."}
+          ],
+          "outputs": [
+            {"argument": "output_source_list", "format": "Text", "detail": "Whitespace source-list destination."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."}
+          ],
+          "warnings": "Check the pixel coordinate origin expected by the supplied APT workflow.",
+          "failure": "Invalid inputs or unsafe output paths can exit 2. Failed reads or writes can exit 1.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"row_count": "integer", "input_table": "string", "output_source_list": "string", "x_col": "string", "y_col": "string"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "run-batch": {
+          "revision": 1,
+          "backend": "Optional local Aperture Photometry Tool command configured with a saved preferences file.",
+          "inputs": [
+            {"argument": "--apt-command", "detail": "Explicit APT batch executable or wrapper."},
+            {"argument": "--apt-preferences", "format": "APT.pref", "detail": "Saved APT preferences for the photometry settings."},
+            {"argument": "--image", "format": "FITS", "detail": "Image to measure."},
+            {"argument": "--source-list", "format": "Text", "detail": "APT-compatible positions in image coordinates."},
+            {"argument": "--zero-point", "unit": "magnitudes", "detail": "Optional photometric magnitude zero point."},
+            {"argument": "--verbosity", "detail": "Backend diagnostic level."},
+            {"argument": "--dry-run", "detail": "Record the command for review. A dry run produces a plan without a new backend result."},
+            {"argument": "--timeout-sec", "unit": "seconds", "detail": "Maximum wait for a backend run."}
+          ],
+          "outputs": [
+            {"argument": "--output-table", "format": "APT table", "detail": "The table created or updated during this batch run."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."},
+            {"argument": "--log-dir", "format": "Directory", "detail": "Command and captured stdout and stderr logs."}
+          ],
+          "warnings": "Review the saved preferences and calibration before interpreting the measurements.",
+          "failure": "Missing prerequisites can exit 2. A failed backend, a timeout or a missing or unchanged table can exit 1.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"command": "string", "returncode": "number_or_null", "dry_run": "boolean"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "parse-results": {
+          "revision": 1,
+          "backend": "Local Astropy table reader with APT text fallbacks.",
+          "inputs": [
+            {"argument": "input_table", "format": "APT table", "detail": "APT batch output to parse."},
+            {"argument": "--input-format", "detail": "Optional Astropy format override."}
+          ],
+          "outputs": [
+            {"argument": "output_table", "format": "Table", "detail": "Parsed table destination in the selected output format."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."}
+          ],
+          "warnings": "Interpret scientific quantities using the APT run and its saved preferences.",
+          "failure": "Malformed or unreadable tables and unsafe outputs can return a diagnostic with a nonzero exit.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"row_count": "integer", "columns": "array", "input_table": "string", "output_table": "string"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        }
+      }
+    },
+    "external_astro_tools_local_validation": {
+      "revision": 1,
+      "backend": "Local optional STILTS/APT adapters exercised on generated fixtures.",
+      "inputs": [
+        {"argument": "--tool", "detail": "Select all adapters, STILTS only or APT only."},
+        {"argument": "--timeout-sec", "unit": "seconds", "detail": "Maximum wait for a backend run."},
+        {"argument": "--require-stilts", "detail": "Make missing STILTS a controlled block."},
+        {"argument": "--require-apt", "detail": "Make missing APT batch readiness a controlled block."},
+        {"argument": "--include-apt-batch", "detail": "Opt in to an APT batch on generated fixtures using the saved preferences."},
+        {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+        {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+        {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+        {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+        {"argument": "--java-command", "detail": "Explicit local Java executable."},
+        {"argument": "--apt-command", "detail": "Explicit APT batch executable or wrapper."},
+        {"argument": "--apt-preferences", "format": "APT.pref", "detail": "Saved APT preferences for the photometry settings."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Generated fixtures, dependency report and per-adapter evidence."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."}
+      ],
+      "warnings": "Missing optional backends can yield WARNING. APT uses command validation unless a batch is requested.",
+      "failure": "Unsafe destinations or missing required backends can exit 2. Failed validation can exit 1.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"tool_selection": "string", "include_apt_batch": "boolean", "capabilities": "object", "validations": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
     "external_astro_tools_preflight": {
       "revision": 1,
       "backend": "Local Python discovery of optional Java, STILTS, TOPCAT and APT commands or packages.",

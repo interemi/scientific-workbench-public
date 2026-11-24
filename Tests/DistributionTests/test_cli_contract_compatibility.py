@@ -110,6 +110,19 @@ class CLIContractCompatibilityTests(unittest.TestCase):
         self.updated["io_contract"]["summary"]["rejected_container"] = "results"
         self.assertEqual(self.compare(), [])
 
+    def test_subcommand_contract_changes_are_reported(self):
+        baseline = self.baseline["commands"][0]
+        old = baseline["io_contract"]
+        baseline["io_contract"] = {"revision": 1, "subcommands": {"check": old, "run": deepcopy(old)}}
+        self.updated["io_contract"] = deepcopy(baseline["io_contract"])
+        modes = self.updated["io_contract"]["subcommands"]
+        modes["check"]["inputs"][0]["unit"] = "degrees"
+        del modes["run"]
+        self.assertEqual(self.compare(), [
+            "sample.inspect.check input: inputs unit changed",
+            "sample.inspect.run: I/O subcommand removed",
+        ])
+
     def test_duplicate_ids_are_rejected(self):
         self.candidate["commands"].append(self.updated)
         with self.assertRaisesRegex(ValueError, "unique IDs"):

@@ -40,6 +40,13 @@ def validate_parser_references(capability: str, contract: dict, parser: dict) ->
         raise ValueError(f"{capability}: I/O contract revision must be a positive integer")
     arguments = parser["arguments"]
     subcommands = parser["subcommands"]
+    if "subcommands" in contract:
+        parsers = subcommands.get("parsers", {})
+        if arguments or not subcommands.get("required") or set(parsers) != set(contract["subcommands"]):
+            raise ValueError(f"{capability}: I/O subcommands differ from the required CLI subcommands")
+        for name, mode in contract["subcommands"].items():
+            validate_parser_references(f"{capability}.{name}", mode, parsers[name])
+        return
     if not arguments and subcommands.get("required") and len(subcommands["parsers"]) == 1:
         only_subcommand, = subcommands["parsers"].values()
         arguments = only_subcommand["arguments"]
@@ -66,7 +73,18 @@ def validate_summary_contract(payload: dict, *, capability: str | None = None) -
     identifier = capability or tool
     if not isinstance(identifier, str):
         return
-    contract = load_io_contracts().get(identifier)
+    declared = load_io_contracts()
+    contract = declared.get(identifier)
+    if contract is None:
+        root, _, mode = identifier.partition(".")
+        contract = declared.get(root, {}).get("subcommands", {}).get(mode)
+    elif "subcommands" in contract:
+        tool_root, _, mode = tool.partition(".") if isinstance(tool, str) else ("", "", "")
+        modes = contract["subcommands"]
+        if tool_root != identifier or mode not in modes:
+            raise ValueError(f"{identifier}: summary requires a known subcommand")
+        contract = modes[mode]
+        identifier = tool
     if contract is None:
         if capability is not None:
             raise ValueError(f"{capability}: missing I/O contract")

@@ -60,6 +60,11 @@ class CLIContractExportTests(unittest.TestCase):
         self.assertTrue(stilts["required"])
         self.assertIn("preflight", stilts["parsers"])
         self.assertIn("crossmatch-sky", stilts["parsers"])
+        modes = records["stilts_workbench"]["io_contract"]["subcommands"]
+        self.assertEqual(set(modes), set(stilts["parsers"]))
+        units = {item["argument"]: item.get("unit") for item in modes["crossmatch-sky"]["inputs"]}
+        self.assertEqual(units["--left-ra"], "degrees")
+        self.assertEqual(units["--radius-arcsec"], "arcseconds")
 
         reference = records["legacy_external_reference_check"]
         self.assertEqual(list(reference["parser"]["subcommands"]["parsers"]), ["check"])

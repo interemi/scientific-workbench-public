@@ -96,9 +96,24 @@ def io_changes(before: dict, after: dict, capability: str) -> list[str]:
     if new_contract is None:
         return [f"{capability}: I/O contract removed"]
 
+    return contract_changes(old_contract, new_contract, capability)
+
+
+def contract_changes(old_contract: dict, new_contract: dict, capability: str) -> list[str]:
     changes = []
     if new_contract["revision"] < old_contract["revision"]:
         changes.append(f"{capability}: I/O revision decreased")
+    if ("subcommands" in old_contract) != ("subcommands" in new_contract):
+        return [*changes, f"{capability}: I/O subcommand layout changed"]
+    if "subcommands" in old_contract:
+        updated = new_contract["subcommands"]
+        for mode, old in old_contract["subcommands"].items():
+            if mode not in updated:
+                changes.append(f"{capability}.{mode}: I/O subcommand removed")
+            else:
+                changes.extend(contract_changes(old, updated[mode], f"{capability}.{mode}"))
+        return changes
+
     for role in ("inputs", "outputs"):
         new_fields = {field["argument"]: field for field in new_contract[role]}
         for field in old_contract[role]:
