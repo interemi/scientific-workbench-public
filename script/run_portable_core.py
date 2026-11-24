@@ -37,9 +37,10 @@ def validate_summary(summary, profile="core"):
     return len(runs)
 
 
-def run_io_probe(evidence, environment, name, capability, arguments, expected, *, stdout_target=None, stdout_only=False):
+def run_io_probe(evidence, environment, name, capability, arguments, expected, *,
+                 stdout_target=None, stdout_only=False, summary_option="--summary-json"):
     summary = stdout_target or evidence / f"{name}.json"
-    command = [sys.executable, *map(str, arguments), "--summary-json", str(summary)]
+    command = [sys.executable, *map(str, arguments), summary_option, str(summary)]
     process = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, timeout=120)
     (evidence / f"{name}.stdout.log").write_text(process.stdout, encoding="utf-8")
     (evidence / f"{name}.stderr.log").write_text(process.stderr, encoding="utf-8")
@@ -247,6 +248,108 @@ def check_document_io_contracts(output, environment):
     return records
 
 
+def check_document_preview_io_contracts(output, environment, include_full=False):
+    from PIL import Image
+
+    evidence = output / "document-preview-io"
+    sources = evidence / "sources"
+    sources.mkdir(parents=True)
+    figure = sources / "synthetic.png"
+    Image.new("RGB", (140, 100), (15, 65, 125)).save(figure)
+    package = sources / "synthetic.pages"
+    with ZipFile(package, "w") as bundle:
+        bundle.write(figure, "preview.png")
+        bundle.write(figure, "Data/figure.png")
+    originals = {path: path.read_bytes() for path in (figure, package)}
+    documents = ROOT / "skills/scientific-data-documents/scripts"
+    iwork = documents / "iwork_workbench.py"
+    quicklook = documents / "quicklook_bridge.py"
+    inventory = evidence / "iwork"
+    preview = evidence / "preview.png"
+    preflight_output = evidence / "preflight-only.png"
+    iwork_manifest = evidence / "iwork-manifest.json"
+    preview_manifest = evidence / "preview-manifest.json"
+    passed = {0: {"PASS", "WARNING"}}
+    blocked = {2: {"BLOCKED_CONTROLADO"}}
+    records = {
+        "iwork": run_io_probe(evidence, environment, "iwork", "iwork_workbench",
+                              [iwork, package, "--output-dir", inventory, "--manifest-json", iwork_manifest],
+                              passed, summary_option="--output-json"),
+        "iwork-missing": run_io_probe(evidence, environment, "iwork-missing", "iwork_workbench",
+                                      [iwork, sources / "missing.pages", "--output-dir", evidence / "missing-iwork"],
+                                      blocked, summary_option="--output-json"),
+        "quicklook": run_io_probe(evidence, environment, "quicklook", "quicklook_bridge",
+                                   [quicklook, figure, "--output", preview, "--size", 320, "--timeout-sec", 10,
+                                    "--manifest-json", preview_manifest], passed),
+        "quicklook-preflight": run_io_probe(evidence, environment, "quicklook-preflight", "quicklook_bridge",
+                                             [quicklook, figure, "--output", preflight_output, "--preflight-only"], passed),
+        "quicklook-missing": run_io_probe(evidence, environment, "quicklook-missing", "quicklook_bridge",
+                                           [quicklook, sources / "missing.png", "--output", evidence / "missing.png"], blocked),
+    }
+    summary = json.loads((evidence / "iwork.json").read_text(encoding="utf-8"))["results"]
+    if (summary["member_count"] != 2 or summary["image_asset_count"] != 2
+            or summary["preview_files"] != ["preview.png"] or not (inventory / "member_manifest.csv").is_file()):
+        raise ValueError("iWork inventory did not retain both synthetic ZIP members")
+    with Image.open(preview) as thumbnail:
+        if thumbnail.format != "PNG" or min(thumbnail.size) < 1:
+            raise ValueError("Quick Look did not produce a readable PNG")
+        thumbnail.verify()
+    if preflight_output.exists():
+        raise ValueError("Quick Look preflight wrote a preview")
+    for path, manifest_path in ((package, iwork_manifest), (figure, preview_manifest)):
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        source_record, = manifest["inputs"]
+        if source_record["sha256"] != sha256(originals[path]).hexdigest():
+            raise ValueError(f"{path.name}: preview manifest lost the source hash")
+    if include_full:
+        records.update(check_presentation_io_contracts(evidence, sources, figure, documents, environment))
+    if any(path.read_bytes() != content for path, content in originals.items()):
+        raise ValueError("a document preview workflow modified a protected synthetic input")
+    return records
+
+
+def check_presentation_io_contracts(evidence, sources, figure, documents, environment):
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    deck = sources / "synthetic.pptx"
+    presentation = Presentation()
+    slide = presentation.slides.add_slide(presentation.slide_layouts[5])
+    slide.shapes.title.text = "Synthetic observations"
+    slide.shapes.add_picture(str(figure), Inches(1), Inches(2), width=Inches(3))
+    presentation.save(deck)
+    original = deck.read_bytes()
+    tool = documents / "presentation_workbench.py"
+    inspect = "presentation_workbench.inspect"
+    audit = "presentation_workbench.existing-deck-style-audit"
+    report = evidence / "audit"
+    manifest_path = evidence / "presentation-manifest.json"
+    invalid_report = evidence / "invalid-audit"
+    cases = [
+        ("presentation", inspect, [tool, "inspect", deck], {0: {"PASS", "WARNING"}}),
+        ("presentation-missing", inspect, [tool, "inspect", sources / "missing.pptx"], {2: {"BLOCKED_CONTROLADO"}}),
+        ("style-audit", audit, [tool, "existing-deck-style-audit", deck, report, "--reference-slides", "1",
+                                "--backend", "soffice", "--rule", "Label synthetic figures",
+                                "--manifest-json", manifest_path], {0: {"PASS", "WARNING"}}),
+        ("style-invalid", audit, [tool, "existing-deck-style-audit", deck, invalid_report,
+                                  "--reference-slides", "9", "--backend", "soffice"], {2: {"BLOCKED_CONTROLADO"}}),
+    ]
+    records = {name: run_io_probe(evidence, environment, name, capability, arguments, expected)
+               for name, capability, arguments, expected in cases}
+    inspection = json.loads((evidence / "presentation.json").read_text(encoding="utf-8"))["results"]["inspection"]["inspection"]
+    style = json.loads((evidence / "style-audit.json").read_text(encoding="utf-8"))["results"]["style_audit"]
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    source_record, = manifest["inputs"]
+    if (inspection["slide_count"] != 1 or inspection["slide_titles"] != ["Synthetic observations"]
+            or inspection["image_count"] != 1 or style["reference_slide_indices"] != [1]
+            or source_record["sha256"] != sha256(original).hexdigest()
+            or not (report / "scientific_asset_manifest.json").is_file() or invalid_report.exists()):
+        raise ValueError("presentation audit lost structure, selected references or provenance")
+    if deck.read_bytes() != original:
+        raise ValueError("presentation inspection modified the source deck")
+    return records
+
+
 def check_scientific_workflow_io_contracts(output, environment, include_full=False):
     import numpy as np
     from astropy.io import fits
@@ -379,7 +482,7 @@ def main(argv=None):
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--profile", choices=("core", "full"), default="core")
     parser.add_argument("--full-io-contracts", action="store_true",
-                        help="also check DuckDB and copied notebook execution in an installed Full environment")
+                        help="also check presentations, DuckDB and notebook execution in an installed Full environment")
     args = parser.parse_args(argv)
     if sys.version_info[:2] != (3, 11):
         raise ValueError("run this script with the prepared Python 3.11 environment")
@@ -416,6 +519,9 @@ def main(argv=None):
                 evidence["core_io_contracts"] = check_core_io_contracts(output, doctor, environment)
                 evidence["tabular_io_contracts"] = check_tabular_io_contracts(output, environment)
                 evidence["document_io_contracts"] = check_document_io_contracts(output, environment)
+                evidence["document_preview_io_contracts"] = check_document_preview_io_contracts(
+                    output, environment, include_full=full_io,
+                )
                 evidence["scientific_workflow_io_contracts"] = check_scientific_workflow_io_contracts(
                     output, environment, include_full=full_io,
                 )

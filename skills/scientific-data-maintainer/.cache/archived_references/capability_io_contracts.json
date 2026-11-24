@@ -697,6 +697,96 @@
         "rejected": {"errors": "array", "results": "object"}
       }
     },
+    "presentation_workbench.inspect": {
+      "revision": 1,
+      "backend": "Local Python presentation inspection. PPTX structure uses python-pptx. Optional preview export uses a selected compatible renderer.",
+      "inputs": [
+        {"argument": "input", "format": "PPTX, PPTM or Keynote package", "detail": "Deck to inspect without editing."},
+        {"argument": "--backend", "detail": "Select automatic discovery, LibreOffice or Keynote for optional PDF export."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Recorded structure, available rendering backends, QA and editability indicators."},
+        {"argument": "--export-preview-pdf", "format": "PDF", "detail": "Optional preview export from a readable PPTX or PPTM deck."}
+      ],
+      "warnings": "Missing renderers or limited layout evidence can yield WARNING. Review rendered slides separately before delivery.",
+      "failure": "An unreadable deck or unsafe destination can exit 2. A collision with the source produces its diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"inspection": "object"},
+        "rejected_container": "root",
+        "rejected": {"results": "object", "qa": "object"}
+      }
+    },
+    "presentation_workbench.existing-deck-style-audit": {
+      "revision": 1,
+      "backend": "Local Python presentation inspection and optional rendering through a compatible selected backend.",
+      "inputs": [
+        {"argument": "input", "format": "PPTX, PPTM or Keynote package", "detail": "Reference deck to inspect and derive layouts from."},
+        {"argument": "--reference-slides", "unit": "one-based slide indices", "detail": "Optional comma-separated selection with ranges."},
+        {"argument": "--backend", "detail": "Select automatic discovery, LibreOffice or Keynote for optional preview rendering."},
+        {"argument": "--rule", "detail": "Repeatable user constraint to record with the derived materials."}
+      ],
+      "outputs": [
+        {"argument": "output_dir", "format": "Directory", "detail": "Audit report, constraints, templates, content layers, asset manifest and optional visual preview."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Deck inspection, style observations and preview availability."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source deck, selected references and derived files."}
+      ],
+      "warnings": "A style audit describes available evidence and does not approve the scientific content of figures.",
+      "failure": "Unreadable input, invalid slide indices or an unsafe output destination can exit 2 with a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"inspection": "object", "reference_preview": "object", "scientific_asset_manifest_status": "object"},
+        "rejected_container": "root",
+        "rejected": {"results": "object", "qa": "object"}
+      }
+    },
+    "iwork_workbench": {
+      "revision": 1,
+      "backend": "Package inspection through Python ZIP handling and Pillow. Native preview and optional OCR depend on local helpers.",
+      "inputs": [
+        {"argument": "input", "format": "ZIP-based Pages, Numbers or Keynote document", "detail": "Readable package to inventory without editing."},
+        {"argument": "--enable-ocr", "detail": "Request OCR of suitable extracted preview assets if available."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Extracted members, member inventory and report."},
+        {"argument": "--output-json", "format": "JSON", "detail": "Package summary. The default destination is summary.json in the output directory."},
+        {"argument": "--contact-sheet", "format": "PNG", "detail": "Optional destination for a contact sheet of available assets."},
+        {"argument": "--html-report", "format": "HTML", "detail": "Optional HTML summary."},
+        {"argument": "--native-preview", "format": "PNG", "detail": "Optional Quick Look image destination."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input record and produced inventory, preview and report files."}
+      ],
+      "warnings": "Embedded assets and optional native previews provide partial evidence of layout. The inspection cannot establish an editable roundtrip.",
+      "failure": "A missing, unsupported or unreadable ZIP package can exit 2. A source collision produces its diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"package_type": "string", "member_count": "integer", "preview_files": "array", "image_asset_count": "integer", "exported_assets": "array"},
+        "rejected_container": "root",
+        "rejected": {"results": "object", "qa": "object"}
+      }
+    },
+    "quicklook_bridge": {
+      "revision": 1,
+      "backend": "Native macOS Quick Look when available, with local format-specific fallbacks.",
+      "inputs": [
+        {"argument": "input", "format": "Supported local file", "detail": "Document or image to preview."},
+        {"argument": "--size", "unit": "pixels", "detail": "Requested thumbnail size for native rendering."},
+        {"argument": "--timeout-sec", "unit": "seconds", "detail": "Time limit for the native Quick Look request."},
+        {"argument": "--preflight-only", "detail": "Report route availability without generating the preview."}
+      ],
+      "outputs": [
+        {"argument": "--output", "format": "PNG", "detail": "Destination for the generated preview."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Backend availability, selected rendering method or diagnostic."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input and preview records when rendering completes."}
+      ],
+      "warnings": "A fallback preview can have different rendering limits. Preview output provides visual evidence only.",
+      "failure": "Missing inputs, unsafe destinations or unavailable preview methods can exit 2. With preflight only, inspect the reported status even if the command exits zero.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"input": "string", "output": "string", "capabilities": "object"},
+        "rejected_container": "root",
+        "rejected": {"results": "object", "qa": "object"}
+      }
+    },
     "inspect_fits": {
       "revision": 1,
       "backend": "Core with Astropy and NumPy. PNG quicklook uses Matplotlib. The limited NumPy fallback inspects the primary image.",

@@ -7199,8 +7199,8 @@
     "scientific-data-maintainer/.cache/archived_references/capability_io_contracts.json": {
       "executable": false,
       "kind": "file",
-      "sha256": "033db6abcf71b1f47e8405a59802a2e5eed4cf70076ebec5f37b8e72530aebf5",
-      "size": 66623
+      "sha256": "3099406310369fd60c461e851ec138d294f648448a179ed3b9a098e4561709f2",
+      "size": 73018
     },
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
