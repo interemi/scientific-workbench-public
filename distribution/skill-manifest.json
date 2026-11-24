@@ -4905,8 +4905,8 @@
     "scientific-data-astro/fixtures/fxcor_iraf_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "9ebbb66934c9f23f6e36b63c35a58ab536b37dd8e52bb65c6d072b62a258de05",
-      "size": 35650
+      "sha256": "fbf5c62ea054b88c12d460e5d4726c6a4ae93692dd55ac59b5ac0665164f0333",
+      "size": 36782
     },
     "scientific-data-astro/fixtures/inspect_fits.py": {
       "executable": false,
@@ -7205,8 +7205,8 @@
     "scientific-data-maintainer/.cache/archived_references/capability_io_contracts.json": {
       "executable": false,
       "kind": "file",
-      "sha256": "caaf2c0f812539e4c84dd19c9beb3a7f19314488d9a78f833186fc7a1375952d",
-      "size": 112177
+      "sha256": "50b7e6324ac7f700172c509953770b55c7da3c23f88cb922679c5daa6f818527",
+      "size": 120908
     },
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
@@ -7721,8 +7721,8 @@
     "scientific-data-maintainer/fixtures/audit_v1_6_fxcor_run_auto_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "916261b8747bf0a6a50f830c6ea68c2e2eaa9b708f2ccfb65e8845b71326c82f",
-      "size": 9615
+      "sha256": "bbfaecbb9ae36232d8ae24a0ccf3fc79b358feb4e20e17ddc255353b19eb031a",
+      "size": 11433
     },
     "scientific-data-maintainer/fixtures/audit_v1_6_inspect_data_container_regression.py": {
       "executable": false,

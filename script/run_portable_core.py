@@ -783,6 +783,9 @@ def main(argv=None):
         [sys.executable, str(ROOT / "script/check_scientific_known_answers.py"),
          "--output-dir", str(output / "known-answer")],
     ]
+    if sys.platform == "darwin":
+        fxcor_regression = ROOT / "skills/scientific-data-maintainer/fixtures/audit_v1_6_fxcor_run_auto_regression.py"
+        commands.append([sys.executable, str(fxcor_regression)])
     evidence = {"status": "FAIL", "profile": args.profile, "python": sys.version, "platform": platform.platform(),
                 "architecture": platform.machine(), "snapshot_entries_before": entries,
                 "commands": commands}

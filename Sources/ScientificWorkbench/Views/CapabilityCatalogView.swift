@@ -381,7 +381,15 @@ struct CapabilityDetailPanel: View {
             metadataGrid(capability)
 
             if let contract = capability.ioContract {
-              CapabilityIOContractDetails(contract: contract)
+              if let operations = contract.subcommands {
+                ForEach(operations.keys.sorted(), id: \.self) { name in
+                  if let operation = operations[name] {
+                    CapabilityIOContractDetails(contract: operation, operation: name)
+                  }
+                }
+              } else {
+                CapabilityIOContractDetails(contract: contract)
+              }
             }
 
             if let example = store.preparedFirstRunExample,
@@ -680,9 +688,11 @@ struct CapabilityDetailPanel: View {
 
 private struct CapabilityIOContractDetails: View {
   let contract: CapabilityIOContract
+  var operation: String? = nil
 
   var body: some View {
-    DisclosureGroup("Inputs and outputs · revision \(contract.revision)") {
+    let title = operation.map { "\($0) · inputs and outputs" } ?? "Inputs and outputs"
+    DisclosureGroup("\(title) · revision \(contract.revision)") {
       VStack(alignment: .leading, spacing: 10) {
         Text(contract.backend)
         if !contract.inputs.isEmpty {

@@ -137,7 +137,8 @@ extension ScientificWorkbenchTests {
       outputs: [.init(argument: "--summary-json", format: "JSON", unit: nil, detail: "Compile outcome.")],
       warnings: "", failure: "",
       summary: .init(container: nil, rejectedContainer: nil, tool: nil, mode: nil,
-                     version: "1.8", complete: [:], rejected: [:])
+                     version: "1.8", complete: [:], rejected: [:]),
+      defaultSubcommand: nil, subcommands: nil
     )
     let resultDirectory = root.appendingPathComponent("results")
     let builder = CapabilityCommandBuilder(pythonExecutable: "/usr/bin/python3")

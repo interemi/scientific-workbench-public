@@ -375,17 +375,8 @@ def cmd_prepare_session(args):
         payload = blocked_prepare_payload(practice_root, output_dir, [f"No se encontro fits_p1 dentro de {public_path(practice_root)}"])
         return emit_prepare_payload(payload, args)
 
-    output_preexisting = output_dir.exists() and any(output_dir.iterdir())
-    output_dir.mkdir(parents=True, exist_ok=True)
-    data_dir = output_dir / "data"
-    logs_dir = output_dir / "logs"
-    parsed_dir = output_dir / "parsed"
-    scripts_dir = output_dir / "scripts"
-    for path in (data_dir, logs_dir, parsed_dir, scripts_dir, output_dir / "uparm"):
-        path.mkdir(parents=True, exist_ok=True)
-
-    available_fits = {item.name for item in fits_dir.glob("*.fits")}
-    cases = default_fxcor_cases(available_fits)
+    available_fits = {item.name for item in fits_dir.glob("*.fits") if item.is_file()}
+    cases = default_fxcor_cases(available_fits) if available_fits else []
     if not cases:
         payload = blocked_prepare_payload(
             practice_root,
@@ -400,6 +391,20 @@ def cmd_prepare_session(args):
             if name not in seen:
                 selected.append(fits_dir / name)
                 seen.add(name)
+    data_dir = output_dir / "data"
+    config_path = output_dir / "fxcor_cases.json"
+    manual_csv = output_dir / "manual_overrides.csv"
+    managed_files = [config_path, manual_csv, *(data_dir / source.name for source in selected)]
+    conflicts = [public_path(path) for path in managed_files if path.exists() or path.is_symlink()]
+    if conflicts:
+        payload = blocked_prepare_payload(
+            practice_root, output_dir,
+            ["Elige un workspace nuevo para conservar los archivos existentes: " + ", ".join(conflicts)],
+        )
+        return emit_prepare_payload(payload, args)
+    output_preexisting = output_dir.exists() and any(output_dir.iterdir())
+    for path in (data_dir, output_dir / "logs", output_dir / "parsed", output_dir / "scripts", output_dir / "uparm"):
+        path.mkdir(parents=True, exist_ok=True)
     copied = copy_selected_files(selected, data_dir)
 
     notes = []
@@ -420,7 +425,6 @@ def cmd_prepare_session(args):
     ensure_local_iraf_home(output_dir, notes)
     if login_path is None:
         warning_findings.append("No se pudo preparar login.cl; la copia queda inventariada pero no lista para correr IRAF sin intervencion.")
-    manual_csv = output_dir / "manual_overrides.csv"
     write_csv_template(manual_csv, cases)
 
     config = {
@@ -434,7 +438,6 @@ def cmd_prepare_session(args):
         "scripts_dir": "scripts",
         "cases": [serialize_case(item) for item in cases],
     }
-    config_path = output_dir / "fxcor_cases.json"
     config_path.write_text(json.dumps(config, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
 
     status = "warning" if warning_findings else "ok"
@@ -568,15 +571,6 @@ def run_cl_case(workspace_root: Path, case: dict) -> dict:
     iraf_home = ensure_local_iraf_home(workspace_root, notes)
     seed_fxcor_parameter_file(iraf_home, cl_bin, notes)
     write_case_script(script_path, case)
-    output_base = workspace_root / "logs" / case["case_id"]
-    for candidate in (
-        output_base.with_suffix(".txt"),
-        output_base.with_suffix(".log"),
-        output_base.with_suffix(".gki"),
-        workspace_root / "parsed" / f"{case['case_id']}_auto.csv",
-    ):
-        if candidate.exists():
-            candidate.unlink()
     env = os.environ.copy()
     env["HOME"] = str(workspace_root)
     env.setdefault("TERM", "xterm")
@@ -686,6 +680,24 @@ def cmd_run_auto(args):
         payload = blocked_run_payload(workspace_root, ["No hay casos seleccionados para ejecutar."])
         return emit_run_payload(payload, args, selected_ids=selected_ids)
 
+    conflicts = []
+    for case in cases:
+        case_id = case["case_id"]
+        destinations = [
+            workspace_root / "logs" / f"{case_id}{suffix}"
+            for suffix in (".txt", ".log", ".gki", ".cl_stdout.log")
+        ] + [
+            workspace_root / "scripts" / f"{case_id}.cl",
+            csv_path_for_case(workspace_root / "parsed", case),
+        ]
+        conflicts.extend(public_path(path) for path in destinations if path.exists() or path.is_symlink())
+    if conflicts:
+        payload = blocked_run_payload(
+            workspace_root,
+            ["Prepara una nueva copia para conservar los resultados o scripts existentes: " + ", ".join(conflicts)],
+        )
+        return emit_run_payload(payload, args, selected_ids=selected_ids)
+
     notes = []
     runs = []
     warning_findings = []
@@ -741,7 +753,17 @@ def cmd_run_auto(args):
         ),
     )
     outputs = [workspace_root / "logs", workspace_root / "parsed", workspace_root / "scripts"]
-    return emit_run_payload(payload, args, manifest_inputs=[workspace_root / "fxcor_cases.json"], manifest_outputs=outputs, manifest_notes=notes, selected_ids=selected_ids)
+    outputs.extend(
+        Path(path)
+        for item in runs
+        for key in ("script_path", "stdout_log", "txtonly_path", "parsed_csv")
+        if (path := item["outcome"].get(key)) and Path(path).is_file()
+    )
+    config_path = workspace_candidate if workspace_candidate.is_file() else workspace_root / "fxcor_cases.json"
+    return emit_run_payload(
+        payload, args, manifest_inputs=[config_path], manifest_outputs=outputs,
+        manifest_notes=notes, selected_ids=selected_ids,
+    )
 
 
 def load_csv_rows(path: Path) -> list[dict]:

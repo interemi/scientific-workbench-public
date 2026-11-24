@@ -106,6 +106,9 @@ def contract_changes(old_contract: dict, new_contract: dict, capability: str) ->
     if ("subcommands" in old_contract) != ("subcommands" in new_contract):
         return [*changes, f"{capability}: I/O subcommand layout changed"]
     if "subcommands" in old_contract:
+        if ("default_subcommand" in old_contract
+                and old_contract["default_subcommand"] != new_contract.get("default_subcommand")):
+            changes.append(f"{capability}: default I/O subcommand changed")
         updated = new_contract["subcommands"]
         for mode, old in old_contract["subcommands"].items():
             if mode not in updated:

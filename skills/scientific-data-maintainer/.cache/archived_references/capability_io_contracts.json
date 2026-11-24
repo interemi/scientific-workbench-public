@@ -75,6 +75,27 @@
     },
     "stilts_workbench": {
       "revision": 1,
+      "default_subcommand": "preflight",
+      "backend": "Local executable and Java archive discovery.",
+      "inputs": [
+        {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+        {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+        {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+        {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+        {"argument": "--dry-run", "detail": "Retained routing option. Preflight always discovers the backend without launching a catalog job."},
+        {"argument": "--timeout-sec", "unit": "seconds", "detail": "Retained routing option for execution timeouts."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."}
+      ],
+      "warnings": "Review detected backend availability before running a catalog job.",
+      "failure": "An unavailable backend can exit 2 with native alternatives.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"found": "boolean", "blocking_findings": "array", "native_alternative": "object"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      },
       "subcommands": {
         "preflight": {
           "revision": 1,
@@ -233,6 +254,23 @@
     },
     "apt_workbench": {
       "revision": 1,
+      "default_subcommand": "preflight",
+      "backend": "Local discovery of the optional APT executable and saved preferences.",
+      "inputs": [
+        {"argument": "--apt-command", "detail": "Explicit APT batch executable or wrapper."},
+        {"argument": "--apt-preferences", "format": "APT.pref", "detail": "Saved APT preferences for the photometry settings."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."}
+      ],
+      "warnings": "Missing preferences can yield WARNING even when an APT command is found.",
+      "failure": "An unavailable command or unusable summary destination can exit 2.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"apt": "object", "preferences": "object", "blocking_findings": "array", "warning_findings": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      },
       "subcommands": {
         "preflight": {
           "revision": 1,
@@ -816,6 +854,65 @@
         "rejected": {"input_validation_issues": "array", "measurement_summary": "object"}
       }
     },
+    "fxcor_iraf_workbench.prepare-session": {
+      "revision": 1,
+      "backend": "Local macOS Python prepares selected coursework files and can use local IRAF mkiraf to initialize login.cl.",
+      "inputs": [
+        {"argument": "practice_root", "format": "Directory", "detail": "Coursework root with reviewed FITS files in fits_p1. Cases are selected by known object and template filenames."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Separate ASCII-safe workspace containing copied FITS, fxcor_cases.json and a manual override CSV."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Detected practice assets, configured cases and readiness findings."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Original FITS records, derived copies and generated configuration."}
+      ],
+      "warnings": "Partial inputs or missing login setup can yield WARNING. Case preparation supplies configuration for later correlation.",
+      "failure": "An invalid path, lack of a recognized FITS pair or an existing managed workspace file can exit 2 before creating workspace products.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"practice_assets": "object", "case_count": "integer", "cases": "array", "blocking_findings": "array", "warning_findings": "array", "path_risk": "object"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "fxcor_iraf_workbench.run-auto": {
+      "revision": 1,
+      "backend": "Local IRAF cl with the NOAO FXCOR task on macOS, using the prepared copy and its local IRAF settings.",
+      "inputs": [
+        {"argument": "workspace", "format": "Directory or JSON", "detail": "Prepared workspace containing fxcor_cases.json, or its configuration file. Selected cases write inside the derived workspace."},
+        {"argument": "--case-id", "detail": "Optional repeatable selection of configured case IDs. Omit to use all configured cases."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Per-case status and diagnostics. Parsed rows include shifts in pixels, velocities and errors in km/s, and dispersion in km/s per pixel."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Configuration and retained CL scripts, logs, txtonly outputs and parsed CSV records."}
+      ],
+      "warnings": "A nonzero native return code with usable rows may yield WARNING. Orders, CCF peak choices and physical interpretation still require review.",
+      "failure": "Missing IRAF, invalid cases, earlier case products or unusable txtonly output can return exit 2 and a controlled diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"case_runs": "array", "blocking_findings": "array", "warning_findings": "array", "path_risk": "object"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "teareduce_router": {
+      "revision": 1,
+      "backend": "Local Python classification using text and filename hints. Routing is advisory and starts no notebook or scientific backend.",
+      "inputs": [
+        {"argument": "--intent", "detail": "Optional task description used to identify native or TEAREDUCE-specific signals."},
+        {"argument": "inputs", "format": "Path hints", "detail": "Optional filenames or paths. The router inspects route cues in the names without opening their contents."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Recommended backend, dimensionless heuristic confidence, detected signals, and advisory next steps."}
+      ],
+      "warnings": "Low confidence, mixed signals or an external TEAREDUCE route can yield WARNING. A recommendation carries no execution or package-availability evidence.",
+      "failure": "An invalid summary target or overlap with a supplied path can exit 2 and emit a diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"recommended_backend": "string", "route_status": "string", "confidence": "number", "inputs": "array", "signals": "object", "warning_findings": "array", "suggested_entrypoint": "string", "supporting_scripts": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
     "legacy_spectroscopy_envcheck": {
       "revision": 1,
       "backend": "Local macOS environment and file discovery. Checks for IRAF commands, iSTARMOD files, FITS inputs and calibration without running those tools.",
@@ -1108,6 +1205,30 @@
         "complete": {"run": "object"},
         "rejected_container": "root",
         "rejected": {"errors": "array", "results": "object"}
+      }
+    },
+    "keynote_export": {
+      "revision": 1,
+      "backend": "Local Keynote and AppleScript on macOS. Export opens a copied deck and closes it without saving.",
+      "inputs": [
+        {"argument": "presentation_path", "format": "KEY, PPTX or PPTM", "detail": "Readable presentation copy. A Keynote input can be a file or a package directory."},
+        {"argument": "--preflight-only", "detail": "Check native backend availability without starting export."},
+        {"argument": "--require-confirmation", "detail": "Require an externally recorded confirmation before export."},
+        {"argument": "--confirmation-id", "detail": "Opaque identifier of the external confirmation."}
+      ],
+      "outputs": [
+        {"argument": "pdf_path", "format": "PDF", "detail": "Fresh destination outside the copied input. Preflight creates no PDF."},
+        {"argument": "--log-txt", "format": "Text", "detail": "Native preflight or export log."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Availability, paths, confirmation and result or rejection details."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Copied deck and native export products, with confirmation provenance when supplied."}
+      ],
+      "warnings": "Review the rendered PDF for fidelity. A passing preflight establishes local prerequisites.",
+      "failure": "Unavailable dependencies, required confirmation, invalid paths or a failed export can return BLOCKED_CONTROLADO. Preflight may report that status with exit 0.",
+      "summary": {
+        "version": "2.0",
+        "complete": {"input": "string", "output": "string", "capabilities": "object", "confirmation": "object", "status": "string"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
       }
     },
     "presentation_workbench.inspect": {

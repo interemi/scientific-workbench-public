@@ -12,7 +12,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2] / "scientific-data-astro"
 SCRIPT = ROOT / "scripts" / "fxcor_iraf_workbench.py"
 SOURCE_FITS = ROOT / "examples" / "science" / "legacy_spectroscopy_mini" / "mini_multispec.fits"
 REQUIRED_FITS = [
@@ -107,14 +107,15 @@ def run_auto(workspace: Path, *, path: Path, summary: Path | None = None, manife
     return result, payload
 
 
-def clear_case_artifacts(workspace: Path, case_id: str) -> None:
-    for path in [
-        workspace / "logs" / f"{case_id}.txt",
-        workspace / "logs" / f"{case_id}.cl_stdout.log",
-        workspace / "parsed" / f"{case_id}_auto.csv",
-        workspace / "scripts" / f"{case_id}.cl",
-    ]:
-        path.unlink(missing_ok=True)
+def prepare_rejection(practice: Path, workspace: Path, summary: Path) -> dict:
+    process = subprocess.run(
+        [sys.executable, str(SCRIPT), "prepare-session", str(practice), "--output-dir", str(workspace),
+         "--summary-json", str(summary)],
+        cwd=ROOT, text=True, capture_output=True, check=False, timeout=30,
+    )
+    payload = json.loads(summary.read_text(encoding="utf-8"))
+    require(process.returncode == 2 and payload["app_status"] == "BLOCKED_CONTROLADO", payload)
+    return payload
 
 
 def main() -> int:
@@ -134,10 +135,25 @@ def main() -> int:
         fake_empty.mkdir()
 
         practice = base / "practice"
-        workspace = base / "workspace"
+        template_workspace = base / "workspace_template"
         make_practice(practice)
-        prepare_workspace(practice, workspace, base / "prepare.json")
+        prepare_workspace(practice, template_workspace, base / "prepare.json")
+        original_workspace = {path: path.read_bytes() for path in template_workspace.rglob("*") if path.is_file()}
+        prepare_rejection(practice, template_workspace, base / "prepare-existing.json")
+        require(all(path.read_bytes() == data for path, data in original_workspace.items()), "existing preparation changed")
 
+        empty_practice = base / "empty_practice"
+        empty_fits = empty_practice / "fits_p1"
+        empty_fits.mkdir(parents=True)
+        refused = base / "refused_workspace"
+        prepare_rejection(empty_practice, refused, base / "prepare-empty.json")
+        require(not refused.exists(), "empty FITS directory created a workspace")
+        shutil.copy2(SOURCE_FITS, empty_fits / "unmatched.fits")
+        prepare_rejection(empty_practice, refused, base / "prepare-unmatched.json")
+        require(not refused.exists(), "unrecognized FITS names created a workspace")
+
+        workspace = base / "workspace"
+        shutil.copytree(template_workspace, workspace)
         result, payload = run_auto(workspace, path=fake_ok, summary=base / "ok.json", manifest=base / "ok_manifest.json", case_ids=["pwand_vsini36"])
         require(result.returncode == 0, result.stderr or result.stdout or repr(payload))
         require(payload["status"] == "ok", payload)
@@ -145,12 +161,20 @@ def main() -> int:
         require((workspace / "parsed" / "pwand_vsini36_auto.csv").exists(), "parsed CSV missing")
         require((workspace / ".iraf" / "uparm" / "rvfxcor.par").exists(), "IRAF fxcor parameter seed missing")
 
-        result, payload = run_auto(workspace, path=fake_warn, summary=base / "warn.json", case_ids=["pwand_vsini36"])
+        previous = {path: path.read_bytes() for path in workspace.rglob("*") if path.is_file()}
+        result, payload = run_auto(workspace, path=fake_ok, summary=base / "already-run.json", case_ids=["pwand_vsini36"])
+        require(result.returncode == 2 and payload["app_status"] == "BLOCKED_CONTROLADO", payload)
+        require({path: path.read_bytes() for path in workspace.rglob("*") if path.is_file()} == previous,
+                "rejected retry changed prior case evidence")
+
+        warn_workspace = base / "workspace_warn"
+        shutil.copytree(template_workspace, warn_workspace)
+        result, payload = run_auto(warn_workspace, path=fake_warn, summary=base / "warn.json", case_ids=["pwand_vsini36"])
         require(result.returncode == 0, result.stderr or result.stdout or repr(payload))
         require(payload["status"] == "warning", payload)
         require(payload["qa"]["metrics"]["warning_case_count"] == 1, payload["qa"])
 
-        result, payload = run_auto(workspace, path=fake_empty, summary=base / "missing_cl.json", case_ids=["pwand_vsini36"])
+        result, payload = run_auto(template_workspace, path=fake_empty, summary=base / "missing_cl.json", case_ids=["pwand_vsini36"])
         require(result.returncode == 2, result.stderr)
         require(payload["status"] == "blocked", payload)
         require("Traceback" not in result.stderr, result.stderr)
@@ -162,14 +186,14 @@ def main() -> int:
         require("does_not_exist" in payload["notes"][0], payload["notes"])
 
         no_txt_workspace = base / "workspace_no_txt"
-        shutil.copytree(workspace, no_txt_workspace)
+        shutil.copytree(template_workspace, no_txt_workspace)
         result, payload = run_auto(no_txt_workspace, path=fake_no_txt, summary=base / "no_txt.json", case_ids=["pwand_vsini36"])
         require(result.returncode == 2, result.stderr)
         require(payload["status"] == "blocked", payload)
         require(any("txtonly" in item for item in payload["notes"]), payload["notes"])
 
         empty_txt_workspace = base / "workspace_empty_txt"
-        shutil.copytree(workspace, empty_txt_workspace)
+        shutil.copytree(template_workspace, empty_txt_workspace)
         result, payload = run_auto(empty_txt_workspace, path=fake_empty_txt, summary=base / "empty_txt.json", case_ids=["pwand_vsini36"])
         require(result.returncode == 2, result.stderr)
         require(payload["status"] == "blocked", payload)
@@ -177,7 +201,7 @@ def main() -> int:
         require(any("filas fxcor utilizables" in item for item in payload["notes"]), payload["notes"])
 
         native_error_workspace = base / "workspace_native_error"
-        shutil.copytree(workspace, native_error_workspace)
+        shutil.copytree(template_workspace, native_error_workspace)
         result, payload = run_auto(native_error_workspace, path=fake_native_error, summary=base / "native_error.json", case_ids=["pwand_vsini36"])
         require(result.returncode == 2, result.stderr)
         require(payload["status"] == "blocked", payload)
@@ -187,8 +211,7 @@ def main() -> int:
         bad_parent = base / "summary_parent_is_file"
         bad_parent.write_text("not a directory\n", encoding="utf-8")
         bad_summary_workspace = base / "workspace_bad_summary"
-        shutil.copytree(workspace, bad_summary_workspace)
-        clear_case_artifacts(bad_summary_workspace, "pwand_vsini36")
+        shutil.copytree(template_workspace, bad_summary_workspace)
         result, payload = run_auto(bad_summary_workspace, path=fake_ok, summary=bad_parent / "summary.json", case_ids=["pwand_vsini36"])
         require(result.returncode == 2, result.stderr)
         require(payload["status"] == "blocked", payload)
@@ -196,7 +219,7 @@ def main() -> int:
         require(not (bad_summary_workspace / "logs" / "pwand_vsini36.txt").exists(), "invalid summary should block before run")
 
         corrupt_workspace = base / "workspace_corrupt"
-        shutil.copytree(workspace, corrupt_workspace)
+        shutil.copytree(template_workspace, corrupt_workspace)
         (corrupt_workspace / "fxcor_cases.json").write_text("{ broken json", encoding="utf-8")
         result, payload = run_auto(corrupt_workspace, path=fake_ok, summary=base / "corrupt.json", case_ids=["pwand_vsini36"])
         require(result.returncode == 2, result.stderr)

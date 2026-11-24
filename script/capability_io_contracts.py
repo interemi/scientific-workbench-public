@@ -42,9 +42,14 @@ def validate_parser_references(capability: str, contract: dict, parser: dict) ->
     subcommands = parser["subcommands"]
     if "subcommands" in contract:
         parsers = subcommands.get("parsers", {})
-        if arguments or not subcommands.get("required") or set(parsers) != set(contract["subcommands"]):
+        modes = contract["subcommands"]
+        if arguments or not subcommands.get("required") or set(parsers) != set(modes):
             raise ValueError(f"{capability}: I/O subcommands differ from the required CLI subcommands")
-        for name, mode in contract["subcommands"].items():
+        default = modes.get(contract.get("default_subcommand"))
+        matched_fields = ("backend", "inputs", "outputs", "warnings", "failure", "summary")
+        if default is None or any(contract.get(field) != default[field] for field in matched_fields):
+            raise ValueError(f"{capability}: top-level I/O contract must match its default subcommand")
+        for name, mode in modes.items():
             validate_parser_references(f"{capability}.{name}", mode, parsers[name])
         return
     if not arguments and subcommands.get("required") and len(subcommands["parsers"]) == 1:

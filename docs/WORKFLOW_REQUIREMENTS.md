@@ -49,6 +49,10 @@ subcommands. A value under `default_relative_to_checkout` resolves from the
 repository root. The portable validation workflow retains the full export as
 `cli-contracts.json` with its diagnostic evidence.
 
+For STILTS and APT the I/O contract lists the arguments and results for each
+subcommand. Its top-level fields mirror the guided preflight so clients that
+read flat contracts can still show the default route.
+
 Retain an export from before a CLI change and compare it with the export from
 the proposed revision. Use the same command selection in both exports.
 

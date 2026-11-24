@@ -25,6 +25,13 @@ struct CapabilityIOContract: Decodable, Hashable, Sendable {
   let warnings: String
   let failure: String
   let summary: Summary
+  let defaultSubcommand: String?
+  let subcommands: [String: CapabilityIOContract]?
+
+  fileprivate var hasValidArguments: Bool {
+    let names = (inputs + outputs).map(\.argument)
+    return revision > 0 && Set(names).count == names.count
+  }
 }
 
 struct CapabilityIOContractCatalog: Decodable {
@@ -53,8 +60,18 @@ struct CapabilityIOContractCatalog: Decodable {
       throw CapabilityIOContractError.unsupportedSchema(catalog.schemaVersion)
     }
     for (id, contract) in catalog.capabilities {
-      let names = (contract.inputs + contract.outputs).map(\.argument)
-      guard knownIDs.contains(id), contract.revision > 0, Set(names).count == names.count else {
+      guard knownIDs.contains(id), contract.hasValidArguments else {
+        throw CapabilityIOContractError.invalidEntry(id)
+      }
+      if let commands = contract.subcommands {
+        guard let defaultName = contract.defaultSubcommand,
+              commands[defaultName] != nil,
+              commands.allSatisfy({ name, mode in
+                !name.isEmpty && mode.hasValidArguments && mode.subcommands == nil && mode.defaultSubcommand == nil
+              }) else {
+          throw CapabilityIOContractError.invalidEntry(id)
+        }
+      } else if contract.defaultSubcommand != nil {
         throw CapabilityIOContractError.invalidEntry(id)
       }
     }
