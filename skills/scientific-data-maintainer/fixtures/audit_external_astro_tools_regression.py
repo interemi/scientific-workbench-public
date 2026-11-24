@@ -14,7 +14,7 @@ from pathlib import Path
 from _internal.datanalysis_bootstrap import ensure_datanalysis_runtime
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2] / "scientific-data-analysis"
 SCRIPTS = ROOT / "scripts"
 
 

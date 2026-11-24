@@ -13,7 +13,7 @@ import numpy as np
 from astropy.io import fits
 from PIL import Image
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parents[2] / "scientific-data-analysis" / "scripts"
 TOOL = SCRIPT_DIR / "fits_rgb_batch.py"
 VISUAL_EXPORT_TOOL = SCRIPT_DIR / "rgb_visual_fits_export.py"
 
@@ -61,7 +61,6 @@ def run_tool(input_root: Path, output_dir: Path, summary_json: Path, extra_args:
         str(input_root),
         "--output-dir",
         str(output_dir),
-        "--clean-derived",
         "--summary-json",
         str(summary_json),
     ]
@@ -81,7 +80,6 @@ def run_tool_raw(input_root: Path, output_dir: Path, summary_json: Path, extra_a
         str(input_root),
         "--output-dir",
         str(output_dir),
-        "--clean-derived",
         "--summary-json",
         str(summary_json),
     ]
@@ -131,6 +129,11 @@ def check_clean_wcs_pass() -> None:
         run_summary = json.loads((output_dir / "run_summary.json").read_text(encoding="utf-8"))
         assert run_summary["command"]
         assert run_summary["parameters"]["alignment_mode"] == "auto"
+        unrelated = output_dir / "review-note.txt"
+        unrelated.write_text("Retain this note.\n", encoding="ascii")
+        repeated = run_tool(input_root, output_dir, tmp / "summary-repeated.json", ["--clean-derived"])
+        assert repeated["results"]["counts"]["groups_written"] == 1
+        assert unrelated.read_text(encoding="ascii") == "Retain this note.\n"
 
 
 def check_halpha_blend_is_labeled() -> None:
@@ -234,11 +237,15 @@ def check_output_inside_input_blocks_cleanly() -> None:
         output_dir = input_root / "derived_inside_input"
 
         proc = run_tool_raw(input_root, output_dir, summary)
-        assert proc.returncode != 0, proc.stdout
-        payload = json.loads(summary.read_text(encoding="utf-8"))
-        assert payload["status"] == "blocked", payload
-        assert "outside input-root" in " ".join(payload["qa"]["findings"])
-        assert not (output_dir / "rgb_png").exists()
+        assert proc.returncode == 2, proc.stdout
+        payload = json.loads(proc.stdout)
+        assert payload["app_status"] == "BLOCKED_CONTROLADO", payload
+        assert any(
+            collision["flag"] == "--output-dir" and collision["input"] == "--input-root"
+            for collision in payload["results"]["path_collisions"]
+        ), payload
+        assert not summary.exists()
+        assert not output_dir.exists()
 
 
 def write_rgb_png(path: Path, red_offset: int = 0) -> None:

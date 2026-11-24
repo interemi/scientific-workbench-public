@@ -115,7 +115,7 @@ def brightest_positions(np, data, n, margin=20):
     flat_indices = flat_finite[np.argpartition(intensities, -candidate_count)[-candidate_count:]]
     coords = []
     for flat_index in flat_indices:
-        y, x = np.unravel_index(flat_index, safe.shape)
+        y, x = np.unravel_index(flat_index, work.shape)
         coords.append((work[y, x], float(x), float(y)))
     coords.sort(key=lambda item: item[2], reverse=True)
     coords.sort(key=lambda item: item[0], reverse=True)

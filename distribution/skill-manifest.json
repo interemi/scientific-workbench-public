@@ -4827,7 +4827,7 @@
     "scientific-data-astro/fixtures/aperture_photometry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "49c583ea39fd0ac6419c03e71af7b2133da528fdb8feaf30e59388e884545706",
+      "sha256": "e7a0e26298bbc91622157dccafa9b5e53deba6447ba6439874269522e798d75f",
       "size": 17748
     },
     "scientific-data-astro/fixtures/app_run_bundle.py": {
@@ -5933,6 +5933,12 @@
       "kind": "file",
       "sha256": "8f641f8984bfc8d59d141522a3b882b4ad3112a3fe814ffd6323572ae84dcbea",
       "size": 131
+    },
+    "scientific-data-documents/references/coursework-figure-equivalents.md": {
+      "executable": false,
+      "kind": "file",
+      "sha256": "9f545ca6a91a267898a6c0cd28c67e6913e1d22faf06c3153058949aff0fbf25",
+      "size": 975
     },
     "scientific-data-documents/references/formats-and-handoffs.md": {
       "executable": false,
@@ -7199,8 +7205,8 @@
     "scientific-data-maintainer/.cache/archived_references/capability_io_contracts.json": {
       "executable": false,
       "kind": "file",
-      "sha256": "78460e7b7c2fcca035b670341b82bfed029efee95e99c852f578fae01222dfc6",
-      "size": 80037
+      "sha256": "b8b7dd2bfea87a3387b7328d2c0ac60d7cb504db8d219ecb94cc1e3800ac9f27",
+      "size": 82054
     },
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
@@ -7523,74 +7529,74 @@
     "scientific-data-maintainer/fixtures/audit_coursework_handoff_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "529351bf50ed174bc604912958152f96dce8c90ddcfe97bccf52b0dbb6c80901",
-      "size": 8066
+      "sha256": "8bd50c8f1db96f4db732a6fac43af142d5fcfaaf2cf628742aed2ea122236023",
+      "size": 8092
     },
     "scientific-data-maintainer/fixtures/audit_coursework_notebook_fidelity_regression.py": {
       "executable": true,
       "kind": "file",
-      "sha256": "ac45956c1a51788e11060cc5d2aeb6dcd49bc65a35bd7421aa682da15b776954",
-      "size": 7723
+      "sha256": "862b54e122e898d65fedad5e4f595095dc9e89862c6d91215b2f538c67693aff",
+      "size": 7945
     },
     "scientific-data-maintainer/fixtures/audit_document_reporting_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "42edd237946faf43bb5f2264458ab73bfb73b10e69f59b52c8e29c88a690c344",
-      "size": 6437
+      "sha256": "4f9721bcd50fb2f1ac10db72324838c8ced25ed2cae10fda31a762b81df95137",
+      "size": 6561
     },
     "scientific-data-maintainer/fixtures/audit_external_astro_tools_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f4c6eca3647d6de77059bf7bea76d5f3336d9ec5b008283e824d08f6042641b5",
-      "size": 12661
+      "sha256": "d7c362cbbb228bf344ea0611ef8b1ea7dda05ca3506843fa6f18976a74b1550e",
+      "size": 12687
     },
     "scientific-data-maintainer/fixtures/audit_fits_rgb_batch_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "acd03efe351e88aa3c59566159f477c754598b599670560aea34c336a3907145",
-      "size": 13676
+      "sha256": "0c5ec8a8e28a8cccbffeedb63dde5ece6cbfd84bc933f03ca423c28f3cbdceb1",
+      "size": 14171
     },
     "scientific-data-maintainer/fixtures/audit_physical_qa_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "9c3688b265dd79e95db9657f3ac586f5a2f32742e2ec66f95d4d0cedc42eeffc",
-      "size": 4692
+      "sha256": "31e35a53148f6eaaeb028c2f26cb80aa972fbbd359d967a36e9fc012b388f713",
+      "size": 4718
     },
     "scientific-data-maintainer/fixtures/audit_practice4_visual_handoff_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "5491ff23af7ab78fbd105931ec7c85cae0bcfebaec02488e28b8e5ebef560cec",
-      "size": 7232
+      "sha256": "6238a27f1ddea6f3926e243b1e525da9855dd2b259750228efeaac5398c41a9b",
+      "size": 7773
     },
     "scientific-data-maintainer/fixtures/audit_step1_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "d76ca986684fbbe3fce05d7349b5ba52076cc7826133ffbc60c1b3b60885aba2",
-      "size": 8332
+      "sha256": "f76ae731cb728a7122d49801329ebad0dc422b4a2a756ebc6c196a8318369a43",
+      "size": 8358
     },
     "scientific-data-maintainer/fixtures/audit_step2_contract_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "599a664fe9c5a65e81f883aaee5a6db959855ab6bbf6ca85aad34f39471b7e5e",
-      "size": 6544
+      "sha256": "afdf6225a25025e07e1f71faf89a18c0271f8ced91fd715dfb6ee4ec3ec1b3d4",
+      "size": 7182
     },
     "scientific-data-maintainer/fixtures/audit_v1_2_release_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "a0ac1bc73ea25d87832f8c1e194e765b60a3829815852cb0b7e62fbacc18fe9a",
-      "size": 2391
+      "sha256": "f5b12d437f1695a7cbcdeb7f5935cf13e24be1b8e9fb0772517b5c94f82bf782",
+      "size": 2656
     },
     "scientific-data-maintainer/fixtures/audit_v1_3_release_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f26eea607f0a2d3994f11b554d035779a686797a2997fb6281ec610b71b06922",
-      "size": 7140
+      "sha256": "f19f29fa573c309a77500cd4af8d4f942a778ce535f1fae87e1c862e456fd36a",
+      "size": 7358
     },
     "scientific-data-maintainer/fixtures/audit_v1_4_companion_routing_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "371395a72f8c7a43bfd7abe2f3c97259bceb7ab54c37a92efb460ae424db40dc",
-      "size": 4920
+      "sha256": "c41e20679a377c2bcfdfb280c2cd97b201df9bf9fe36da5bf37153ac16809300",
+      "size": 5118
     },
     "scientific-data-maintainer/fixtures/audit_v1_5_release_regression.py": {
       "executable": false,
@@ -8387,8 +8393,8 @@
     "scientific-data-maintainer/fixtures/validate_skill_samples.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "4ea4c33b965f094ec9a71b4a7e1c560e643096354e659b9411ad11beea07d87f",
-      "size": 68809
+      "sha256": "2477feb0e872f807992e04db5e1d82a7d725bb8a98f582ccdd33534825badc34",
+      "size": 68854
     },
     "scientific-data-maintainer/public_surface_registry.yaml": {
       "executable": false,

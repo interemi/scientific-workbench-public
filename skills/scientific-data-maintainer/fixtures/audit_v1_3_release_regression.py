@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2] / "scientific-data-analysis"
 SCRIPTS = ROOT / "scripts"
 
 
@@ -171,15 +171,17 @@ def check_spectra_ascii_bundle(tmp: Path) -> None:
 
 
 def check_v1_3_docs(tmp: Path) -> None:
+    archive = ROOT.parent / "scientific-data-documents" / ".cache" / "archived_references"
+    maintainer = ROOT.parent / "scientific-data-maintainer" / ".cache" / "archived_references"
     expected = {
-        "README.txt": ["audit_v1_3_release_regression.py", "DuckDB reserved-alias safety"],
-        "RELEASE-v1.txt": ["v1.3 closes the full-capability audit follow-up"],
-        "references/architecture.md": ["audit_v1_3_release_regression.py"],
+        archive / "README.txt": ["audit_v1_3_release_regression.py", "DuckDB reserved-alias safety"],
+        archive / "RELEASE-v1.txt": ["v1.3 closes the full-capability audit follow-up"],
+        maintainer / "architecture.md": ["audit_v1_3_release_regression.py"],
     }
-    for relative, terms in expected.items():
-        text = (ROOT / relative).read_text(encoding="utf-8")
+    for path, terms in expected.items():
+        text = path.read_text(encoding="utf-8")
         missing = [term for term in terms if term not in text]
-        require(not missing, f"{relative} is missing v1.3 release terms: {missing}")
+        require(not missing, f"{path.name} is missing v1.3 release terms: {missing}")
 
 
 def main() -> None:

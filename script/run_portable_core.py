@@ -505,6 +505,7 @@ def check_maintainer_io_contracts(output, environment, include_full=False):
     audit = scripts / "skill_surface_audit.py"
     matrix = scripts / "capability_probe_matrix.py"
     smoke = scripts / "portable_smoke_test.py"
+    samples = scripts / "validate_skill_samples.py"
     targets = [maintainer / name for name in (
         "references/public-surface-snapshot.md", "README.txt", "RELEASE-v1.txt",
     )]
@@ -524,6 +525,9 @@ def check_maintainer_io_contracts(output, environment, include_full=False):
         "smoke-overlap": run_io_probe(evidence, environment, "smoke-overlap", "portable_smoke_test",
                                        [smoke, "--examples-dir", sources, "--output-dir", sources],
                                        blocked, stdout_only=True),
+        "samples-overlap": run_io_probe(evidence, environment, "samples-overlap", "validate_skill_samples",
+                                         [samples, sources, "--output-dir", sources],
+                                         blocked, stdout_only=True),
         "matrix-overlap": run_io_probe(evidence, environment, "matrix-overlap", "capability_probe_matrix",
                                         [matrix, "--registry", probe_registry, "--output-dir", evidence / "overlap"],
                                         blocked, stdout_target=probe_registry),

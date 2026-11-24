@@ -850,6 +850,28 @@
         "rejected": {"profile": "string", "feature_runs": "object", "public_surface_coverage": "object", "overall_status": "string"}
       }
     },
+    "validate_skill_samples": {
+      "revision": 1,
+      "backend": "Dedicated Full Python environment for maintainer regression checks. Optional format-specific checks depend on the input samples and locally available tools.",
+      "inputs": [
+        {"argument": "roots", "format": "Directories", "detail": "Explicit sample trees to inspect. Use copies for validation runs."},
+        {"argument": "--max-per-ext", "unit": "files per extension", "detail": "Maximum representative samples of each supported extension."},
+        {"argument": "--validation-profile", "detail": "Quick adds common regressions and portable Core smoke. Deep also runs broader checks selected by sample format."},
+        {"argument": "--include-system-iwork-samples", "detail": "Explicit opt-in to supplementing Numbers samples from the user's system Numbers directory."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "JSON and Markdown validation reports, with generated workflow products in feature_runs/."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Structured outcome, sample errors, failed features and metrics."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Validation roots, parameters, and completed report records."}
+      ],
+      "warnings": "Zero supported samples yields WARNING when the feature checks pass. Optional workflows are covered only when their checks ran.",
+      "failure": "Sample or feature failures exit 1 and retain reports. Missing or invalid roots can exit 1 before reports are written. Output paths overlapping a sample tree exit 2 with a diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"roots": "array", "validation_profile": "string", "overall_status": "string", "failed_features": "array", "sample_errors": "array", "metrics": "object"},
+        "rejected": {"roots": "array", "validation_profile": "string", "overall_status": "string"}
+      }
+    },
     "sync_public_surface_docs": {
       "revision": 1,
       "backend": "Local registry renderer and generated-section markers in the bundled skill documentation.",

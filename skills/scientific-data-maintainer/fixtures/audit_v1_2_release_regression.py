@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2] / "scientific-data-analysis"
 SCRIPTS = ROOT / "scripts"
 
 REGRESSION_SCRIPTS = [
@@ -41,18 +41,21 @@ def run_cmd(args: list[str], *, tmp: Path) -> subprocess.CompletedProcess:
 
 
 def check_version_docs() -> dict:
+    documents = ROOT.parent / "scientific-data-documents"
+    archive = documents / ".cache" / "archived_references"
     expected = {
-        "README.txt": ["coursework-notebook-fidelity.md", "coursework-figure-equivalents.md"],
-        "RELEASE-v1.txt": ["v1.2 closes the recent coursework and document-handoff maturation"],
-        "SKILL.md": ["coursework-notebook-fidelity.md", "coursework-figure-equivalents.md"],
+        archive / "README.txt": ["coursework-notebook-fidelity.md", "coursework-figure-equivalents.md"],
+        archive / "RELEASE-v1.txt": ["v1.2 closes the recent coursework and document-handoff maturation"],
+        ROOT / "SKILL.md": ["coursework-notebook-fidelity.md", "scripts/presentation_workbench.py"],
+        documents / "SKILL.md": ["name: scientific-data-documents", "owning root"],
     }
     results = {}
-    for relative, terms in expected.items():
-        text = (ROOT / relative).read_text(encoding="utf-8")
+    for path, terms in expected.items():
+        text = path.read_text(encoding="utf-8")
         missing = [term for term in terms if term not in text]
         if missing:
-            raise AssertionError(f"{relative} is missing v1.2 release terms: {missing}")
-        results[relative] = {"checked_terms": terms}
+            raise AssertionError(f"{path.name} is missing v1.2 release terms: {missing}")
+        results[str(path.relative_to(ROOT.parent))] = {"checked_terms": terms}
     return results
 
 
