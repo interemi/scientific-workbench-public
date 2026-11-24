@@ -126,6 +126,42 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func compileRequestsASummaryOnlyFromSupportingSkills() throws {
+    let root = try makeScenarioFixture(
+      name: "latex-compile-contract",
+      files: ["scripts/datanalysis_env.py": "# wrapper\n", "main.tex": "\\documentclass{article}\n"]
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+    let contract = CapabilityIOContract(
+      revision: 1, backend: "LaTeX", inputs: [],
+      outputs: [.init(argument: "--summary-json", format: "JSON", unit: nil, detail: "Compile outcome.")],
+      warnings: "", failure: "",
+      summary: .init(container: nil, rejectedContainer: nil, tool: nil, mode: nil,
+                     version: "1.8", complete: [:], rejected: [:])
+    )
+    let resultDirectory = root.appendingPathComponent("results")
+    let builder = CapabilityCommandBuilder(pythonExecutable: "/usr/bin/python3")
+    for metadata in [nil, contract] as [CapabilityIOContract?] {
+      let capability = CapabilityEntry(
+        id: "latex_workbench.compile", label: "latex_workbench.py compile", script: "scripts/latex_workbench.py",
+        visibleBlock: "documents + reporting", kind: "supporting_tool", supportLevel: "stable",
+        platform: "portable", requiresDatanalysis: false, preflightMode: "none", smokeTier: "full",
+        shortDescription: "Compile a report.", ioContract: metadata
+      )
+      let request = RunRequest(
+        capabilityID: capability.id, inputPaths: [root.appendingPathComponent("main.tex").path],
+        outputDirectory: resultDirectory.path, rawArguments: ""
+      )
+      let command = try builder.build(capability: capability, request: request, skillRoot: root.path)
+      #expect(command.arguments.contains("--manifest-json"))
+      #expect(command.arguments.contains("--summary-json") == (metadata != nil))
+      if metadata != nil {
+        #expect(command.arguments.suffix(2) == ["--summary-json", resultDirectory.appendingPathComponent("summary.json").path])
+      }
+    }
+  }
+
+  @Test
   func commandBuilderCreatesProfileTableCommand() throws {
     let entry = CapabilityEntry(
       id: "profile_table",

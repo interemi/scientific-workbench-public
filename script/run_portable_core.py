@@ -477,6 +477,69 @@ def check_full_workflow_io_contracts(evidence, sources, scripts, environment):
     return records
 
 
+def check_latex_compile_io_contract(output, environment):
+    evidence = output / "latex-compile-io"
+    sources = evidence / "sources"
+    good = sources / "valid" / "main.tex"
+    broken = sources / "invalid" / "main.tex"
+    for source in (good, broken):
+        source.parent.mkdir(parents=True)
+    good.write_text(r"\documentclass{article}\begin{document}Synthetic workbench result\end{document}" + "\n",
+                    encoding="ascii")
+    broken.write_text(r"\documentclass{article}\begin{document}\undefinedcommand\end{document}" + "\n",
+                      encoding="ascii")
+    originals = {path: path.read_bytes() for path in (good, broken)}
+    script = ROOT / "skills/scientific-data-documents/scripts/latex_workbench.py"
+    capability = "latex_workbench.compile"
+    build = evidence / "build"
+    failed_build = evidence / "failed-build"
+    manifest_path = evidence / "compile-manifest.json"
+    failure_manifest_path = evidence / "failure-manifest.json"
+    records = {
+        "compile": run_io_probe(evidence, environment, "compile", capability,
+                                [script, "compile", good, "--output-dir", build, "--manifest-json", manifest_path],
+                                {0: {"PASS"}}),
+    }
+    pdf = build / "main.pdf"
+    expected_pdf = pdf.read_bytes()
+    if not expected_pdf.startswith(b"%PDF-"):
+        raise ValueError("LaTeX success did not produce a PDF")
+    stale = broken.with_suffix(".pdf")
+    stale.write_bytes(expected_pdf)
+    originals[stale] = expected_pdf
+    records["compile-failed"] = run_io_probe(
+        evidence, environment, "compile-failed", capability,
+        [script, "compile", broken, "--output-dir", failed_build, "--manifest-json", failure_manifest_path],
+        {1: {"FAIL"}},
+    )
+    records["compiler-unavailable"] = run_io_probe(
+        evidence, environment, "compiler-unavailable", capability,
+        [script, "compile", good, "--output-dir", evidence / "unavailable", "--latexmk-path", evidence / "missing-latexmk"],
+        {1: {"BLOCKED_CONTROLADO"}},
+    )
+    records["compile-existing"] = run_io_probe(
+        evidence, environment, "compile-existing", capability,
+        [script, "compile", good, "--output-dir", build], {2: {"BLOCKED_CONTROLADO"}}, stdout_only=True,
+    )
+    records["compile-source-collision"] = run_io_probe(
+        evidence, environment, "compile-source-collision", capability,
+        [script, "compile", good, "--output-dir", evidence / "collision"], {2: {"BLOCKED_CONTROLADO"}},
+        stdout_target=good,
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    failure = json.loads(failure_manifest_path.read_text(encoding="utf-8"))
+    output_hashes = {Path(item["path"]).name: item["sha256"] for item in manifest["outputs"]}
+    if (output_hashes.get("main.pdf") != sha256(expected_pdf).hexdigest()
+            or output_hashes.get("compile.json") != sha256((evidence / "compile.json").read_bytes()).hexdigest()):
+        raise ValueError("LaTeX manifest lost the PDF or summary hash")
+    if (failure["extra"]["compile_result"]["success"] or (failed_build / "main.pdf").exists()
+            or any(item["path"].endswith(".pdf") for item in failure["outputs"])):
+        raise ValueError("a failed LaTeX build published a PDF")
+    if pdf.read_bytes() != expected_pdf or any(path.read_bytes() != content for path, content in originals.items()):
+        raise ValueError("LaTeX compilation modified a protected source or existing output")
+    return records
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -525,6 +588,8 @@ def main(argv=None):
                 evidence["scientific_workflow_io_contracts"] = check_scientific_workflow_io_contracts(
                     output, environment, include_full=full_io,
                 )
+                if args.profile == "full":
+                    evidence["latex_compile_io_contract"] = check_latex_compile_io_contract(output, environment)
         summary = json.loads((output / "smoke-summary.json").read_text())
         evidence["passed_features"] = validate_summary(summary, args.profile)
         known_answer = json.loads((output / "known-answer/verification.json").read_text())

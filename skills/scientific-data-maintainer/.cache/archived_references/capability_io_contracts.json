@@ -787,6 +787,29 @@
         "rejected": {"results": "object", "qa": "object"}
       }
     },
+    "latex_workbench.compile": {
+      "revision": 1,
+      "backend": "Local latexmk or pdflatex. The command stages a project copy before compilation.",
+      "inputs": [
+        {"argument": "path", "format": "TEX file or LaTeX project directory", "detail": "Reviewed source project to compile from a separate copy."},
+        {"argument": "--latexmk-path", "format": "Executable path", "detail": "Optional latexmk executable. The default resolution can use pdflatex as fallback."},
+        {"argument": "--passes", "unit": "passes", "detail": "Requested number of passes when using the pdflatex fallback."},
+        {"argument": "--overwrite", "detail": "Allow replacing existing compilation outputs at the explicit destinations."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Destination outside the source project for a successfully compiled PDF."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Optional compile outcome, engine, pass count and successfully produced PDF reference."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Main source, retained outputs and compiler evidence."}
+      ],
+      "warnings": "A compiled PDF establishes a build result. Review its typesetting, references and scientific content separately.",
+      "failure": "Unsafe output paths exit 2 with a diagnostic on stdout. A compiler failure exits nonzero and preserves its evidence without publishing a PDF.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"main_tex": "string", "engine": "string", "attempted": "boolean", "compile_success": "boolean", "pass_count": "integer", "compiled_pdf": "string"},
+        "rejected_container": "root",
+        "rejected": {"results": "object", "qa": "object"}
+      }
+    },
     "inspect_fits": {
       "revision": 1,
       "backend": "Core with Astropy and NumPy. PNG quicklook uses Matplotlib. The limited NumPy fallback inspects the primary image.",

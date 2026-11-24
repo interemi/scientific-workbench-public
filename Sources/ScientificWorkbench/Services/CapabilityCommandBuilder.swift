@@ -258,11 +258,15 @@ struct CapabilityCommandBuilder {
         "--manifest-json", manifest,
       ]
     case "latex_workbench.compile":
-      return [
+      var compileArguments = [
         try firstInput(request),
         "--output-dir", runURL.appendingPathComponent("artifacts/latex_compile").path,
         "--manifest-json", manifest,
       ]
+      if capability.ioContract?.outputs.contains(where: { $0.argument == "--summary-json" }) == true {
+        compileArguments += ["--summary-json", summary]
+      }
+      return compileArguments
     case "notebook_branch_compare":
       return [
         try firstInput(request),

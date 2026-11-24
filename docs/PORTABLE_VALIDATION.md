@@ -112,10 +112,12 @@ expected block, and confirms intact originals. Synthetic-input hashes are
 compared as well. Unexpected failures remain failures.
 
 Positive notebook cases use copied data through `--stage-extra`. LaTeX
-compilation preserves its source and requires a PDF and manifest. It needs an
-external LaTeX engine in addition to Python dependencies; the smoke installs
-no applications. This does not establish support for every optional backend,
-OS-level isolation, or methodological correctness of all analyses.
+compilation preserves its source and records the PDF and structured summary in
+the manifest. The Full smoke checks a failed build with an older source PDF,
+an unavailable compiler and rejected output destinations. It needs a local TeX
+engine in addition to Python dependencies. This does not establish support for
+every optional backend, OS-level isolation, or methodological correctness of
+all analyses.
 
 The [first full validation](PUBLIC_FULL_VALIDATION_2026-09-15.en.md) used unpinned
 versions and found that PIMS 0.7 had no published wheel. The subsequent run added

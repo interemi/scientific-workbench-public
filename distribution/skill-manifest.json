@@ -5883,8 +5883,8 @@
     "scientific-data-documents/fixtures/latex_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "eeb1ca46b88f4648dd1a12f439669e7dbaf9bb314c991b03b448d5e3c83e806e",
-      "size": 52163
+      "sha256": "f0677f19a3541d4ee6f8dc533311d4509925d94af4c85616c8b319b263c6f809",
+      "size": 53919
     },
     "scientific-data-documents/fixtures/office_roundtrip.py": {
       "executable": false,
@@ -7199,8 +7199,8 @@
     "scientific-data-maintainer/.cache/archived_references/capability_io_contracts.json": {
       "executable": false,
       "kind": "file",
-      "sha256": "3099406310369fd60c461e851ec138d294f648448a179ed3b9a098e4561709f2",
-      "size": 73018
+      "sha256": "a440d699de8214b46ad5c4a8cea6d1d1f52ac6b298b0203f597b8f2d8a47c48c",
+      "size": 74839
     },
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,

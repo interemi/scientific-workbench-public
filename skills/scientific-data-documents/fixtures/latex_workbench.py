@@ -1151,11 +1151,18 @@ def preflight_compile(args) -> tuple[Path, Path, Path | None]:
     sources = project_source_paths(main_tex, args.path)
     if args.output_dir and path_inside_or_equal(args.output_dir, project_root):
         raise ControlledBlock("--output-dir must be outside the LaTeX source project.")
-    manifest_path = Path(args.manifest_json) if args.manifest_json else None
-    if manifest_path:
-        ensure_output_file_path(manifest_path, "--manifest-json")
-        ensure_outputs_do_not_overlap_sources([("--manifest-json", manifest_path)], sources)
+    if args.summary_json and path_inside_or_equal(args.summary_json, project_root):
+        raise ControlledBlock("--summary-json must be outside the LaTeX source project.")
+    sidecars = [("--summary-json", args.summary_json), ("--manifest-json", args.manifest_json)]
+    for label, destination in sidecars:
+        try:
+            ensure_output_file_path(destination, label)
+        except OSError as error:
+            raise ControlledBlock(str(error)) from error
+    ensure_outputs_do_not_overlap_sources(sidecars, sources)
     output_dir = Path(args.output_dir) if args.output_dir else None
+    if output_dir and output_dir.exists() and not output_dir.is_dir():
+        raise ControlledBlock("--output-dir must be a directory.")
     return main_tex, project_root, output_dir
 
 
@@ -1164,32 +1171,55 @@ def cmd_compile(args):
     configure_runtime("latex_workbench")
     output_dir = requested_output_dir or Path(tempfile.mkdtemp(prefix="latex-workbench-output-"))
     expected_pdf = output_dir / f"{main_tex.stem}.pdf"
-    if args.manifest_json and same_output_path(args.manifest_json, expected_pdf):
-        raise ControlledBlock("--manifest-json must not point to the compiled PDF output.")
-    if args.manifest_json and Path(args.manifest_json).exists() and not args.overwrite:
-        raise ControlledBlock(
-            f"Refusing to overwrite existing manifest without --overwrite: {public_path(args.manifest_json)}"
-        )
-    if args.output_dir and expected_pdf.exists() and not args.overwrite:
-        raise ControlledBlock(
-            f"Refusing to overwrite existing compiled PDF without --overwrite: {public_path(expected_pdf)}"
-        )
+    targets = [("compiled PDF", expected_pdf), ("summary", args.summary_json), ("manifest", args.manifest_json)]
+    ensure_distinct_outputs(targets)
+    if not args.overwrite:
+        for label, destination in targets:
+            if destination and Path(destination).exists():
+                raise ControlledBlock(f"Refusing to overwrite existing {label} without --overwrite: {public_path(destination)}")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     workdir = Path(tempfile.mkdtemp(prefix="latex-workbench-"))
     project_copy = workdir / project_root.name
     shutil.copytree(project_root, project_copy)
     copied_main = project_copy / main_tex.name
+    copied_pdf = copied_main.with_suffix(".pdf")
+    if copied_pdf.is_file():
+        copied_pdf.unlink()
 
-    compile_result = compile_latex_project(copied_main, passes=args.passes, latexmk_path=args.latexmk_path)
-    produced_pdf = copied_main.with_suffix(".pdf")
+    try:
+        compile_result = compile_latex_project(copied_main, passes=args.passes, latexmk_path=args.latexmk_path)
+    except OSError as error:
+        compile_result = {"attempted": False, "success": False, "engine": None,
+                          "passes": [], "stderr": f"Could not launch the compiler: {error}"}
+    success = compile_result["success"] and copied_pdf.is_file()
+    compile_result["success"] = success
     outputs = []
-    if produced_pdf.exists():
-        final_pdf = output_dir / produced_pdf.name
-        shutil.copy2(produced_pdf, final_pdf)
-        outputs.append(final_pdf)
-    else:
-        final_pdf = output_dir / f"{copied_main.stem}.pdf"
+    if success:
+        shutil.copy2(copied_pdf, expected_pdf)
+        outputs.append(expected_pdf)
+    if args.summary_json:
+        if success:
+            status, message = "ok", "LaTeX compilation finished."
+        elif compile_result["attempted"]:
+            status, message = "fail", "LaTeX compilation failed. Inspect the compiler output."
+        else:
+            status, message = "blocked", compile_result["stderr"]
+        payload = build_tool_payload(
+            "latex_workbench.compile",
+            status=status,
+            notes=[message, "The input project was copied to a separate working directory."],
+            artifacts={"summary_json": args.summary_json, "manifest_json": args.manifest_json,
+                       "compiled_pdf": expected_pdf if success else None},
+            results={"main_tex": public_path(main_tex), "engine": compile_result["engine"],
+                     "attempted": compile_result["attempted"], "compile_success": success,
+                     "pass_count": len(compile_result["passes"]),
+                     "compiled_pdf": public_path(expected_pdf) if success else None},
+            qa={"status": status, "findings": [] if success else [message], "metrics": {}},
+            inputs=[main_tex],
+        )
+        emit_payload(payload, args.summary_json)
+        outputs.append(Path(args.summary_json))
     if args.manifest_json:
         write_manifest(
             args.manifest_json,
@@ -1205,9 +1235,9 @@ def cmd_compile(args):
         print((last.get("stdout") or "")[-4000:])
         if last.get("returncode") != 0:
             print((last.get("stderr") or "")[-4000:])
-    if not compile_result["success"]:
+    if not success:
         raise SystemExit("LaTeX compilation failed; inspect the manifest or compiler output for details.")
-    print(f"Compiled PDF: {public_path(final_pdf)}")
+    print(f"Compiled PDF: {public_path(expected_pdf)}")
 
 
 def build_parser():
@@ -1240,10 +1270,11 @@ def build_parser():
     p_compile = subparsers.add_parser("compile", help="Compile a LaTeX project in a copied work directory.")
     p_compile.add_argument("path")
     p_compile.add_argument("--output-dir")
+    p_compile.add_argument("--summary-json", help="Optional structured compilation result.")
     p_compile.add_argument("--manifest-json")
     p_compile.add_argument("--latexmk-path", help="Optional latexmk executable; by default, detect latexmk and then pdflatex.")
     p_compile.add_argument("--passes", type=int, default=2)
-    p_compile.add_argument("--overwrite", action="store_true", help="Allow replacing an existing compiled PDF in --output-dir.")
+    p_compile.add_argument("--overwrite", action="store_true", help="Allow replacing existing compilation outputs.")
     p_compile.set_defaults(func=cmd_compile)
 
     return parser
