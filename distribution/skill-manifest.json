@@ -7199,8 +7199,8 @@
     "scientific-data-maintainer/.cache/archived_references/capability_io_contracts.json": {
       "executable": false,
       "kind": "file",
-      "sha256": "a440d699de8214b46ad5c4a8cea6d1d1f52ac6b298b0203f597b8f2d8a47c48c",
-      "size": 74839
+      "sha256": "78460e7b7c2fcca035b670341b82bfed029efee95e99c852f578fae01222dfc6",
+      "size": 80037
     },
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
@@ -8339,8 +8339,8 @@
     "scientific-data-maintainer/fixtures/capability_probe_matrix.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "ae2b9348c2318ae7b075e1757a26bf8245cb706c636c5464d4999628f1c04c6c",
-      "size": 29298
+      "sha256": "6c3d4ea768fb3d42f6854e5851b1153f014c48dd993e477703dfd4068919840d",
+      "size": 30130
     },
     "scientific-data-maintainer/fixtures/coursework_requirements_gate.py": {
       "executable": true,

@@ -13,6 +13,8 @@ from zipfile import ZipFile
 
 from check_distribution_snapshot import ROOT, verify
 from capability_io_contracts import validate_summary_contract
+from check_workflow_requirements import MOTHER_REGISTRY
+from resolve_skill_registry_evidence import resolve_registry_evidence
 from setup_environment import installation_environment, validate_profile_readiness
 
 
@@ -477,6 +479,80 @@ def check_full_workflow_io_contracts(evidence, sources, scripts, environment):
     return records
 
 
+def check_maintainer_io_contracts(output, environment, include_full=False):
+    import yaml
+
+    evidence = output / "maintainer-io"
+    sources = evidence / "sources"
+    sources.mkdir(parents=True)
+    family = MOTHER_REGISTRY.parents[1]
+    registry_evidence = resolve_registry_evidence(family, MOTHER_REGISTRY)
+    registry = family / registry_evidence["skill_registry_relative_path"]
+    registry_bytes = registry.read_bytes()
+    document = yaml.safe_load(registry_bytes)
+    selected, = [entry for entry in document["entries"] if entry["id"] == "physical_qa"]
+    probe_registry = sources / "probe-registry.yaml"
+    probe_registry.write_text(yaml.safe_dump({**document, "entries": [{**selected, "smoke_tier": "none"}]}),
+                              encoding="utf-8")
+    probe_bytes = probe_registry.read_bytes()
+    drift_registry = sources / "drift-registry.yaml"
+    document["entries"][0]["label"] += " (synthetic drift)"
+    drift_registry.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    maintainer = family / "scientific-data-maintainer"
+    scripts = maintainer / "scripts"
+    sync = scripts / "sync_public_surface_docs.py"
+    audit = scripts / "skill_surface_audit.py"
+    matrix = scripts / "capability_probe_matrix.py"
+    smoke = scripts / "portable_smoke_test.py"
+    targets = [maintainer / name for name in (
+        "references/public-surface-snapshot.md", "README.txt", "RELEASE-v1.txt",
+    )]
+    originals = {target: target.read_bytes() for target in targets}
+    passed = {0: {"PASS"}}
+    failed = {1: {"FAIL"}}
+    blocked = {2: {"BLOCKED_CONTROLADO"}}
+    records = {
+        "sync-check": run_io_probe(evidence, environment, "sync-check", "sync_public_surface_docs",
+                                   [sync, "--check"], passed),
+        "sync-drift": run_io_probe(evidence, environment, "sync-drift", "sync_public_surface_docs",
+                                   [sync, "--check", "--registry", drift_registry], failed),
+        "surface-audit": run_io_probe(evidence, environment, "surface-audit", "skill_surface_audit",
+                                       [audit, "--skip-hygiene"], passed),
+        "surface-missing": run_io_probe(evidence, environment, "surface-missing", "skill_surface_audit",
+                                         [audit, "--root", sources / "missing"], failed),
+        "smoke-overlap": run_io_probe(evidence, environment, "smoke-overlap", "portable_smoke_test",
+                                       [smoke, "--examples-dir", sources, "--output-dir", sources],
+                                       blocked, stdout_only=True),
+        "matrix-overlap": run_io_probe(evidence, environment, "matrix-overlap", "capability_probe_matrix",
+                                        [matrix, "--registry", probe_registry, "--output-dir", evidence / "overlap"],
+                                        blocked, stdout_target=probe_registry),
+    }
+    drift = json.loads((evidence / "sync-drift.json").read_text(encoding="utf-8"))["results"]
+    if len(drift["drifted_targets"]) != len(targets) or drift["touched_targets"]:
+        raise ValueError("registry check did not report all drifted documents without updating them")
+    if (registry.read_bytes() != registry_bytes or probe_registry.read_bytes() != probe_bytes
+            or any(target.read_bytes() != content for target, content in originals.items())):
+        raise ValueError("maintainer check modified a protected registry or document")
+    if include_full:
+        products = evidence / "matrix"
+        marker = products / "_fixtures" / "existing-evidence.txt"
+        marker.parent.mkdir(parents=True)
+        marker.write_text("Preserve earlier evidence.\n", encoding="ascii")
+        records["matrix"] = run_io_probe(
+            evidence, environment, "matrix", "capability_probe_matrix",
+            [matrix, "--registry", probe_registry, "--output-dir", products, "--timeout-sec", 30], passed,
+        )
+        result = json.loads((evidence / "matrix.json").read_text(encoding="utf-8"))["results"]
+        row, = result["rows"]
+        if (row["id"] != "physical_qa" or row["command_count"] != 1
+                or not (products / "capability_probe_matrix.csv").is_file()
+                or not (products / "capability_probe_runs.json").is_file()
+                or marker.read_text(encoding="ascii") != "Preserve earlier evidence.\n"):
+            raise ValueError("probe matrix lost its selected run or existing evidence")
+    return records
+
+
 def check_latex_compile_io_contract(output, environment):
     evidence = output / "latex-compile-io"
     sources = evidence / "sources"
@@ -588,9 +664,11 @@ def main(argv=None):
                 evidence["scientific_workflow_io_contracts"] = check_scientific_workflow_io_contracts(
                     output, environment, include_full=full_io,
                 )
+                evidence["maintainer_io_contracts"] = check_maintainer_io_contracts(output, environment, include_full=full_io)
                 if args.profile == "full":
                     evidence["latex_compile_io_contract"] = check_latex_compile_io_contract(output, environment)
         summary = json.loads((output / "smoke-summary.json").read_text())
+        validate_summary_contract(summary, capability="portable_smoke_test")
         evidence["passed_features"] = validate_summary(summary, args.profile)
         known_answer = json.loads((output / "known-answer/verification.json").read_text())
         if known_answer.get("status") != "PASS":

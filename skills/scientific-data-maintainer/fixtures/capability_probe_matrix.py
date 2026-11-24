@@ -25,6 +25,7 @@ from _internal.datanalysis_bootstrap import ensure_datanalysis_runtime
 from _internal.public_contract import build_tool_payload
 from _internal.provenance_utils import public_path, standard_qa_payload
 from _internal.runtime_common import configure_runtime
+from maintainer_path_safety import PathSafetyError, ensure_safe_paths, operand
 
 
 ENTRY_DIR = Path(__file__).resolve().parent
@@ -81,33 +82,35 @@ def emit_payload_safely(payload: dict, summary_json: str | None = None) -> None:
     print(rendered, end="")
 
 
-def build_failure_payload(args: argparse.Namespace, exc: Exception) -> dict:
+def build_failure_payload(args: argparse.Namespace, exc: Exception, *, blocked: bool = False) -> dict:
     output_dir = Path(args.output_dir).expanduser() if getattr(args, "output_dir", None) else None
     matrix_csv = output_dir / "capability_probe_matrix.csv" if output_dir else None
     run_details = output_dir / "capability_probe_runs.json" if output_dir else None
+    counts = {} if blocked else {"FAIL": 1}
     return build_tool_payload(
         "capability_probe_matrix",
-        status="fail",
+        status="blocked" if blocked else "fail",
         notes=[
             "Maintainer-only probe matrix for public capabilities with smoke_tier=none.",
             "The probe matrix failed before it could complete cleanly.",
         ],
-        artifacts={
+        artifacts={} if blocked else {
             "matrix_csv": matrix_csv,
             "run_details_json": run_details,
             "summary_json": getattr(args, "summary_json", None),
         },
         results={
             "entry_count": 0,
-            "counts_by_probe_status": {"FAIL": 1},
+            "counts_by_probe_status": counts,
             "rows": [],
             "error_type": exc.__class__.__name__,
             "error": str(exc),
         },
         qa=standard_qa_payload(
-            status="fail",
-            findings=[{"probe_status": "FAIL", "error_type": exc.__class__.__name__, "detail": str(exc)}],
-            metrics={"entry_count": 0, "FAIL": 1},
+            status="blocked" if blocked else "fail",
+            findings=[{"probe_status": "BLOCKED_CONTROLADO" if blocked else "FAIL",
+                       "error_type": exc.__class__.__name__, "detail": str(exc)}],
+            metrics={"entry_count": 0, **counts},
         ),
         include_environment=True,
     )
@@ -470,8 +473,6 @@ def run_matrix(args: argparse.Namespace) -> tuple[dict, int]:
     configure_runtime("capability_probe_matrix")
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    fixture_root = output_dir / "_fixtures"
-
     with tempfile.TemporaryDirectory(prefix="sda_capability_probe_") as tmp_raw:
         tmp_root = Path(tmp_raw)
         fixtures = make_fixtures(tmp_root / "fixtures")
@@ -512,9 +513,6 @@ def run_matrix(args: argparse.Namespace) -> tuple[dict, int]:
         rows = sorted(rows, key=lambda item: (SEVERITY_ORDER.get(item["probe_status"], 99), item["visible_block"], item["id"]))
         write_csv(output_dir / "capability_probe_matrix.csv", rows)
         (output_dir / "capability_probe_runs.json").write_text(json.dumps(run_details, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
-        if fixture_root.exists():
-            shutil.rmtree(fixture_root)
-
     counts = {}
     for row in rows:
         counts[row["probe_status"]] = counts.get(row["probe_status"], 0) + 1
@@ -550,6 +548,20 @@ def run_matrix(args: argparse.Namespace) -> tuple[dict, int]:
 
 def main() -> int:
     args = parse_args()
+    output_dir = Path(args.output_dir).expanduser()
+    try:
+        ensure_safe_paths(
+            inputs=[operand("--registry", args.registry), operand("bundled examples", ROOT / "examples", tree=True)],
+            outputs=[
+                operand("--output-dir", output_dir, tree=True),
+                operand("--summary-json", args.summary_json),
+                operand("matrix CSV", output_dir / "capability_probe_matrix.csv"),
+                operand("run details JSON", output_dir / "capability_probe_runs.json"),
+            ],
+        )
+    except PathSafetyError as exc:
+        emit_payload_safely(build_failure_payload(args, exc, blocked=True))
+        return 2
     try:
         ensure_datanalysis_runtime("capability_probe_matrix", argv=sys.argv[1:], strict=True)
     except SystemExit as exc:

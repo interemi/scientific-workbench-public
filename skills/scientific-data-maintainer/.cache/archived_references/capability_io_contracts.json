@@ -810,6 +810,82 @@
         "rejected": {"results": "object", "qa": "object"}
       }
     },
+    "capability_probe_matrix": {
+      "revision": 1,
+      "backend": "Local Full Python environment makes synthetic fixtures and probes registry entries whose smoke tier is none.",
+      "inputs": [
+        {"argument": "--registry", "format": "YAML", "detail": "Registry to select probe entries from."},
+        {"argument": "--include-maintainer-help", "detail": "Include maintainer entries. Specified maintainer commands get help-only probes."},
+        {"argument": "--timeout-sec", "unit": "seconds", "detail": "Time limit for each child probe."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Matrix CSV, child run details JSON and applicable probe artifacts."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Rows and counts by probe outcome."}
+      ],
+      "warnings": "Optional backends can be unavailable. A missing probe or guarded rejection has distinct evidence from a successful probe.",
+      "failure": "An invalid registry, runtime or failing probe can exit 1. Unsafe output paths exit 2 with a diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"entry_count": "integer", "counts_by_probe_status": "object", "rows": "array"},
+        "rejected": {"entry_count": "integer", "counts_by_probe_status": "object", "rows": "array"}
+      }
+    },
+    "portable_smoke_test": {
+      "revision": 1,
+      "backend": "Local Core or Full Python environment runs representative commands on packaged and generated samples.",
+      "inputs": [
+        {"argument": "--examples-dir", "format": "Directory", "detail": "Optional override for the packaged samples root."},
+        {"argument": "--profile", "detail": "Core or Full test selection. Full checks additional prerequisites and coverage."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Derived workflow products and registry coverage evidence."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Profile, per-feature runs and enforced coverage."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Examples source and generated artifact records."}
+      ],
+      "warnings": "A passing suite covers its declared profile and fixture set. Check the coverage report before making claims about optional workflows.",
+      "failure": "Failed features or missing required coverage exit 1. Overlap with the examples tree exits 2 with a diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"profile": "string", "feature_runs": "object", "public_surface_coverage": "object", "overall_status": "string"},
+        "rejected": {"profile": "string", "feature_runs": "object", "public_surface_coverage": "object", "overall_status": "string"}
+      }
+    },
+    "sync_public_surface_docs": {
+      "revision": 1,
+      "backend": "Local registry renderer and generated-section markers in the bundled skill documentation.",
+      "inputs": [
+        {"argument": "--registry", "format": "YAML", "detail": "Optional registry override."},
+        {"argument": "--check", "detail": "Compare generated sections without updating the documents."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Snapshot targets, drift and written targets. Without check, the generated sections can be rewritten."}
+      ],
+      "warnings": "Use check mode for an audit. Sync mode updates the named documentation sections.",
+      "failure": "Drift in check mode exits 1. A rejected path overlap exits 2 with a diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"check_mode": "boolean", "targets": "array", "drifted_targets": "array", "touched_targets": "array"},
+        "rejected": {"check_mode": "boolean", "targets": "array", "drifted_targets": "array", "touched_targets": "array"}
+      }
+    },
+    "skill_surface_audit": {
+      "revision": 1,
+      "backend": "Local audit of the selected mother skill registry, snapshot documents and script references.",
+      "inputs": [
+        {"argument": "--root", "format": "Directory", "detail": "Mother skill root to inspect."},
+        {"argument": "--skip-hygiene", "detail": "Omit the generated-residue inventory for runs that deliberately produce temporary files."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Registry statistics, snapshot drift, missing references and residue inventory."}
+      ],
+      "warnings": "Unregistered scripts are listed as inventory. Review their intended scope before treating their presence as a defect.",
+      "failure": "An invalid root or high-severity finding can exit 1. A rejected output path can exit 2 with a diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"root": "string", "registry": "object", "snapshot_drift": "array", "missing_doc_script_refs": "array", "hygiene_candidate_count": "integer"},
+        "rejected": {"root": "string", "snapshot_drift": "array", "missing_doc_script_refs": "array", "hygiene_candidate_count": "integer"}
+      }
+    },
     "inspect_fits": {
       "revision": 1,
       "backend": "Core with Astropy and NumPy. PNG quicklook uses Matplotlib. The limited NumPy fallback inspects the primary image.",
