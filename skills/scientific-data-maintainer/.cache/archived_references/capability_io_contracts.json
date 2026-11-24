@@ -559,6 +559,144 @@
         "rejected": {"errors": "array", "qa": "object"}
       }
     },
+    "fits_rgb_batch": {
+      "revision": 1,
+      "backend": "Local NumPy, Astropy, Matplotlib and SciPy. Optional reprojection or phase-correlation packages support additional alignment modes.",
+      "inputs": [
+        {"argument": "--input-root", "format": "Directory of FITS", "detail": "Source image tree with object and filter metadata for grouping."},
+        {"argument": "--max-files", "unit": "files", "detail": "Optional bound on the number of source files inspected."},
+        {"argument": "--run-id", "detail": "Recorded run identifier. Defaults to a UTC timestamp."},
+        {"argument": "--alignment-mode", "detail": "Select automatic, WCS, phase correlation or no alignment. Use none only when the input grids are already comparable."},
+        {"argument": "--stretch-percentiles", "unit": "percentiles", "detail": "Lower and upper display normalization percentiles."},
+        {"argument": "--qa-residual-threshold", "unit": "pixels", "detail": "Warn above this residual between channel peaks."},
+        {"argument": "--no-stacks", "detail": "Omit intermediate stacks while retaining visual previews and reports."},
+        {"argument": "--clean-derived", "detail": "Quarantine outputs owned by an earlier batch manifest in the same output directory."},
+        {"argument": "--force", "detail": "Allow writing into a non-empty output directory."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Visual PNGs, inventory and group CSVs, alignment QA, run summary, manifest and optional derived stacks."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Counts, RGB modes, parameters, package versions and group reports."}
+      ],
+      "warnings": "A warning can accompany partial or absent visual output. Check group results, calibration assumptions and alignment QA before sharing a preview.",
+      "failure": "An invalid input root, unavailable required packages or unsafe output path can exit 2 with a retained diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"counts": "object", "modes": "object", "reports": "object", "group_reports": "array", "package_versions": "object"},
+        "rejected": {"blocking_reason": "string", "input_root": "string", "output_dir": "string"}
+      }
+    },
+    "spectra_ascii_coursework_workbench": {
+      "revision": 1,
+      "backend": "Local ASCII profile and plotting tools. Jupyter or TeX dependencies apply only to the corresponding optional steps.",
+      "inputs": [
+        {"argument": "spectra", "format": "ASCII wavelength and flux columns", "detail": "Reduced spectra. Use consistent source wavelength and flux units across the supplied files."},
+        {"argument": "--notebook", "format": "IPYNB", "detail": "Optional inspected notebook for the coursework bundle."},
+        {"argument": "--execute-notebook", "detail": "Execute a copy of the explicitly selected, reviewed notebook."},
+        {"argument": "--kernel-name", "detail": "Kernel selected for optional notebook execution."},
+        {"argument": "--timeout-sec", "unit": "seconds", "detail": "Timeout passed to the notebook execution backend."},
+        {"argument": "--report-title", "detail": "Title used in the optional report project."},
+        {"argument": "--report-author", "detail": "Author label used in the optional report project."},
+        {"argument": "--skip-report-project", "detail": "Omit the TeX report project."},
+        {"argument": "--compile-report", "detail": "Attempt to compile the generated project using a locally available TeX toolchain."},
+        {"argument": "--stage-extra", "format": "File or directory", "detail": "Repeatable extra source staged for copied execution."},
+        {"argument": "--line-window", "unit": "same wavelength unit as input", "detail": "Repeatable label and lower and upper wavelength limits for a heuristic feature summary."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Spectral inventory, raw and normalized plots, reports and optional notebook or TeX artifacts."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Spectral profiles, product paths and optional step results."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input spectra, optional notebook and retained product records."}
+      ],
+      "warnings": "Window-level feature labels are heuristic. Review continuum and sampling before interpreting a spectrum.",
+      "failure": "Unreadable spectra or invalid options can exit 2 with a blocked diagnostic. Review optional step outcomes before treating the bundle as complete.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"spectra": "array", "spectrum_bundle": "object", "bundle_report_md": "string"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "results": "object"}
+      }
+    },
+    "timeseries_forecasting_workbench": {
+      "revision": 1,
+      "backend": "Pandas validates the selected series and Python writes an unexecuted notebook. Notebook execution requires the selected runtime's forecasting stack.",
+      "inputs": [
+        {"argument": "--title", "detail": "Title of the generated notebook."},
+        {"argument": "--language", "detail": "Language of the generated narrative."},
+        {"argument": "--runtime-profile", "detail": "Prepare the notebook for local or Colab execution."},
+        {"argument": "--data-path", "format": "CSV, TSV or Excel", "detail": "Optional data source for preflight and later notebook execution."},
+        {"argument": "--date-column", "detail": "Name of the time column."},
+        {"argument": "--value-column", "unit": "as supplied", "detail": "Name of the numeric target column."},
+        {"argument": "--frequency", "detail": "Pandas frequency for the notebook's regular time index."},
+        {"argument": "--test-horizon", "unit": "observations", "detail": "Number of trailing observations held out in the notebook."},
+        {"argument": "--notebook-name", "format": "IPYNB filename", "detail": "Name of the generated file within the output directory."},
+        {"argument": "--overwrite", "detail": "Replace an existing generated notebook at the selected destination."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Generated forecasting notebook."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Notebook path, runtime, holdout horizon and optional source validation."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Optional source record with hash when available, plus generated notebook and summary records."}
+      ],
+      "warnings": "Generation leaves cells unexecuted. Review data cleaning, leakage, model adequacy and uncertainty separately.",
+      "failure": "Invalid time settings, unreadable local data or unsafe output destinations can exit 2 with a retained diagnostic or stdout when the file destination is unsafe.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"notebook_path": "string", "runtime_profile": "string", "frequency": "string", "test_horizon": "integer", "validation_warnings": "array"},
+        "rejected": {"blocked_reason": "string", "error_type": "string", "notebook_name": "string"}
+      }
+    },
+    "duckdb_workbench": {
+      "revision": 1,
+      "backend": "Local DuckDB and pandas from the Full profile.",
+      "inputs": [
+        {"argument": "inputs", "format": "CSV, TSV, Parquet, JSON or supported Excel", "detail": "Input paths registered in order as source0, source1 and so on."},
+        {"argument": "--sql", "format": "SQL", "detail": "Reviewed local query against the registered sources."},
+        {"argument": "--preview-rows", "unit": "rows", "detail": "Upper bound on the number of rows shown in the summary preview."}
+      ],
+      "outputs": [
+        {"argument": "--output", "format": "CSV, Parquet or JSON", "detail": "Optional persisted result table."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Bindings, projected columns, row count and preview."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source and output file records plus the query parameters."}
+      ],
+      "warnings": "Only positional aliases are guaranteed. A successful preview without a saved table can report WARNING.",
+      "failure": "A missing package, unreadable source, query error or unsafe result destination can exit 2 with a controlled diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"aliases": "object", "result_rows": "integer", "result_columns": "array", "preview": "array"},
+        "rejected": {"blocked_reason": "string", "bindings": "array", "aliases": "object"}
+      }
+    },
+    "notebook_workbench.execute-copy": {
+      "revision": 1,
+      "backend": "Local Jupyter kernel and notebook execution stack from the Full profile.",
+      "inputs": [
+        {"argument": "path", "format": "IPYNB", "detail": "Notebook selected for execution as a copy."},
+        {"argument": "--kernel-name", "detail": "Installed Jupyter kernel name."},
+        {"argument": "--timeout-sec", "unit": "seconds", "detail": "Execution timeout passed to the notebook backend."},
+        {"argument": "--trust-notebook-code", "detail": "Explicit approval to run reviewed notebook code."},
+        {"argument": "--stage-extra", "format": "File or directory", "detail": "Repeatable source copied into the workspace."},
+        {"argument": "--append-code", "format": "Python", "detail": "Reviewed code appended to the execution copy."},
+        {"argument": "--append-code-file", "format": "File", "detail": "File containing reviewed code to append."},
+        {"argument": "--append-markdown", "format": "Markdown", "detail": "Narrative cell appended to the output copy."},
+        {"argument": "--cell-range", "detail": "Select a range of cells for copied execution."},
+        {"argument": "--run-from-source-dir", "detail": "Use the notebook's source directory as execution cwd."},
+        {"argument": "--cwd", "format": "Directory", "detail": "Explicit working directory for code execution."},
+        {"argument": "--replace-text", "detail": "Replace selected text in copied cells before execution."},
+        {"argument": "--input-value", "detail": "Supply a reviewed response for a notebook input prompt."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Executed notebook copy and staged workspace files."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Run outcome, execution mode and retained diagnostics."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source notebook, produced files and selected execution metadata."}
+      ],
+      "warnings": "Notebook cells run arbitrary code in the selected kernel. Review the code, staged inputs and working directory before approval.",
+      "failure": "Untrusted code is blocked before execution with a diagnostic on stdout. Inspect the retained run record when a kernel or cell fails.",
+      "summary": {
+        "version": "1.8",
+        "tool": "notebook_workbench",
+        "complete": {"run": "object"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "results": "object"}
+      }
+    },
     "inspect_fits": {
       "revision": 1,
       "backend": "Core with Astropy and NumPy. PNG quicklook uses Matplotlib. The limited NumPy fallback inspects the primary image.",

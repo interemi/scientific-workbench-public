@@ -7199,8 +7199,8 @@
     "scientific-data-maintainer/.cache/archived_references/capability_io_contracts.json": {
       "executable": false,
       "kind": "file",
-      "sha256": "f865ea6a69fb4e9970adab1c06c66b88f71191b30c334d5c612ebceef71c2ef3",
-      "size": 55185
+      "sha256": "033db6abcf71b1f47e8405a59802a2e5eed4cf70076ebec5f37b8e72530aebf5",
+      "size": 66623
     },
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
@@ -10323,8 +10323,8 @@
     "scientific-data-notebooks/fixtures/timeseries_forecasting_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "57fd61d711547d27df704ca9f2c0d9025979f3bf95ffd9781aa807ce1663379b",
-      "size": 42196
+      "sha256": "682750ef151186020f539a17652c7467d752db0f5b5aef1b1c66c7030d5aea51",
+      "size": 42336
     },
     "scientific-data-notebooks/public_surface_registry.yaml": {
       "executable": false,

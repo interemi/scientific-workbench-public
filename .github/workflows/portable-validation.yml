@@ -258,7 +258,7 @@ jobs:
         run: |
           set -o pipefail
           "$RUNNER_TEMP/scientific-workbench-full/datanalysis/bin/python" \
-            script/run_portable_core.py --profile core \
+            script/run_portable_core.py --profile core --full-io-contracts \
             --output-dir "$RUNNER_TEMP/portable-full-core" \
             2>&1 | tee "$CI_FULL_EVIDENCE_DIR/portable-full-core.log"
           "$RUNNER_TEMP/scientific-workbench-full/datanalysis/bin/python" \

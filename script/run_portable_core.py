@@ -2,6 +2,8 @@
 """Validate a bundled scientific profile with synthetic inputs in a new external directory."""
 
 import argparse
+from csv import DictReader
+from hashlib import sha256
 import json
 from pathlib import Path
 import platform
@@ -35,13 +37,15 @@ def validate_summary(summary, profile="core"):
     return len(runs)
 
 
-def run_io_probe(evidence, environment, name, capability, arguments, expected, *, stdout_target=None):
+def run_io_probe(evidence, environment, name, capability, arguments, expected, *, stdout_target=None, stdout_only=False):
     summary = stdout_target or evidence / f"{name}.json"
     command = [sys.executable, *map(str, arguments), "--summary-json", str(summary)]
     process = subprocess.run(command, cwd=ROOT, env=environment, capture_output=True, text=True, timeout=120)
     (evidence / f"{name}.stdout.log").write_text(process.stdout, encoding="utf-8")
     (evidence / f"{name}.stderr.log").write_text(process.stderr, encoding="utf-8")
-    payload = json.loads(process.stdout if stdout_target else summary.read_text(encoding="utf-8"))
+    if stdout_only and summary.exists():
+        raise ValueError(f"{capability} {name}: unexpectedly wrote a summary file")
+    payload = json.loads(process.stdout if stdout_target or stdout_only else summary.read_text(encoding="utf-8"))
     validate_summary_contract(payload, capability=capability)
     status = payload["app_status"]
     if status not in expected.get(process.returncode, set()):
@@ -243,10 +247,139 @@ def check_document_io_contracts(output, environment):
     return records
 
 
+def check_scientific_workflow_io_contracts(output, environment, include_full=False):
+    import numpy as np
+    from astropy.io import fits
+
+    evidence = output / "workflow-io"
+    sources = evidence / "sources"
+    rgb_inputs = sources / "rgb"
+    rgb_inputs.mkdir(parents=True)
+    for scale, band in enumerate("RGB", start=1):
+        image = np.arange(256, dtype=np.float32).reshape(16, 16) * scale
+        header = fits.Header({"OBJECT": "SYNTHETIC", "FILTER": band, "EXPTIME": 20})
+        fits.PrimaryHDU(image, header).writeto(rgb_inputs / f"{band}.fits")
+    spectrum = sources / "spectrum.dat"
+    spectrum.write_text("".join(
+        f"{6500 + index} {1 - 0.4 * np.exp(-0.15 * (index - 22)**2):.7f}\n"
+        for index in range(50)
+    ), encoding="ascii")
+    series = sources / "series.csv"
+    series.write_text("date,value\n" + "".join(
+        f"{2020 + index // 12}-{index % 12 + 1:02d}-01,{2 * index + 3}\n"
+        for index in range(36)
+    ), encoding="ascii")
+    core_inputs = {path: path.read_bytes() for path in [*rgb_inputs.iterdir(), spectrum, series]}
+    astro = ROOT / "skills/scientific-data-astro/scripts"
+    notebooks = ROOT / "skills/scientific-data-notebooks/scripts"
+    rgb = astro / "fits_rgb_batch.py"
+    ascii_coursework = astro / "spectra_ascii_coursework_workbench.py"
+    forecast = notebooks / "timeseries_forecasting_workbench.py"
+    forecast_manifest = evidence / "forecast-manifest.json"
+    cases = [
+        ("rgb", "fits_rgb_batch", [rgb, "--input-root", rgb_inputs, "--output-dir", evidence / "rgb",
+                                 "--alignment-mode", "none", "--no-stacks"], {0: {"PASS"}}),
+        ("rgb-missing", "fits_rgb_batch", [rgb, "--input-root", sources / "missing",
+                                         "--output-dir", evidence / "rgb-missing"], {2: {"BLOCKED_CONTROLADO"}}),
+        ("spectrum", "spectra_ascii_coursework_workbench", [ascii_coursework, spectrum, "--output-dir",
+                     evidence / "spectrum", "--skip-report-project", "--line-window", "synthetic", 6517, 6527],
+         {0: {"WARNING"}}),
+        ("spectrum-missing", "spectra_ascii_coursework_workbench", [ascii_coursework, sources / "missing.dat",
+                             "--output-dir", evidence / "spectrum-missing", "--skip-report-project"],
+         {2: {"BLOCKED_CONTROLADO"}}),
+        ("forecast", "timeseries_forecasting_workbench", [forecast, "--data-path", series, "--date-column",
+                     "date", "--value-column", "value", "--test-horizon", 6, "--output-dir", evidence / "forecast",
+                     "--manifest-json", forecast_manifest], {0: {"PASS"}}),
+        ("forecast-invalid", "timeseries_forecasting_workbench", [forecast, "--data-path", series, "--test-horizon",
+                             0, "--output-dir", evidence / "forecast-invalid"], {2: {"BLOCKED_CONTROLADO"}}),
+    ]
+    records = {name: run_io_probe(evidence, environment, name, capability, arguments, expected)
+               for name, capability, arguments, expected in cases}
+
+    rgb_summary = json.loads((evidence / "rgb.json").read_text(encoding="utf-8"))["results"]
+    if (rgb_summary["counts"]["fits_records"] != 3 or rgb_summary["modes"]["true_rgb"] != 1
+            or len(list((evidence / "rgb/rgb_png").glob("*.png"))) != 1):
+        raise ValueError("RGB workflow did not produce one visual composite from three filters")
+    ascii_summary = json.loads((evidence / "spectrum.json").read_text(encoding="utf-8"))["results"]
+    profile, = ascii_summary["spectrum_bundle"]["profiles"]
+    feature, = profile["line_windows"]
+    if (profile["samples"] != 50 or feature["feature_center"] != 6522
+            or not (evidence / "spectrum/spectra_analysis/spectrum_inventory.csv").is_file()):
+        raise ValueError("ASCII profile lost the sample count, feature center or inventory artifact")
+    forecast_summary = json.loads((evidence / "forecast.json").read_text(encoding="utf-8"))["results"]
+    manifest = json.loads(forecast_manifest.read_text(encoding="utf-8"))
+    source_record, = manifest["inputs"]
+    draft = json.loads((evidence / "forecast/timeseries_forecasting_notebook.ipynb").read_text(encoding="utf-8"))
+    if (forecast_summary["data_profile"]["valid_row_count"] != 36 or forecast_summary["test_horizon"] != 6
+            or source_record["sha256"] != sha256(core_inputs[series]).hexdigest()
+            or any(cell["execution_count"] is not None or cell["outputs"]
+                   for cell in draft["cells"] if cell["cell_type"] == "code")):
+        raise ValueError("forecast scaffold lost source provenance, holdout settings or unexecuted state")
+    if include_full:
+        records.update(check_full_workflow_io_contracts(evidence, sources, notebooks, environment))
+    if any(path.read_bytes() != content for path, content in core_inputs.items()):
+        raise ValueError("a scientific workflow modified a protected synthetic input")
+    return records
+
+
+def check_full_workflow_io_contracts(evidence, sources, scripts, environment):
+    table = sources / "query.csv"
+    table.write_text("id,flux\n1,2.5\n2,4.0\n", encoding="ascii")
+    notebook = sources / "known-answer.ipynb"
+    cell = {"cell_type": "code", "id": "known-answer", "metadata": {}, "execution_count": None,
+            "outputs": [], "source": ["print(6 * 7)"]}
+    draft = {"nbformat": 4, "nbformat_minor": 5, "metadata": {}, "cells": [cell]}
+    notebook.write_text(json.dumps(draft), encoding="utf-8")
+    original = {path: path.read_bytes() for path in (table, notebook)}
+    kernels = evidence / "jupyter"
+    kernel = kernels / "kernels" / "workbench-contract"
+    kernel.mkdir(parents=True)
+    (kernel / "kernel.json").write_text(json.dumps({
+        "argv": [sys.executable, "-m", "ipykernel_launcher", "-f", "{connection_file}"],
+        "display_name": "Scientific Workbench contract test", "language": "python",
+    }), encoding="utf-8")
+    environment = {**environment, "JUPYTER_PATH": str(kernels)}
+    duckdb = scripts / "duckdb_workbench.py"
+    execute = scripts / "notebook_workbench.py"
+    query = evidence / "query-result.csv"
+    trusted_output = evidence / "execution"
+    untrusted_output = evidence / "untrusted-execution"
+    blocked = {2: {"BLOCKED_CONTROLADO"}}
+    passed = {0: {"PASS"}}
+    records = {
+        "duckdb": run_io_probe(evidence, environment, "duckdb", "duckdb_workbench",
+                              [duckdb, table, "--sql", "SELECT sum(flux) AS flux_sum FROM source0",
+                               "--output", query, "--manifest-json", evidence / "duckdb-manifest.json"], passed),
+        "duckdb-missing": run_io_probe(evidence, environment, "duckdb-missing", "duckdb_workbench",
+                                      [duckdb, sources / "missing.csv"], blocked),
+        "execute-copy": run_io_probe(evidence, environment, "execute-copy", "notebook_workbench.execute-copy",
+                                     [execute, "execute-copy", notebook, "--output-dir", trusted_output,
+                                      "--kernel-name", "workbench-contract", "--timeout-sec", 30,
+                                      "--trust-notebook-code", "--manifest-json", evidence / "execution-manifest.json"], passed),
+        "execute-untrusted": run_io_probe(evidence, environment, "execute-untrusted", "notebook_workbench.execute-copy",
+                                          [execute, "execute-copy", notebook, "--output-dir", untrusted_output],
+                                          blocked, stdout_only=True),
+    }
+    with query.open(encoding="utf-8", newline="") as stream:
+        rows = list(DictReader(stream))
+    if len(rows) != 1 or float(rows[0]["flux_sum"]) != 6.5:
+        raise ValueError("DuckDB output differs from the synthetic sum")
+    executed = json.loads((trusted_output / notebook.name).read_text(encoding="utf-8"))
+    result, = executed["cells"][0]["outputs"]
+    text = result["text"]
+    if "".join(text).strip() != "42" or untrusted_output.exists():
+        raise ValueError("notebook execution did not preserve the known answer or the trust gate")
+    if any(path.read_bytes() != content for path, content in original.items()):
+        raise ValueError("a Full workflow modified a protected synthetic input")
+    return records
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--profile", choices=("core", "full"), default="core")
+    parser.add_argument("--full-io-contracts", action="store_true",
+                        help="also check DuckDB and copied notebook execution in an installed Full environment")
     args = parser.parse_args(argv)
     if sys.version_info[:2] != (3, 11):
         raise ValueError("run this script with the prepared Python 3.11 environment")
@@ -278,10 +411,14 @@ def main(argv=None):
                                stderr=subprocess.STDOUT, check=True, timeout=600)
             if index == 0:
                 doctor = json.loads((output / "env-doctor.json").read_text())
-                validate_profile_readiness(doctor, args.profile)
+                full_io = args.full_io_contracts or args.profile == "full"
+                validate_profile_readiness(doctor, "full" if full_io else args.profile)
                 evidence["core_io_contracts"] = check_core_io_contracts(output, doctor, environment)
                 evidence["tabular_io_contracts"] = check_tabular_io_contracts(output, environment)
                 evidence["document_io_contracts"] = check_document_io_contracts(output, environment)
+                evidence["scientific_workflow_io_contracts"] = check_scientific_workflow_io_contracts(
+                    output, environment, include_full=full_io,
+                )
         summary = json.loads((output / "smoke-summary.json").read_text())
         evidence["passed_features"] = validate_summary(summary, args.profile)
         known_answer = json.loads((output / "known-answer/verification.json").read_text())

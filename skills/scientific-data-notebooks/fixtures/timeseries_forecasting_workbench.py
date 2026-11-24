@@ -843,6 +843,7 @@ def main():
 def run_workflow(args) -> int:
     output_dir = Path(args.output_dir).expanduser().resolve()
     data_profile, validation_warnings = validate_args(args, output_dir)
+    input_paths = [Path(args.data_path).expanduser()] if args.data_path else []
     output_dir.mkdir(parents=True, exist_ok=True)
     notebook_path = output_dir / args.notebook_name
     if notebook_path.exists() and not args.overwrite:
@@ -879,6 +880,7 @@ def run_workflow(args) -> int:
             "output_dir": public_path(output_dir),
         },
         results=summary,
+        inputs=input_paths,
         qa={
             "status": "warning" if validation_warnings else "ok",
             "findings": validation_warnings,
@@ -897,6 +899,7 @@ def run_workflow(args) -> int:
             outputs.append(Path(args.summary_json))
         write_manifest(
             args.manifest_json,
+            inputs=input_paths,
             outputs=outputs,
             parameters={
                 "runtime_profile": args.runtime_profile,

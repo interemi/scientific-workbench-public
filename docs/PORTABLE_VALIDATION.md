@@ -98,6 +98,12 @@ Afterwards, validation requires the full profile, core/full
 tier coverage, no failed cases, and intact snapshots before and after. A core
 summary cannot satisfy full validation. Setup applies the same readiness check.
 
+For an installed Full environment without an external TeX engine, run
+`run_portable_core.py --profile core --full-io-contracts`. This combination
+requires Full Python readiness and checks the DuckDB result and trusted notebook
+copy with synthetic inputs. It also checks the rejected cases. The separate
+Full smoke command includes additional backend checks.
+
 The 2026-09-15 run passed 38/38 cases: 36 successful operations and two expected
 rejections of unsafe notebooks. These two cases retain their observed exit code
 (2). They pass only when the summary satisfies the contract, explains the
