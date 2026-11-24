@@ -80,6 +80,17 @@ data-quality mask is available through its own HDU. The synthetic check
 confirms that source pixel `(2, 1)` reports 10 adu and the same world
 coordinates with or without the display crop.
 
+On 2026-11-24, a local SwiftPM app walkthrough used a synthetic FITS with
+an empty primary HDU, the 8 × 8 image in `SCI`, and its nonfinite-pixel
+mask in `DQ`. Results showed the three HDUs, one nonfinite SCI pixel,
+`adu`, ICRS TAN axes, and a scale of 1 arcsec/pixel on each axis. A DQ
+lookup at `(1, 1)` returned `1 flag` with no WCS. A separate SCI crop at
+`(1, 1)` produced a 4 × 4 display-only quicklook with WCS. The SCI lookup
+at `(2, 1)` returned `10 adu` and ICRS coordinates of approximately
+`(150.000481129°, −30.000694444°)`. Manifest hashes matched the preserved
+input, summaries, and preview PNGs. The preview and inspector controls
+were checked at the minimum supported window width on the maintainer's Mac.
+
 ## Two-catalog sky crossmatch
 
 The generated CSVs declare `source_id`, `ra_deg`, and `dec_deg` in decimal

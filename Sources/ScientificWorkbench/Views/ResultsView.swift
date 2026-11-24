@@ -105,32 +105,34 @@ struct ResultsView: View {
           }
         }
       }
-      .frame(minWidth: 340, idealWidth: 390)
+      .frame(minWidth: 320, idealWidth: 360, maxWidth: 420)
 
-      if let artifact = selectedArtifact {
+      Group {
         if let job = store.selectedJob {
-          ArtifactPreview(store: store, job: job, artifact: artifact)
-        }
-      } else if let job = store.selectedJob {
-        JobCaptureDetail(store: store, job: job) { detailed in
-          ResultsSummaryView(store: store, job: detailed)
-        }
-      } else if store.isRestoringJobHistory {
-        Text("Saved results will appear after job history is restored.")
-          .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else {
-        ContentUnavailableView {
-          Label("Run a Capability", systemImage: "play")
-        } description: {
-          Text("Results remain linked to their job, run folder, logs, and provenance metadata.")
-        } actions: {
-          Button("Browse Capabilities") {
-            store.selectedSection = .capabilities
+          if let artifact = selectedArtifact {
+            ArtifactPreview(store: store, job: job, artifact: artifact)
+          } else {
+            JobCaptureDetail(store: store, job: job) { detailed in
+              ResultsSummaryView(store: store, job: detailed)
+            }
           }
-          .accessibilityIdentifier("results.empty.open-capabilities")
+        } else if store.isRestoringJobHistory {
+          Text("Saved results will appear after job history is restored.")
+            .foregroundStyle(.secondary)
+        } else {
+          ContentUnavailableView {
+            Label("Run a Capability", systemImage: "play")
+          } description: {
+            Text("Results remain linked to their job, run folder, logs, and provenance metadata.")
+          } actions: {
+            Button("Browse Capabilities") {
+              store.selectedSection = .capabilities
+            }
+            .accessibilityIdentifier("results.empty.open-capabilities")
+          }
         }
       }
+      .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
     }
     .navigationTitle("Results")
     .onAppear {
