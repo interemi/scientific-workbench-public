@@ -1505,8 +1505,8 @@
     "scientific-data-analysis/fixtures/_internal/public_contract.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "4bc1dc21d8f1604311d1db058113783afe75093a4e8ffe3578590cdff9c7512e",
-      "size": 6790
+      "sha256": "98da132ab95fc33fa1c60be6e9b5e22d4372288ece1143125a6e7426ae164c1a",
+      "size": 6845
     },
     "scientific-data-analysis/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
@@ -4791,8 +4791,8 @@
     "scientific-data-astro/fixtures/_internal/public_contract.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "4bc1dc21d8f1604311d1db058113783afe75093a4e8ffe3578590cdff9c7512e",
-      "size": 6790
+      "sha256": "98da132ab95fc33fa1c60be6e9b5e22d4372288ece1143125a6e7426ae164c1a",
+      "size": 6845
     },
     "scientific-data-astro/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
@@ -5019,8 +5019,8 @@
     "scientific-data-astro/fixtures/stilts_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "8c27844b531c7f119aa70483b96068c7ae29f85253f981e062ca475d61d63e57",
-      "size": 19984
+      "sha256": "0a624d72a58ddcd836603f2edbed722c99f955084cb33d6b6634ae583e8396ff",
+      "size": 20599
     },
     "scientific-data-astro/fixtures/teareduce_bridge.py": {
       "executable": false,
@@ -5805,8 +5805,8 @@
     "scientific-data-documents/fixtures/_internal/public_contract.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "4bc1dc21d8f1604311d1db058113783afe75093a4e8ffe3578590cdff9c7512e",
-      "size": 6790
+      "sha256": "98da132ab95fc33fa1c60be6e9b5e22d4372288ece1143125a6e7426ae164c1a",
+      "size": 6845
     },
     "scientific-data-documents/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
@@ -7415,8 +7415,8 @@
     "scientific-data-maintainer/fixtures/_internal/public_contract.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "4bc1dc21d8f1604311d1db058113783afe75093a4e8ffe3578590cdff9c7512e",
-      "size": 6790
+      "sha256": "98da132ab95fc33fa1c60be6e9b5e22d4372288ece1143125a6e7426ae164c1a",
+      "size": 6845
     },
     "scientific-data-maintainer/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
@@ -10221,8 +10221,8 @@
     "scientific-data-notebooks/fixtures/_internal/public_contract.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "4bc1dc21d8f1604311d1db058113783afe75093a4e8ffe3578590cdff9c7512e",
-      "size": 6790
+      "sha256": "98da132ab95fc33fa1c60be6e9b5e22d4372288ece1143125a6e7426ae164c1a",
+      "size": 6845
     },
     "scientific-data-notebooks/fixtures/_internal/public_surface_registry.py": {
       "executable": false,

@@ -248,6 +248,11 @@ def run_stilts(args: argparse.Namespace, operation: str, stilts_args: list[str],
     if getattr(args, "manifest_json", None):
         manifest_outputs = [*outputs]
         if args.summary_json:
+            try:
+                emit_payload(payload, args.summary_json, print_output=False)
+            except OSError:
+                emit_payload(payload)
+                raise
             manifest_outputs.append(Path(args.summary_json))
         manifest_outputs.extend(Path(path) for path in log_artifacts.values())
         try:
@@ -261,8 +266,20 @@ def run_stilts(args: argparse.Namespace, operation: str, stilts_args: list[str],
             )
         except OSError as exc:
             message = clean_known_stderr(f"{exc.__class__.__name__}: {exc}") or f"{exc.__class__.__name__}: {exc}"
-            payload["status"] = "fail"
-            payload["qa"] = standard_qa_payload(status="fail", findings=[*findings, f"Could not write manifest: {message}"], metrics=payload["qa"]["metrics"])
+            return build_tool_payload(
+                f"stilts_workbench.{operation}",
+                status="fail",
+                notes=notes,
+                artifacts=artifacts,
+                results=result,
+                qa=standard_qa_payload(
+                    status="fail",
+                    findings=[*findings, f"Could not write manifest: {message}"],
+                    metrics=payload["qa"]["metrics"],
+                ),
+                include_environment=True,
+            )
+        args.summary_already_written = bool(args.summary_json)
     return payload
 
 
@@ -456,9 +473,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    payload = args.func(args)
     try:
-        emit_payload(payload, args.summary_json)
+        payload = args.func(args)
+        emit_payload(payload, None if getattr(args, "summary_already_written", False) else args.summary_json)
     except OSError as exc:
         message = clean_known_stderr(f"Could not write summary JSON: {exc}") or f"Could not write summary JSON: {exc}"
         print(message, file=sys.stderr)

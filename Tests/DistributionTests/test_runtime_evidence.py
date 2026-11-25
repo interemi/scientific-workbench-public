@@ -1,8 +1,10 @@
+from hashlib import sha256
 from importlib.metadata import PackageNotFoundError, version
 import json
 import os
 from pathlib import Path
 import platform
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -56,3 +58,44 @@ class RuntimeEvidenceTests(unittest.TestCase):
 
                 subprocess.run(command, cwd=root, env=environment, capture_output=True, timeout=30, check=True)
                 self.assertEqual(destination.read_bytes(), retained)
+
+    def test_stilts_manifest_hashes_final_summary_alongside_products(self):
+        stilts = ROOT / "skills/scientific-data-astro/scripts/stilts_workbench.py"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            source = root / "input.csv"
+            source.write_bytes(b"id,ra,dec\n1,10,20\n")
+            original = source.read_bytes()
+            backend = root / "fake_stilts.py"
+            backend.write_text(
+                "from pathlib import Path\n"
+                "import sys\n"
+                "output = next(arg[4:] for arg in sys.argv[1:] if arg.startswith('out='))\n"
+                "Path(output).write_bytes(Path('input.csv').read_bytes())\n",
+                encoding="utf-8",
+            )
+            command = [
+                sys.executable, "-B", str(stilts), "convert", "input.csv", "output.csv",
+                "--stilts-command", shlex.join([sys.executable, str(backend)]),
+                "--summary-json", "summary.json", "--log-dir", "logs", "--manifest-json",
+            ]
+            result = subprocess.run([*command, "manifest.json"], cwd=root, capture_output=True, timeout=30, check=True)
+            summary = (root / "summary.json").read_bytes()
+            self.assertEqual(result.stdout, summary)
+            self.assertEqual(json.loads(summary)["app_status"], "PASS")
+            manifest = json.loads((root / "manifest.json").read_bytes())
+            output_paths = [
+                root / path for path in (
+                    "output.csv", "summary.json", "logs/stilts_command.sh", "logs/stilts_stdout.txt", "logs/stilts_stderr.txt",
+                )
+            ]
+            for record, path in zip(manifest["inputs"] + manifest["outputs"], [source, *output_paths], strict=True):
+                self.assertTrue(record["exists"])
+                self.assertEqual(record["sha256"], sha256(path.read_bytes()).hexdigest())
+                self.assertEqual(record["size_bytes"], path.stat().st_size)
+            alias = subprocess.run([*command, "./summary.json"], cwd=root, capture_output=True, timeout=30)
+            self.assertEqual(alias.returncode, 2)
+            self.assertEqual(json.loads(alias.stdout)["results"]["path_collisions"][0]["collision_kind"],
+                             "output_output_alias")
+            self.assertEqual((root / "summary.json").read_bytes(), summary)
+            self.assertEqual(source.read_bytes(), original)
