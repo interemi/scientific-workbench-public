@@ -209,6 +209,22 @@ struct FilesystemSafetyPolicy {
     case unknown
   }
 
+  enum CommandEvidenceOption {
+    case flag, path, value, unknown
+  }
+
+  func commandEvidenceOption(_ option: String, capabilityID: String) -> CommandEvidenceOption {
+    guard option.hasPrefix("--"), option == option.lowercased() else { return .unknown }
+    if option == "--trust-notebook-code", capabilityID == "notebook_workbench.execute-copy" { return .flag }
+    switch optionKind(option, capabilityID: capabilityID) {
+    case .flag: return .flag
+    case .outputPath, .readPath, .hybridReadPath, .externalReadPath, .hybridExternalReadPath:
+      return .path
+    case .safeFileName, .finiteNumber, .scalar: return .value
+    case .blocked, .unknown: return .unknown
+    }
+  }
+
   private func validateOptionValue(
     _ value: String,
     option: String,

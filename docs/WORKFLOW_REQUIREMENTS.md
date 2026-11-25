@@ -101,15 +101,21 @@ After preparing a command, Scientific Workbench fingerprints attached files
 before execution. At finalization it compares those files and fingerprints the
 products found inside the run folder. The app writes `run-provenance.json` with
 the job outcome, available app and capability identifiers, and numbered file
-references such as `input-1` and `output-1`. The app's record contains no file
-names or command arguments. Tool-specific summaries and manifests stay in the
-run folder with their existing formats.
+references such as `input-1` and `output-1`. Tool-specific summaries and
+manifests stay in the run folder with their existing formats.
+
+The command record retains supported flags, typed numerical values and public
+choices for reviewed capability arguments. It refers to attached files and
+destinations inside the run folder by numbered references. An output that
+matches a destination file carries the same reference. Free text and
+unrecognized arguments appear as withheld. The record describes the command
+prepared by the app. The job outcome and tool summary report what happened.
 
 Each input or output pass reads at most 64 MiB of regular files. Directory
 contents, unreadable files and files beyond the budget have explicit states.
 `contentUnchanged` reports equality of two successful SHA-256 observations.
-The `limits` field identifies evidence still needed for replay, including the
-local arguments and any missing runtime details.
+The `limits` field identifies evidence still needed for replay, including any
+withheld local arguments and missing runtime details.
 
 The bundled tools can also record the Python implementation, version and
 architecture at their entry point. The package inventory covers direct Core

@@ -22,6 +22,7 @@ struct JobRunProvenance: Codable, Sendable {
   struct Output: Codable, Sendable {
     let id: String
     let fingerprint: RunFileFingerprint
+    let commandReference: String?
   }
 
   enum Limit: String, Codable, Sendable {
@@ -46,6 +47,7 @@ struct JobRunProvenance: Codable, Sendable {
   let finishedAt: Date?
   let outputRootConfirmationUsed: Bool
   let runtime: RunRuntimeEvidence?
+  let command: RunCommandEvidence?
   let inputs: [Input]
   let outputs: [Output]
   let limits: [Limit]
@@ -61,12 +63,14 @@ struct RunProvenanceService {
     fileprivate let appVersion: String?
     fileprivate let appBuild: String?
     fileprivate let outputRootConfirmationUsed: Bool
+    fileprivate let command: RunCommandEvidence?
+    fileprivate let runLocations: [URL: String]
     let runtimeChannel: RunRuntimeEvidence.Channel
   }
 
   func captureStart(
     request: RunRequest, capability: CapabilityEntry, skillRoot: String,
-    outputRootConfirmationUsed: Bool, secrets: [String]
+    outputRootConfirmationUsed: Bool, secrets: [String], command: ProcessCommand? = nil
   ) async -> Start {
     await Task.detached(priority: .utility) {
       let owner = FilesystemPath.canonicalURL(capability.resolvedSkillRoot(fallback: skillRoot))
@@ -86,6 +90,11 @@ struct RunProvenanceService {
       )
       let inputURLs = request.inputPaths.map(FilesystemPath.canonicalURL)
       let runRoot = FilesystemPath.canonicalURL(request.outputDirectory)
+      let capturedCommand = command.flatMap {
+        RunCommandEvidence.capture(
+          command: $0, capability: capability, inputURLs: inputURLs, runRoot: runRoot, secrets: secrets
+        )
+      }
       return Start(
         inputPaths: request.inputPaths,
         inputURLs: inputURLs,
@@ -95,6 +104,8 @@ struct RunProvenanceService {
         appVersion: Self.appVersion("CFBundleShortVersionString"),
         appBuild: Self.appVersion("CFBundleVersion"),
         outputRootConfirmationUsed: outputRootConfirmationUsed,
+        command: capturedCommand?.evidence,
+        runLocations: capturedCommand?.runLocations ?? [:],
         runtimeChannel: RunRuntimeEvidence.Channel(runRoot: runRoot, tool: capability.scriptStem)
       )
     }.value
@@ -124,14 +135,19 @@ struct RunProvenanceService {
         && url != root.appendingPathComponent(JobRunProvenance.filename)
         && !inputURLs.contains(url) && !inputDirectories.contains { Self.isInside(url, root: $0) }
     }
-    let outputs = Self.fingerprints(outputURLs.sorted { $0.path < $1.path }).enumerated().map { index, digest in
-      JobRunProvenance.Output(id: "output-\(index + 1)", fingerprint: digest)
+    let sortedOutputs = outputURLs.sorted { $0.path < $1.path }
+    let outputs = zip(sortedOutputs, Self.fingerprints(sortedOutputs)).enumerated().map { index, item in
+      let (url, digest) = item
+      return JobRunProvenance.Output(
+        id: "output-\(index + 1)", fingerprint: digest, commandReference: start.runLocations[url]
+      )
     }
     let fingerprints = inputs.flatMap { [$0.before, $0.after] } + outputs.map(\.fingerprint)
     var limits: [JobRunProvenance.Limit] = [
-      .attachedInputScope, .localArgumentsRequired,
+      .attachedInputScope,
       .backendAndModelNotCaptured, .furtherConsentEvidenceRequired,
     ]
+    if start.command?.requiresLocalArguments != false { limits.append(.localArgumentsRequired) }
     if runtime == nil { limits.append(.runtimeAndDependencyVersionsNotCaptured) }
     if fingerprints.contains(where: { $0.state == .directory }) { limits.append(.directoryContentsNotCaptured) }
     if fingerprints.contains(where: { $0.state != .recorded }) { limits.append(.incompleteFingerprints) }
@@ -141,7 +157,7 @@ struct RunProvenanceService {
       schemaVersion: 1, jobID: job.id, appVersion: start.appVersion, appBuild: start.appBuild,
       tool: start.tool, status: job.status, exitCode: job.exitCode, startedAt: job.startedAt,
       finishedAt: job.finishedAt, outputRootConfirmationUsed: start.outputRootConfirmationUsed, runtime: runtime,
-      inputs: inputs, outputs: outputs, limits: limits
+      command: start.command, inputs: inputs, outputs: outputs, limits: limits
     )
     let data = try JSONEncoder.scientificWorkbench.encode(provenance)
     let destination = root.appendingPathComponent(JobRunProvenance.filename)

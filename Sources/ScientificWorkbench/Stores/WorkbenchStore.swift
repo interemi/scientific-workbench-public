@@ -2843,7 +2843,7 @@ final class WorkbenchStore: ObservableObject {
       )
       provenance = await RunProvenanceService().captureStart(
         request: request, capability: capability, skillRoot: requestSkillRoot,
-        outputRootConfirmationUsed: outputRootConfirmationUsed, secrets: configuredSecrets
+        outputRootConfirmationUsed: outputRootConfirmationUsed, secrets: configuredSecrets, command: command
       )
       if isCancellationRequested || Task.isCancelled { throw CancellationError() }
       if let request = provenance?.runtimeChannel.request {
