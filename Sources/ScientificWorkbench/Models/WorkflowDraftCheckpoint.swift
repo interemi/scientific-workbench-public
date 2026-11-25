@@ -54,4 +54,5 @@ struct WorkflowDraftCheckpoint: Codable, Sendable {
 struct WorkflowDraftBackup {
   var checkpoint: WorkflowDraftCheckpoint
   var archivePath: String
+  var planningEvidence: WorkflowPlanningEvidence? = nil
 }

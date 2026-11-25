@@ -43,6 +43,8 @@ struct JobRunProvenance: Codable, Sendable {
     case backendAndModelNotCaptured = "backend_and_model_not_captured"
     case backendNotReported = "backend_not_reported"
     case planningModelNotRecorded = "planning_model_not_recorded"
+    case planningReportedModelNotRecorded = "planning_reported_model_not_recorded"
+    case planningConsentNotRecorded = "planning_consent_not_recorded"
     case furtherConsentEvidenceRequired = "further_consent_evidence_required"
   }
 
@@ -61,6 +63,7 @@ struct JobRunProvenance: Codable, Sendable {
   let reportedBackend: RunBackendEvidence?
   let approvals: [RunApproval]?
   let declaredPlanSource: AgentPlanSource?
+  let planningEvidence: WorkflowPlanningEvidence?
   let inputs: [Input]
   let outputs: [Output]
   let limits: [Limit]
@@ -81,13 +84,15 @@ struct RunProvenanceService {
     fileprivate let approvals: [RunApproval]
     fileprivate let missingCapabilityApproval: Bool
     fileprivate let declaredPlanSource: AgentPlanSource?
+    fileprivate let planningEvidence: WorkflowPlanningEvidence?
     let runtimeChannel: RunRuntimeEvidence.Channel
   }
 
   func captureStart(
     request: RunRequest, capability: CapabilityEntry, skillRoot: String,
     outputRootConfirmationUsed: Bool, secrets: [String], command: ProcessCommand? = nil,
-    appliedApproval: RunApproval? = nil, declaredPlanSource: AgentPlanSource? = nil
+    appliedApproval: RunApproval? = nil, declaredPlanSource: AgentPlanSource? = nil,
+    planningEvidence: WorkflowPlanningEvidence? = nil
   ) async -> Start {
     await Task.detached(priority: .utility) {
       let owner = FilesystemPath.canonicalURL(capability.resolvedSkillRoot(fallback: skillRoot))
@@ -129,6 +134,7 @@ struct RunProvenanceService {
         approvals: approvals.compactMap { $0 },
         missingCapabilityApproval: capability.requiresPlannerConfirmation && !isPreflight && appliedApproval == nil,
         declaredPlanSource: declaredPlanSource,
+        planningEvidence: planningEvidence?.sanitized(secrets: secrets),
         runtimeChannel: RunRuntimeEvidence.Channel(runRoot: runRoot, tool: capability.scriptStem)
       )
     }.value
@@ -184,8 +190,15 @@ struct RunProvenanceService {
     if backend == nil, !checksOnly, let reportedTool, RunBackendEvidence.tracks(reportedTool) {
       limits.append(.backendNotReported)
     }
-    if let source = start.declaredPlanSource, source != .local && source != .skillRouter {
+    if let evidence = start.planningEvidence {
+      if evidence.requestedModel == nil && evidence.reportedModel == nil { limits.append(.planningModelNotRecorded) }
+      if evidence.outcome == .usedForPlan && evidence.reportedModel == nil {
+        limits.append(.planningReportedModelNotRecorded)
+      }
+      if evidence.provider.requiresAPIKey && evidence.consent == nil { limits.append(.planningConsentNotRecorded) }
+    } else if let source = start.declaredPlanSource, source != .local && source != .skillRouter {
       limits.append(.planningModelNotRecorded)
+      if source != .ollama { limits.append(.planningConsentNotRecorded) }
     }
     if start.missingCapabilityApproval { limits.append(.furtherConsentEvidenceRequired) }
     if start.command?.requiresLocalArguments != false { limits.append(.localArgumentsRequired) }
@@ -199,7 +212,8 @@ struct RunProvenanceService {
       tool: start.tool, status: job.status, exitCode: job.exitCode, startedAt: job.startedAt,
       finishedAt: job.finishedAt, outputRootConfirmationUsed: start.outputRootConfirmationUsed, runtime: runtime,
       command: start.command, reportedBackend: backend, approvals: start.approvals,
-      declaredPlanSource: start.declaredPlanSource, inputs: inputs, outputs: outputs, limits: limits
+      declaredPlanSource: start.declaredPlanSource, planningEvidence: start.planningEvidence,
+      inputs: inputs, outputs: outputs, limits: limits
     )
     let data = try JSONEncoder.scientificWorkbench.encode(provenance)
     let destination = root.appendingPathComponent(JobRunProvenance.filename)

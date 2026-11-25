@@ -132,7 +132,18 @@ Preflight and dry-run results do not establish that a backend ran. The app
 also records approvals it applied for the output root, reviewed document
 actions, the capability access control and restricted local automation.
 An approved action can still fail, as shown by its job and tool outcomes.
-Workflow jobs retain the plan's declared source.
+Workflow jobs retain the plan's declared source and any matching planning
+receipt. The receipt identifies the provider, the requested public model, the
+model reported by the provider when available, and whether the app used the
+response or fell back to a deterministic plan. It retains the applied approval
+scope and data categories for a reviewed cloud planning request. Prompts,
+attachment names, service URLs, credentials and private model identifiers are
+omitted. A receipt records past approval for that request.
+
+Workflow state schema 3 is the first version with a planning receipt. The app
+preserves the original state file before migrating schema 1 or 2. Earlier plans
+continue to load and report missing model or approval evidence where relevant.
+The portable plan format retains its existing schema.
 
 ## Registry coverage
 

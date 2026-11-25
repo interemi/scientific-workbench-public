@@ -275,6 +275,16 @@ final class WorkbenchStore: ObservableObject {
   private var forceLocalPlanner = false
   private var enableRestrictedStepsForLaunchAutomation = false
   private var rememberedCloudConsentScopes: Set<CloudConsentSessionScope> = []
+  private var activePlanningEvidence: WorkflowPlanningEvidence?
+
+  struct CloudSubmissionApproval {
+    let request: CloudConsentRequest
+    let scope: WorkflowPlanningEvidence.Consent.Scope
+
+    var evidence: WorkflowPlanningEvidence.Consent {
+      .init(scope: scope, attachmentContext: request.attachmentContextMode, categories: request.categories)
+    }
+  }
   private var outputRootRiskApprovalFingerprint: String?
   private var ollamaPullTask: Task<OllamaCommandResult, Error>?
   private var ollamaSetupCheck: (id: UUID, endpoint: String?, model: String, task: Task<Void, Never>)?
@@ -526,6 +536,7 @@ final class WorkbenchStore: ObservableObject {
     inputPaths = []
     agentPrompt = ""
     agentPlan = nil
+    activePlanningEvidence = nil
     agentPlanStepExecutions = [:]
     lastWorkflowSummaryPath = nil
     workflowExecutionIdentity = nil
@@ -571,6 +582,7 @@ final class WorkbenchStore: ObservableObject {
     inputPaths = restoredInputs
     agentPrompt = checkpoint.prompt
     agentPlan = checkpoint.plan.map { sanitizedAgentPlanForCurrentRegistry($0).plan }
+    activePlanningEvidence = backup.planningEvidence
     let eligibleStepIDs = Set(agentPlan?.steps.filter(\.isEnabled).map(\.id) ?? [])
     agentPlanStepExecutions = restoredInputs == checkpoint.inputPaths
       ? Dictionary(uniqueKeysWithValues: checkpoint.stepExecutions.filter {
@@ -614,7 +626,9 @@ final class WorkbenchStore: ObservableObject {
       argumentDrafts: capabilityArgumentDrafts, messages: agentChatMessages)
     do {
       let url = try WorkflowDraftArchiveService().write(checkpoint: checkpoint, redact: redactSecrets)
-      return WorkflowDraftBackup(checkpoint: checkpoint, archivePath: url.path)
+      return WorkflowDraftBackup(
+        checkpoint: checkpoint, archivePath: url.path, planningEvidence: agentPlan.flatMap(planningEvidence(for:))
+      )
     } catch {
       workflowNavigationNotice = "Could not archive the draft: \(redactSecrets(error.localizedDescription)). No context was cleared."
       return nil
@@ -922,11 +936,17 @@ final class WorkbenchStore: ObservableObject {
     invalidateAIConnectionStatus(for: provider)
   }
 
-  private func replaceAgentPlan(_ plan: AgentPlan) {
+  private func replaceAgentPlan(_ plan: AgentPlan, planningEvidence: WorkflowPlanningEvidence? = nil) {
     agentPlan = plan
+    activePlanningEvidence = planningEvidence
     agentPlanStepExecutions = [:]
     workflowExecutionIdentity = nil
     lastWorkflowSummaryPath = nil
+  }
+
+  private func planningEvidence(for plan: AgentPlan) -> WorkflowPlanningEvidence? {
+    guard let evidence = activePlanningEvidence, evidence.applies(to: plan) else { return nil }
+    return evidence.sanitized(secrets: configuredSecrets)
   }
 
   func updateAgentPlanTitle(_ title: String) {
@@ -2359,7 +2379,9 @@ final class WorkbenchStore: ObservableObject {
   }
 
   @discardableResult
-  func planAgentWorkflow(prompt promptOverride: String? = nil) async -> AgentPlan? {
+  func planAgentWorkflow(
+    prompt promptOverride: String? = nil, approval: CloudSubmissionApproval? = nil
+  ) async -> AgentPlan? {
     guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else {
       agentStatusMessage = "Finish or cancel the active workflow operation before planning another workflow."
       return nil
@@ -2377,18 +2399,25 @@ final class WorkbenchStore: ObservableObject {
     if !forceLocalPlanner {
       loadSavedSecretIfNeeded(for: aiProvider)
     }
+    let cloudRequest = cloudConsentRequest(for: .workflow, prompt: prompt)
+    if let cloudRequest, cloudRequest.fingerprint != approval?.request.fingerprint {
+      agentStatusMessage = "Review the cloud provider and data scope in Chat before planning."
+      return nil
+    }
     persistSettings()
     isPlanningAgentWorkflow = true
-    let plan: AgentPlan
+    let secretsAtPlanning = configuredSecrets
+    let outcome: AgentPlanningResult
     if forceLocalPlanner {
       agentStatusMessage = "Planning with deterministic local planner."
-      plan = await agentPlanner.deterministicPlan(
+      let plan = await agentPlanner.deterministicPlan(
         prompt: prompt,
         inputPaths: inputPaths,
         capabilities: capabilities,
         skillRoot: skillRootPath,
         pythonExecutable: pythonExecutable
       )
+      outcome = AgentPlanningResult(plan: plan)
     } else {
       agentStatusMessage = selectedAIIsConfigured
         ? "Planning with \(aiProvider.title)."
@@ -2396,7 +2425,7 @@ final class WorkbenchStore: ObservableObject {
       let outboundPrompt = aiProvider.requiresAPIKey && selectedAIIsConfigured
         ? redactingConfiguredCloudSecrets(in: prompt)
         : prompt
-      plan = await agentPlanner.plan(
+      outcome = await agentPlanner.plan(
         prompt: outboundPrompt,
         inputPaths: inputPaths,
         capabilities: capabilities,
@@ -2409,8 +2438,14 @@ final class WorkbenchStore: ObservableObject {
         pythonExecutable: pythonExecutable
       )
     }
-    let safePlan = launchAutomationPlanWithRestrictedStepsEnabledIfNeeded(redactedPlan(plan))
-    replaceAgentPlan(safePlan)
+    let safePlan = launchAutomationPlanWithRestrictedStepsEnabledIfNeeded(redactedPlan(outcome.plan))
+    let evidence = outcome.modelAttempt.map { attempt in
+      WorkflowPlanningEvidence(
+        plan: safePlan, attempt: attempt, consent: cloudRequest == nil ? nil : approval?.evidence,
+        secrets: secretsAtPlanning + configuredSecrets
+      )
+    }
+    replaceAgentPlan(safePlan, planningEvidence: evidence)
     agentStatusMessage = "Planned \(safePlan.steps.count) step\(safePlan.steps.count == 1 ? "" : "s") using \(safePlan.source.title)."
     persistAgentState()
     isPlanningAgentWorkflow = false
@@ -2429,13 +2464,17 @@ final class WorkbenchStore: ObservableObject {
     if !forceLocalPlanner {
       loadSavedSecretIfNeeded(for: aiProvider)
     }
-    if let request = cloudConsentRequest(for: resolvedMode, prompt: prompt), requiresCloudConsent(request) {
+    let request = cloudConsentRequest(for: resolvedMode, prompt: prompt)
+    if let request, requiresCloudConsent(request) {
       pendingCloudConsentRequest = request
       agentStatusMessage = "Review what will be sent to \(request.provider.title) before continuing."
       return
     }
 
-    await performAgentSubmission(prompt: prompt, resolvedMode: resolvedMode)
+    await performAgentSubmission(
+      prompt: prompt, resolvedMode: resolvedMode,
+      approval: request.map { CloudSubmissionApproval(request: $0, scope: .sessionReused) }
+    )
   }
 
   func confirmPendingCloudRequest(
@@ -2485,7 +2524,10 @@ final class WorkbenchStore: ObservableObject {
     pendingCloudConsentRequest = nil
     await performAgentSubmission(
       prompt: currentPrompt,
-      resolvedMode: currentResolvedMode
+      resolvedMode: currentResolvedMode,
+      approval: CloudSubmissionApproval(
+        request: refreshedRequest, scope: approvalScope == .appSession ? .sessionGranted : .requestOnly
+      )
     )
   }
 
@@ -2501,7 +2543,9 @@ final class WorkbenchStore: ObservableObject {
     agentStatusMessage = message
   }
 
-  private func performAgentSubmission(prompt: String, resolvedMode: AgentRunMode) async {
+  private func performAgentSubmission(
+    prompt: String, resolvedMode: AgentRunMode, approval: CloudSubmissionApproval?
+  ) async {
     isSubmittingAgentPrompt = true
     defer { isSubmittingAgentPrompt = false }
 
@@ -2515,7 +2559,7 @@ final class WorkbenchStore: ObservableObject {
       let response = await answerChatPrompt(prompt)
       agentChatMessages.append(AgentChatMessage(role: .assistant, text: response))
     case .workflow:
-      guard let plan = await planAgentWorkflow(prompt: prompt) else {
+      guard let plan = await planAgentWorkflow(prompt: prompt, approval: approval) else {
         agentChatMessages.append(AgentChatMessage(role: .assistant, text: agentStatusMessage))
         return
       }
@@ -2611,6 +2655,7 @@ final class WorkbenchStore: ObservableObject {
 
     let workflowInputPaths = inputPaths
     let workflowOutputRootPath = outputRootPath
+    let workflowPlanningEvidence = planningEvidence(for: plan)
     if !resumeFromPreviousSuccesses {
       agentPlanStepExecutions = [:]
       persistAgentState()
@@ -2658,7 +2703,8 @@ final class WorkbenchStore: ObservableObject {
             outputRootPathOverride: workflowOutputRootPath,
             workflowExecutionID: executionIdentity.id,
             appliedApproval: request.restrictedLocalAutomationApproved ? .restrictedLocalAutomation : nil,
-            declaredPlanSource: plan.source
+            declaredPlanSource: plan.source,
+            planningEvidence: workflowPlanningEvidence
           )
         },
         recordStepExecution: { stepID, execution in
@@ -2744,7 +2790,8 @@ final class WorkbenchStore: ObservableObject {
     outputRootPathOverride: String? = nil,
     workflowExecutionID: UUID? = nil,
     appliedApproval: RunApproval? = nil,
-    declaredPlanSource: AgentPlanSource? = nil
+    declaredPlanSource: AgentPlanSource? = nil,
+    planningEvidence: WorkflowPlanningEvidence? = nil
   ) async -> JobRecord? {
     if let jobHistoryRestore {
       let inputSelection = inputPathsOverride ?? inputPaths
@@ -2850,7 +2897,7 @@ final class WorkbenchStore: ObservableObject {
       provenance = await RunProvenanceService().captureStart(
         request: request, capability: capability, skillRoot: requestSkillRoot,
         outputRootConfirmationUsed: outputRootConfirmationUsed, secrets: configuredSecrets, command: command,
-        appliedApproval: appliedApproval, declaredPlanSource: declaredPlanSource
+        appliedApproval: appliedApproval, declaredPlanSource: declaredPlanSource, planningEvidence: planningEvidence
       )
       if isCancellationRequested || Task.isCancelled { throw CancellationError() }
       if let request = provenance?.runtimeChannel.request {
@@ -3213,9 +3260,11 @@ final class WorkbenchStore: ObservableObject {
       lastWorkflowSummaryPath = snapshot.lastWorkflowSummaryPath
       if shouldRestoreAgentPlan(snapshot.agentPlan, stepExecutions: restoredStepExecutions) {
         agentPlan = snapshot.agentPlan
+        activePlanningEvidence = snapshot.planningEvidence
         agentPlanStepExecutions = restoredStepExecutions
       } else {
         agentPlan = nil
+        activePlanningEvidence = nil
         agentPlanStepExecutions = [:]
         if snapshot.agentPlan != nil {
           agentStatusMessage = "Ready. Previous workflow finished; open the latest summary if you need its results."
@@ -3299,6 +3348,7 @@ final class WorkbenchStore: ObservableObject {
       )
       try agentStateStore.persist(snapshot: cleanSnapshot, to: url)
       agentPlan = nil
+      activePlanningEvidence = nil
       agentPlanStepExecutions = [:]
       lastWorkflowSummaryPath = nil
       agentStatusMessage = cleanSnapshot.agentStatusMessage
@@ -3397,7 +3447,8 @@ final class WorkbenchStore: ObservableObject {
         agentPlan: agentPlan.map { redactedPlan($0) },
         stepExecutions: Array(agentPlanStepExecutions.values),
         lastWorkflowSummaryPath: lastWorkflowSummaryPath,
-        agentStatusMessage: redactSecrets(agentStatusMessage)
+        agentStatusMessage: redactSecrets(agentStatusMessage),
+        planningEvidence: agentPlan.flatMap(planningEvidence(for:))
         ),
         to: url
       )

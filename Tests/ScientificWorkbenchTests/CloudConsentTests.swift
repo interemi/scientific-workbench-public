@@ -394,6 +394,96 @@ extension ScientificWorkbenchTests {
     let stateURL = outputRoot.appendingPathComponent(".scientificworkbench/agent_state.json")
     let persisted = try #require(try AgentStateStore().load(from: stateURL))
     #expect(persisted.agentPlan?.id == store.agentPlan?.id)
+    #expect(persisted.planningEvidence?.consent?.scope == .requestOnly)
+    #expect(persisted.planningEvidence?.requestedModel == nil)
+    #expect(!String(decoding: try Data(contentsOf: stateURL), as: UTF8.self).contains(secret))
+  }
+
+  @Test
+  @MainActor
+  func workflowJobsKeepTheApprovedPlanningModelAfterSettingsChangeAndRestore() async throws {
+    let fixture = try makeScenarioFixture(
+      name: "planning-provenance",
+      files: [
+        "private-observer.csv": "x,y\n1,2\n",
+        "skills/scripts/datanalysis_env.py": """
+        import json
+        from pathlib import Path
+        import sys
+
+        assert sys.argv[1:3] == ["run-tool", "profile_table"]
+        summary = Path(sys.argv[sys.argv.index("--summary-json") + 1])
+        summary.write_text(json.dumps({"tool": "profile_table", "app_status": "PASS"}))
+        """,
+      ]
+    )
+    defer { try? FileManager.default.removeItem(at: fixture) }
+    let domain = "Scientific-Workbench-Planning-Evidence-\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: domain))
+    defer { defaults.removePersistentDomain(forName: domain) }
+    let root = fixture.appendingPathComponent("runs")
+    let stateURL = root.appendingPathComponent(".scientificworkbench/agent_state.json")
+    let input = fixture.appendingPathComponent("private-observer.csv")
+    let planJSON = #"{"title":"Reviewed plan","steps":[{"capability_id":"profile_table","uses_inputs":true,"uses_previous_output":false}]}"#
+    let response = try JSONSerialization.data(withJSONObject: [
+      "output_text": planJSON, "model": "gpt-5.2-2025-12-11",
+    ])
+    let recorder = RequestRecorder(responseBody: String(decoding: response, as: UTF8.self))
+    let client = CloudAIClient(dataLoader: recorder.load)
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults, loadPersistedState: false, cloudAIClient: client)
+    store.outputRootPath = root.path
+    store.skillRootPath = fixture.appendingPathComponent("skills").path
+    store.pythonExecutable = "/usr/bin/python3"
+    store.capabilities = [consentTestCapability()]
+    store.inputPaths = [input.path]
+    store.agentMode = .workflow
+    store.aiProvider = .openAI
+    let placeholderKey = "planning-fixture-placeholder"
+    store.openAIAPIKey = placeholderKey
+    store.openAIModel = "gpt-5.2"
+    store.agentPrompt = "Profile the table with the selected workflow."
+
+    #expect(await store.planAgentWorkflow() == nil)
+    #expect(await recorder.requests.isEmpty)
+    await store.submitAgentChatPrompt()
+    let review = try #require(store.pendingCloudConsentRequest)
+    await store.confirmPendingCloudRequest(requestID: review.id, approvalScope: .appSession)
+    let first = try #require(try AgentStateStore().load(from: stateURL)?.planningEvidence)
+    #expect(first.consent?.scope == .sessionGranted)
+    #expect(first.consent?.categories == review.categories)
+    #expect(first.reportedModel == "gpt-5.2-2025-12-11")
+
+    store.agentPrompt = "Plan the table profiling again."
+    await store.submitAgentChatPrompt()
+    let second = try #require(try AgentStateStore().load(from: stateURL)?.planningEvidence)
+    #expect(second.planID != first.planID)
+    #expect(second.consent?.scope == .sessionReused)
+    #expect(second.requestedModel == "gpt-5.2")
+    #expect(await recorder.requests.count == 2)
+
+    store.openAIModel = "gpt-4o"
+    store.persistSettings()
+    let reopened = WorkbenchStore(loadSecrets: false, defaults: defaults, cloudAIClient: client)
+    reopened.capabilities = [consentTestCapability()]
+    reopened.inputPaths = [input.path]
+    #expect(reopened.openAIModel == "gpt-4o")
+    #expect(reopened.agentPlan?.id == second.planID)
+    _ = await reopened.runAgentPlan()
+    let job = try #require(reopened.jobs.first)
+    #expect(job.status == .succeeded)
+    let url = URL(fileURLWithPath: job.runDirectory).appendingPathComponent(JobRunProvenance.filename)
+    let data = try Data(contentsOf: url)
+    let record = try JSONDecoder.scientificWorkbench.decode(JobRunProvenance.self, from: data)
+    #expect(record.declaredPlanSource == .openAI)
+    #expect(record.planningEvidence == second)
+    #expect(!record.limits.contains(.planningModelNotRecorded))
+    #expect(!record.limits.contains(.planningConsentNotRecorded))
+    #expect(await recorder.requests.count == 2)
+    let text = String(decoding: data, as: UTF8.self)
+    #expect(!text.contains("private-observer"))
+    #expect(!text.contains("Plan the table profiling again."))
+    #expect(!text.contains(placeholderKey))
+    #expect(!text.contains("gpt-4o"))
   }
 
   @Test

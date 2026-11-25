@@ -20,6 +20,18 @@ private struct PlannerCapabilitySummaryPayload: Encodable {
   }
 }
 
+struct AgentPlanningResult: Sendable {
+  struct ModelAttempt: Sendable {
+    let provider: AIProvider
+    let requestedModel: String
+    let reportedModel: String?
+    let outcome: WorkflowPlanningEvidence.Outcome
+  }
+
+  let plan: AgentPlan
+  var modelAttempt: ModelAttempt? = nil
+}
+
 struct AgentPlanner: Sendable {
   var cloudAIClient: CloudAIPlannerClient
   var skillRouterClient: SkillWorkflowRouterClient
@@ -46,19 +58,19 @@ struct AgentPlanner: Sendable {
     attachmentContextMode: CloudAttachmentContextMode = .previews,
     skillRoot: String = DefaultPaths.motherSkillRoot,
     pythonExecutable: String = DefaultPaths.systemPython
-  ) async -> AgentPlan {
+  ) async -> AgentPlanningResult {
     if legacySpectroscopyPlanner.shouldUseDeterministicPlan(prompt: prompt, inputPaths: inputPaths) {
-      return applyWorkflowModeSafety(
+      return AgentPlanningResult(plan: applyWorkflowModeSafety(
         to: localPlan(prompt: prompt, inputPaths: inputPaths, capabilities: capabilities),
         capabilities: capabilities,
         allowRestrictedLocalRecipe: true
-      )
+      ))
     }
     if shouldUseDeterministicReadinessPlan(prompt: prompt, inputPaths: inputPaths) {
-      return applyWorkflowModeSafety(
+      return AgentPlanningResult(plan: applyWorkflowModeSafety(
         to: localPlan(prompt: prompt, inputPaths: inputPaths, capabilities: capabilities),
         capabilities: capabilities
-      )
+      ))
     }
 
     let routerPlan: AgentPlan?
@@ -71,27 +83,30 @@ struct AgentPlanner: Sendable {
         pythonExecutable: pythonExecutable
       )
     } catch let error as SkillWorkflowRouterError where error.isReleaseBlocking {
-      return blockedRouterPlan(error)
+      return AgentPlanningResult(plan: blockedRouterPlan(error))
     } catch {
       routerPlan = nil
     }
     let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
     if !provider.requiresAPIKey || !trimmedKey.isEmpty {
+      let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+      let requestedModel = trimmedModel.isEmpty ? provider.defaultModel : trimmedModel
       do {
-        let cloudPlan = try await cloudAIClient.plan(
+        let response = try await cloudAIClient.plan(
           prompt: prompt,
           inputPaths: inputPaths,
           capabilities: capabilities,
           provider: provider,
           apiKey: trimmedKey,
-          model: model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? provider.defaultModel : model,
+          model: requestedModel,
           baseURL: baseURL,
           attachmentContextMode: attachmentContextMode,
           routerPlan: routerPlan
         )
-        return applyWorkflowModeSafety(
-          to: cloudPlan,
-          capabilities: capabilities
+        return AgentPlanningResult(
+          plan: applyWorkflowModeSafety(to: response.plan, capabilities: capabilities),
+          modelAttempt: .init(provider: provider, requestedModel: requestedModel,
+                              reportedModel: response.reportedModel, outcome: .usedForPlan)
         )
       } catch {
         let fallback = routerPlan ?? localPlan(
@@ -101,14 +116,18 @@ struct AgentPlanner: Sendable {
         )
         var plan = applyWorkflowModeSafety(to: fallback, capabilities: capabilities)
         plan.rationale = "\(planningFailurePrefix(provider: provider, model: model, baseURL: baseURL)) Error: \(error.localizedDescription)\n\n\(fallback.rationale)"
-        return plan
+        return AgentPlanningResult(
+          plan: plan,
+          modelAttempt: .init(provider: provider, requestedModel: requestedModel,
+                              reportedModel: nil, outcome: .fellBack)
+        )
       }
     }
 
-    return applyWorkflowModeSafety(
+    return AgentPlanningResult(plan: applyWorkflowModeSafety(
       to: routerPlan ?? localPlan(prompt: prompt, inputPaths: inputPaths, capabilities: capabilities),
       capabilities: capabilities
-    )
+    ))
   }
 
   func deterministicPlan(
@@ -357,7 +376,7 @@ struct CloudAIPlannerClient: Sendable {
     baseURL: String? = nil,
     attachmentContextMode: CloudAttachmentContextMode = .previews,
     routerPlan: AgentPlan? = nil
-  ) async throws -> AgentPlan {
+  ) async throws -> (plan: AgentPlan, reportedModel: String?) {
     let capabilitySummary = capabilities.plannerVisible.map { capability in
       PlannerCapabilitySummaryPayload(
         block: CloudPrivacySanitizer.withholdingAbsolutePaths(in: capability.visibleBlock),
@@ -391,7 +410,7 @@ struct CloudAIPlannerClient: Sendable {
     \(routerPlanSummary(routerPlan))
     """
 
-    let output = try await client.generateText(
+    let output = try await client.generateReply(
       provider: provider,
       apiKey: apiKey,
       model: model,
@@ -400,7 +419,7 @@ struct CloudAIPlannerClient: Sendable {
       user: user,
       temperature: 0.1
     )
-    let payload = try decodePlanPayload(from: output)
+    let payload = try decodePlanPayload(from: output.text)
     let knownIDs = Set(capabilities.plannerVisible.map(\.id))
     let steps = payload.steps.compactMap { step -> AgentPlanStep? in
       guard let capabilityID = step.normalizedCapabilityID, knownIDs.contains(capabilityID) else { return nil }
@@ -418,12 +437,13 @@ struct CloudAIPlannerClient: Sendable {
       throw CloudAIError.emptyPlan
     }
 
-    return AgentPlan(
+    let plan = AgentPlan(
       title: payload.title ?? "AI workflow plan",
       rationale: payload.rationale ?? "Planned from the prompt and selected inputs.",
       steps: steps,
       source: AgentPlanSource(provider: provider)
     )
+    return (plan, output.reportedModel)
   }
 
   private func jsonString<T: Encodable>(_ value: T) -> String {
