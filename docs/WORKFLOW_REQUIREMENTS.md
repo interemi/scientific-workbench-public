@@ -109,7 +109,15 @@ Each input or output pass reads at most 64 MiB of regular files. Directory
 contents, unreadable files and files beyond the budget have explicit states.
 `contentUnchanged` reports equality of two successful SHA-256 observations.
 The `limits` field identifies evidence still needed for replay, including the
-local arguments and runtime details.
+local arguments and any missing runtime details.
+
+The bundled tools can also record the Python implementation, version and
+architecture at their entry point. The package inventory covers direct Core
+and Full requirements whose installed versions the interpreter can report in
+a public version format. It specifies what was installed in that Python
+environment. Consult the tool's own report for external backends and subprocesses.
+Older skill installations may omit this runtime observation, which the app
+reports as missing evidence.
 
 ## Registry coverage
 

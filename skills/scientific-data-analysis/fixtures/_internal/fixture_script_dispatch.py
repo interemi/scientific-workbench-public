@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import os
+import re
 import runpy
 import sys
 from pathlib import Path
@@ -38,11 +41,52 @@ def load_fixture_module(wrapper_file: str) -> ModuleType | None:
     return module
 
 
+def _record_runtime(tool: str) -> None:
+    raw = os.environ.get("SCIENTIFIC_WORKBENCH_RUNTIME_EVIDENCE")
+    if not raw or len(raw) > 16384:
+        return
+    try:
+        request = json.loads(raw)
+        if request["tool"] != tool or (tool == "datanalysis_env" and sys.argv[1:2] == ["run-tool"]):
+            return
+        os.environ.pop("SCIENTIFIC_WORKBENCH_RUNTIME_EVIDENCE", None)
+        path = Path(request["destination"])
+        if (not path.is_absolute() or path.parent.resolve(strict=True) != path.parent
+                or not re.fullmatch(r"\.swb-runtime-[a-f0-9-]{36}\.json", path.name)):
+            return
+        names = request["packages"]
+        if (not isinstance(names, list) or len(names) > 64
+                or not all(isinstance(name, str) and re.fullmatch(r"[a-zA-Z0-9_.-]{1,64}", name) for name in names)):
+            return
+
+        from importlib.metadata import PackageNotFoundError, version
+        import platform
+
+        packages = {}
+        for name in sorted(set(names)):
+            try:
+                release = version(name)
+            except PackageNotFoundError:
+                continue
+            if isinstance(release, str) and len(release) <= 48:
+                packages[name] = release
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump({
+                "schemaVersion": 1, "tool": tool, "implementation": sys.implementation.name,
+                "version": platform.python_version(), "architecture": platform.machine(), "packages": packages,
+            }, stream, sort_keys=True)
+    except (OSError, RuntimeError, TypeError, ValueError, KeyError):
+        # Evidence is optional and must not interrupt the scientific command.
+        return
+
+
 def main(wrapper_file: str) -> int:
-    _wrapper, root, scripts_dir, fixture = _paths(wrapper_file)
+    wrapper, root, scripts_dir, fixture = _paths(wrapper_file)
     if not fixture.exists():
         raise SystemExit(f"Fixture script body is missing: {fixture}")
     _prepare_import_path(root, scripts_dir, fixture)
+    _record_runtime(wrapper.stem)
     sys.argv[0] = str(fixture)
     runpy.run_path(str(fixture), run_name="__main__")
     return 0

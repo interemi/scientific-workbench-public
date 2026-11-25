@@ -14,6 +14,7 @@ extension ScientificWorkbenchTests {
         "skills/fixtures/profile_table.py": "world",
         "skills/scripts/datanalysis_env.py": """
           import json
+          import os
           from pathlib import Path
           import sys
 
@@ -22,6 +23,12 @@ extension ScientificWorkbenchTests {
           output = summary.parent / "private-observer-product.csv"
           output.write_text("world")
           summary.write_text(json.dumps({"tool": "profile_table", "app_status": "PASS"}))
+          request = json.loads(os.environ["SCIENTIFIC_WORKBENCH_RUNTIME_EVIDENCE"])
+          Path(request["destination"]).write_text(json.dumps({
+              "schemaVersion": 1, "tool": request["tool"], "implementation": "cpython",
+              "version": "3.11.14", "architecture": "arm64",
+              "packages": {"pandas": "2.3.0", "numpy": "1.0+private-observer", "private-observer": "1.0"},
+          }))
           """,
       ]
     )
@@ -56,6 +63,12 @@ extension ScientificWorkbenchTests {
     #expect(record.tool.capabilityID == "profile_table")
     #expect(record.status == .succeeded)
     #expect(record.exitCode == 0)
+    #expect(record.runtime?.pythonImplementation == "cpython")
+    #expect(record.runtime?.pythonVersion == "3.11.14")
+    #expect(record.runtime?.profilePackages == ["pandas": "2.3.0"])
+    #expect(!record.limits.contains(.runtimeAndDependencyVersionsNotCaptured))
+    let runFiles = try FileManager.default.contentsOfDirectory(atPath: job.runDirectory)
+    #expect(!runFiles.contains { $0.hasPrefix(".swb-runtime-") })
     #expect(record.startedAt != nil)
     #expect(record.finishedAt != nil)
     #expect(!record.outputRootConfirmationUsed)
@@ -124,8 +137,22 @@ extension ScientificWorkbenchTests {
     #expect(record.limits.contains(.directoryContentsNotCaptured))
     #expect(record.limits.contains(.incompleteFingerprints))
     #expect(record.limits.contains(.inputContentChanged))
+    #expect(record.runtime == nil)
+    #expect(record.limits.contains(.runtimeAndDependencyVersionsNotCaptured))
     #expect(throws: (any Error).self) { try service.write(start: start, job: job) }
     #expect(try Data(contentsOf: artifact.url) == retained)
     #expect(RunFileFingerprint.read(source, maximumBytes: 4).state == .overBudget)
+  }
+
+  @Test
+  func runRuntimePackageAllowlistMatchesBundledProfiles() throws {
+    let checkout = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent().deletingLastPathComponent()
+    let root = checkout.appendingPathComponent("skills/scientific-data-analysis")
+    let declared = try ["core", "full"].flatMap { profile in
+      let text = try String(contentsOf: root.appendingPathComponent("requirements-\(profile).txt"), encoding: .utf8)
+      return text.split(whereSeparator: \.isNewline).filter { !$0.hasPrefix("#") && !$0.hasPrefix("-r ") }.map(String.init)
+    }
+    #expect(Set(RunRuntimeEvidence.profilePackageNames) == Set(declared))
   }
 }

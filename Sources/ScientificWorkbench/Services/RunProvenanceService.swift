@@ -45,6 +45,7 @@ struct JobRunProvenance: Codable, Sendable {
   let startedAt: Date?
   let finishedAt: Date?
   let outputRootConfirmationUsed: Bool
+  let runtime: RunRuntimeEvidence?
   let inputs: [Input]
   let outputs: [Output]
   let limits: [Limit]
@@ -60,6 +61,7 @@ struct RunProvenanceService {
     fileprivate let appVersion: String?
     fileprivate let appBuild: String?
     fileprivate let outputRootConfirmationUsed: Bool
+    let runtimeChannel: RunRuntimeEvidence.Channel
   }
 
   func captureStart(
@@ -83,15 +85,17 @@ struct RunProvenanceService {
         implementationSHA256: Self.digest(implementation, inside: owner)
       )
       let inputURLs = request.inputPaths.map(FilesystemPath.canonicalURL)
+      let runRoot = FilesystemPath.canonicalURL(request.outputDirectory)
       return Start(
         inputPaths: request.inputPaths,
         inputURLs: inputURLs,
         fingerprints: Self.fingerprints(inputURLs),
-        runRoot: FilesystemPath.canonicalURL(request.outputDirectory),
+        runRoot: runRoot,
         tool: tool,
         appVersion: Self.appVersion("CFBundleShortVersionString"),
         appBuild: Self.appVersion("CFBundleVersion"),
-        outputRootConfirmationUsed: outputRootConfirmationUsed
+        outputRootConfirmationUsed: outputRootConfirmationUsed,
+        runtimeChannel: RunRuntimeEvidence.Channel(runRoot: runRoot, tool: capability.scriptStem)
       )
     }.value
   }
@@ -99,6 +103,7 @@ struct RunProvenanceService {
   func write(start: Start, job: JobRecord) throws -> Artifact {
     let root = FilesystemPath.canonicalURL(job.runDirectory)
     guard root == start.runRoot else { throw CocoaError(.fileWriteInvalidFileName) }
+    let runtime = start.runtimeChannel.consume()
     let updatedURLs = start.inputPaths.map(FilesystemPath.canonicalURL)
     let after = Self.fingerprints(zip(start.inputURLs, updatedURLs).map { $0 == $1 ? $0 : nil })
     let inputs = zip(start.fingerprints, after).enumerated().map { index, pair in
@@ -124,9 +129,10 @@ struct RunProvenanceService {
     }
     let fingerprints = inputs.flatMap { [$0.before, $0.after] } + outputs.map(\.fingerprint)
     var limits: [JobRunProvenance.Limit] = [
-      .attachedInputScope, .localArgumentsRequired, .runtimeAndDependencyVersionsNotCaptured,
+      .attachedInputScope, .localArgumentsRequired,
       .backendAndModelNotCaptured, .furtherConsentEvidenceRequired,
     ]
+    if runtime == nil { limits.append(.runtimeAndDependencyVersionsNotCaptured) }
     if fingerprints.contains(where: { $0.state == .directory }) { limits.append(.directoryContentsNotCaptured) }
     if fingerprints.contains(where: { $0.state != .recorded }) { limits.append(.incompleteFingerprints) }
     if inputs.contains(where: { $0.contentUnchanged == false }) { limits.append(.inputContentChanged) }
@@ -134,7 +140,7 @@ struct RunProvenanceService {
     let provenance = JobRunProvenance(
       schemaVersion: 1, jobID: job.id, appVersion: start.appVersion, appBuild: start.appBuild,
       tool: start.tool, status: job.status, exitCode: job.exitCode, startedAt: job.startedAt,
-      finishedAt: job.finishedAt, outputRootConfirmationUsed: start.outputRootConfirmationUsed,
+      finishedAt: job.finishedAt, outputRootConfirmationUsed: start.outputRootConfirmationUsed, runtime: runtime,
       inputs: inputs, outputs: outputs, limits: limits
     )
     let data = try JSONEncoder.scientificWorkbench.encode(provenance)

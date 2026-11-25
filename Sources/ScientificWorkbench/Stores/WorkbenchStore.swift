@@ -2836,7 +2836,7 @@ final class WorkbenchStore: ObservableObject {
         outputDirectory: runDirectory,
         rawArguments: effectiveRawArguments
       )
-      let command = try builder.build(
+      var command = try builder.build(
         capability: capability,
         request: request,
         skillRoot: requestSkillRoot
@@ -2846,6 +2846,9 @@ final class WorkbenchStore: ObservableObject {
         outputRootConfirmationUsed: outputRootConfirmationUsed, secrets: configuredSecrets
       )
       if isCancellationRequested || Task.isCancelled { throw CancellationError() }
+      if let request = provenance?.runtimeChannel.request {
+        command.environmentOverrides[RunRuntimeEvidence.environmentKey] = request
+      }
 
       job.status = .running
       job.command = redactSecrets(command.pretty)

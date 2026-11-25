@@ -219,6 +219,7 @@ extension ScientificWorkbenchTests {
       "CDPATH": "/tmp/untrusted-cdpath",
       "PYTHONHOME": "/tmp/untrusted-python-home",
       "PYTHONPATH": "/tmp/untrusted-python-path",
+      RunRuntimeEvidence.environmentKey: "untrusted-runtime-request",
       "NODE_OPTIONS": "--require=/tmp/untrusted-node.js",
       "RUBYOPT": "-r/tmp/untrusted-ruby.rb",
       "PATH": "/compat/bin"
@@ -240,6 +241,7 @@ extension ScientificWorkbenchTests {
     #expect(environment["CDPATH"] == nil)
     #expect(environment["PYTHONHOME"] == nil)
     #expect(environment["PYTHONPATH"] == nil)
+    #expect(environment[RunRuntimeEvidence.environmentKey] == nil)
     #expect(environment["NODE_OPTIONS"] == nil)
     #expect(environment["RUBYOPT"] == nil)
     #expect(environment["PATH"]?.contains("/compat/bin") == true)
