@@ -4,6 +4,64 @@ import Testing
 
 extension ScientificWorkbenchTests {
   @Test
+  func bundledGuidedDefaultsProduceCommandArguments() throws {
+    let checkout = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent().deletingLastPathComponent()
+    let mother = checkout.appendingPathComponent("skills/scientific-data-analysis").path
+    let entries = try CapabilityRegistryLoader().load(skillRoot: mother).userFacing
+    let fixture = try makeScenarioFixture(
+      name: "guided-cli-contracts",
+      files: [
+        "first table.csv": "inst_mag,std_mag,airmass,color_index,offset_err\n1,2,1.1,0.1,0.03\n",
+        "second table.csv": "x,y\n1,2\n",
+      ]
+    )
+    defer { try? FileManager.default.removeItem(at: fixture) }
+
+    struct Invocation: Encodable {
+      let id: String
+      let skill: String
+      let argv: [String]
+    }
+
+    let first = fixture.appendingPathComponent("first table.csv").path
+    let second = fixture.appendingPathComponent("second table.csv").path
+    let builder = CapabilityCommandBuilder(pythonExecutable: "/usr/bin/python3")
+    let invocations = try entries.compactMap { entry -> Invocation? in
+      let inputs: [String]
+      switch entry.guidedRunRequirement {
+      case .noInput: inputs = []
+      case .singleInput: inputs = [first]
+      case .twoInputs, .multipleInputs: inputs = [first, second]
+      case .rawArguments: return nil
+      }
+      // This operation constructs arguments in the dedicated document-edit route.
+      guard entry.id != "office_roundtrip.docx-styled-replace" else { return nil }
+      let request = RunRequest(
+        capabilityID: entry.id,
+        inputPaths: inputs,
+        outputDirectory: fixture.appendingPathComponent("fresh run").path,
+        rawArguments: ""
+      )
+      let command = try builder.build(capability: entry, request: request, skillRoot: mother)
+      let workingDirectory = try #require(command.workingDirectory)
+      #expect(Array(command.arguments.dropFirst().prefix(2)) == ["run-tool", entry.scriptStem])
+      return Invocation(
+        id: entry.id,
+        skill: URL(fileURLWithPath: workingDirectory).lastPathComponent,
+        argv: Array(command.arguments.dropFirst(3))
+      )
+    }
+    #expect(invocations.count == entries.filter(\.supportsGuidedRun).count - 1)
+
+    if let output = ProcessInfo.processInfo.environment["SCIENTIFIC_WORKBENCH_GUIDED_CLI_EVIDENCE"] {
+      let encoder = JSONEncoder()
+      encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+      try encoder.encode(invocations).write(to: URL(fileURLWithPath: output), options: .withoutOverwriting)
+    }
+  }
+
+  @Test
   func shellWordsSplitAndQuote() throws {
     let words = try ShellWords.split(#""/tmp/a file.csv" --flag 'two words'"#)
     #expect(words == ["/tmp/a file.csv", "--flag", "two words"])

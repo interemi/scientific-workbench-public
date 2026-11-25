@@ -93,19 +93,28 @@ def bundled_script(relative: str) -> Path:
     return target
 
 
-def inspect_parser(relative: str, tail: list[str]) -> dict:
+def inspect_parser(relative: str, tail: list[str], arguments: list[str] | None = None) -> dict:
     """Run in an isolated interpreter so imports cannot leak across skills."""
     script = bundled_script(relative)
     sys.argv[:] = [str(script), *tail, "--help"]
     sys.path.insert(0, str(script.parent))
+    print_help = argparse.ArgumentParser.print_help
     argparse.ArgumentParser.print_help = capture_help
     try:
         runpy.run_path(str(script), run_name="__main__")
     except HelpRequested as capture:
-        return describe_parser(capture.parser)
+        parser = capture.parser
     except SystemExit as error:
         raise ValueError(f"command exited during help before exposing a parser ({error.code})") from error
-    raise ValueError("command returned without exposing a parser")
+    else:
+        raise ValueError("command returned without exposing a parser")
+    finally:
+        argparse.ArgumentParser.print_help = print_help
+    if arguments is not None:
+        if arguments[:len(tail)] != tail:
+            raise ValueError("guided command is missing its registered subcommand")
+        parser.parse_args(arguments[len(tail):])
+    return describe_parser(parser)
 
 
 def command_records(entries: list[dict]) -> list[dict]:
@@ -139,16 +148,18 @@ def command_records(entries: list[dict]) -> list[dict]:
     return commands
 
 
-def load_command_schema(command: dict, scratch: Path) -> dict:
+def load_command_schema(command: dict, scratch: Path, arguments: list[str] | None = None) -> dict:
     script, *tail = command["argv"]
     environment = {
         **os.environ,
         "DATAANALYSIS_PYTHON": sys.executable,
         "MPLCONFIGDIR": str(scratch / "matplotlib"),
     }
+    operation = "--inspect-parser" if arguments is None else "--inspect-guided-parser"
     process = subprocess.run(
-        [sys.executable, "-B", __file__, "--inspect-parser", script.removeprefix("skills/"), *tail],
+        [sys.executable, "-B", __file__, operation, script.removeprefix("skills/"), *tail],
         cwd=scratch, env=environment, capture_output=True, text=True, timeout=30,
+        input=None if arguments is None else json.dumps(arguments),
     )
     if process.returncode:
         reason = process.stderr.strip().splitlines()
@@ -160,9 +171,29 @@ def load_command_schema(command: dict, scratch: Path) -> dict:
     return {**command, "parser": schema}
 
 
+def load_guided_arguments(path: Path, commands: list[dict]) -> dict[str, list[str]]:
+    owners = {command["id"]: command["skill"] for command in commands}
+    arguments = {}
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("guided argument evidence must contain at least one invocation")
+    for row in rows:
+        capability = row["id"]
+        argv = row["argv"]
+        if capability in arguments or owners.get(capability) != row["skill"]:
+            raise ValueError(f"{capability}: duplicate guided invocation or incorrect owning skill")
+        if not isinstance(argv, list) or not all(isinstance(value, str) for value in argv):
+            raise ValueError(f"{capability}: guided arguments must be a list of strings")
+        if "-h" in argv or "--help" in argv:
+            raise ValueError(f"{capability}: guided arguments must describe a workflow invocation")
+        arguments[capability] = argv
+    return arguments
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--capability", action="append", help="Limit output to this registry ID. Repeatable.")
+    parser.add_argument("--guided-arguments", type=Path, help="Check command arguments exported by Swift tests.")
     args = parser.parse_args(argv)
     try:
         commands = command_records(load_registry())
@@ -176,21 +207,28 @@ def main(argv: list[str] | None = None) -> int:
             if unknown:
                 parser.error(f"unknown registry IDs: {', '.join(sorted(unknown))}")
             commands = [command for command in commands if command["id"] in args.capability]
+        arguments = load_guided_arguments(args.guided_arguments, commands) if args.guided_arguments else {}
         with tempfile.TemporaryDirectory(prefix="swb-cli-contracts-") as directory:
             scratch = Path(directory)
             with ThreadPoolExecutor(max_workers=4) as pool:
-                schemas = list(pool.map(lambda command: load_command_schema(command, scratch), commands))
+                schemas = list(pool.map(
+                    lambda command: load_command_schema(command, scratch, arguments.get(command["id"])),
+                    commands,
+                ))
         for command in schemas:
             contract = contracts.get(command["id"])
             if contract is not None:
                 validate_parser_references(command["id"], contract, command["parser"])
                 command["io_contract"] = contract
-        output = json.dumps({
+        catalog = {
             "schema_version": SCHEMA_VERSION,
             "io_schema_version": IO_SCHEMA_VERSION,
             "commands": schemas,
-        }, indent=2, allow_nan=False)
-    except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+        }
+        if arguments:
+            catalog["validated_guided_invocations"] = sorted(arguments)
+        output = json.dumps(catalog, indent=2, allow_nan=False)
+    except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
         print(f"CLI contract export failed: {error}", file=sys.stderr)
         return 1
     print(output)
@@ -200,5 +238,7 @@ def main(argv: list[str] | None = None) -> int:
 if __name__ == "__main__":
     if sys.argv[1:2] == ["--inspect-parser"]:
         print(json.dumps(inspect_parser(sys.argv[2], sys.argv[3:]), allow_nan=False))
+    elif sys.argv[1:2] == ["--inspect-guided-parser"]:
+        print(json.dumps(inspect_parser(sys.argv[2], sys.argv[3:], json.load(sys.stdin)), allow_nan=False))
     else:
         raise SystemExit(main())

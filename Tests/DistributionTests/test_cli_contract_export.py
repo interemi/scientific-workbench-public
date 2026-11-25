@@ -87,6 +87,33 @@ class CLIContractExportTests(unittest.TestCase):
         self.assertIn("unknown registry IDs: unknown-capability", process.stderr)
         self.assertEqual(process.stdout, "")
 
+    def test_checks_guided_arguments_without_running_the_workflow(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            summary = root / "summary.json"
+            evidence = root / "guided.json"
+            invocation = {
+                "id": "external_astro_tools_preflight",
+                "skill": "scientific-data-astro",
+                "argv": ["--summary-json", str(summary)],
+            }
+            command = [
+                sys.executable, "-B", str(EXPORTER),
+                "--capability", invocation["id"], "--guided-arguments", str(evidence),
+            ]
+            evidence.write_text(json.dumps([invocation]), encoding="utf-8")
+            valid = subprocess.run(command, cwd=root, capture_output=True, text=True, check=True, timeout=30)
+            self.assertEqual(json.loads(valid.stdout)["validated_guided_invocations"], [invocation["id"]])
+            self.assertFalse(summary.exists())
+
+            invocation["argv"].append("--removed-preflight-flag")
+            evidence.write_text(json.dumps([invocation]), encoding="utf-8")
+            invalid = subprocess.run(command, cwd=root, capture_output=True, text=True, check=False, timeout=30)
+            self.assertEqual(invalid.returncode, 1)
+            self.assertIn("unrecognized arguments: --removed-preflight-flag", invalid.stderr)
+            self.assertEqual(invalid.stdout, "")
+            self.assertFalse(summary.exists())
+
     def test_retained_summary_rejects_a_missing_or_wrong_typed_result(self):
         summary = {
             "tool": "photometry_noise_budget",

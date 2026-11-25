@@ -114,7 +114,9 @@ jobs:
         env:
           # Shared Intel runners have delayed independent test tasks beyond fixture deadlines.
           SCIENTIFIC_WORKBENCH_SWIFT_TEST_SERIAL: ${{ matrix.architecture == 'x86_64' && '1' || '0' }}
-        run: ./script/run_swift_tests.sh 2>&1 | tee "$CI_EVIDENCE_DIR/swift-tests.log"
+        run: |
+          SCIENTIFIC_WORKBENCH_GUIDED_CLI_EVIDENCE="$CI_EVIDENCE_DIR/guided-arguments.json" \
+            ./script/run_swift_tests.sh 2>&1 | tee "$CI_EVIDENCE_DIR/swift-tests.log"
       - name: Install core in a new isolated environment
         run: |
           lock_options=()
@@ -144,10 +146,11 @@ jobs:
               or not (status.get("selected_env_root") or "").endswith("/scientific-workbench/datanalysis")):
               raise SystemExit("Installed core environment discovery did not report ok")
           PY
-      - name: Export registered CLI argument schemas
+      - name: Export CLI contracts and verify guided defaults
         run: |
           "$RUNNER_TEMP/scientific-workbench/datanalysis/bin/python" \
-            script/render_cli_contracts.py > "$CI_EVIDENCE_DIR/cli-contracts.json"
+            script/render_cli_contracts.py --guided-arguments "$CI_EVIDENCE_DIR/guided-arguments.json" \
+            > "$CI_EVIDENCE_DIR/cli-contracts.json"
       - name: Validate synthetic workflows and snapshot integrity
         run: |
           "$RUNNER_TEMP/scientific-workbench/datanalysis/bin/python" \
