@@ -115,7 +115,7 @@ jobs:
           # Shared Intel runners have delayed independent test tasks beyond fixture deadlines.
           SCIENTIFIC_WORKBENCH_SWIFT_TEST_SERIAL: ${{ matrix.architecture == 'x86_64' && '1' || '0' }}
         run: |
-          SCIENTIFIC_WORKBENCH_GUIDED_CLI_EVIDENCE="$CI_EVIDENCE_DIR/guided-arguments.json" \
+          SCIENTIFIC_WORKBENCH_GUIDED_CLI_EVIDENCE_DIR="$CI_EVIDENCE_DIR" \
             ./script/run_swift_tests.sh 2>&1 | tee "$CI_EVIDENCE_DIR/swift-tests.log"
       - name: Install core in a new isolated environment
         run: |
@@ -146,10 +146,13 @@ jobs:
               or not (status.get("selected_env_root") or "").endswith("/scientific-workbench/datanalysis")):
               raise SystemExit("Installed core environment discovery did not report ok")
           PY
-      - name: Export CLI contracts and verify guided defaults
+      - name: Export CLI contracts and verify guided arguments
         run: |
           "$RUNNER_TEMP/scientific-workbench/datanalysis/bin/python" \
-            script/render_cli_contracts.py --guided-arguments "$CI_EVIDENCE_DIR/guided-arguments.json" \
+            script/render_cli_contracts.py --require-guided-coverage \
+            --guided-arguments "$CI_EVIDENCE_DIR/guided-defaults.json" \
+            --guided-arguments "$CI_EVIDENCE_DIR/guided-forms.json" \
+            --guided-arguments "$CI_EVIDENCE_DIR/guided-docx.json" \
             > "$CI_EVIDENCE_DIR/cli-contracts.json"
       - name: Validate synthetic workflows and snapshot integrity
         run: |

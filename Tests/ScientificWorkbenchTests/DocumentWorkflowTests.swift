@@ -64,6 +64,12 @@ extension ScientificWorkbenchTests {
     let output = URL(fileURLWithPath: job.runDirectory).appendingPathComponent("artifacts/edited_copy.docx")
     #expect(try String(contentsOf: output, encoding: .utf8) == preview)
     #expect(try String(contentsOf: source, encoding: .utf8) == sourceText)
+    let argv = try ShellWords.split(job.command)
+    #expect(Array(argv.dropFirst(2).prefix(3)) == ["run-tool", "office_roundtrip", "docx-styled-replace"])
+    try GuidedCLIInvocation.retain([
+      .init(id: capability.id, skill: "scientific-data-documents", argv: Array(argv.dropFirst(4)),
+            variant: "reviewed-replacement")
+    ], as: "guided-docx.json")
   }
 
   @Test

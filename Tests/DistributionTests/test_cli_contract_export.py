@@ -100,19 +100,32 @@ class CLIContractExportTests(unittest.TestCase):
             command = [
                 sys.executable, "-B", str(EXPORTER),
                 "--capability", invocation["id"], "--guided-arguments", str(evidence),
+                "--require-guided-coverage",
             ]
-            evidence.write_text(json.dumps([invocation]), encoding="utf-8")
+            variant = {**invocation, "variant": "with-probe", "argv": [*invocation["argv"], "--probe"]}
+            evidence.write_text(json.dumps([invocation, variant]), encoding="utf-8")
             valid = subprocess.run(command, cwd=root, capture_output=True, text=True, check=True, timeout=30)
-            self.assertEqual(json.loads(valid.stdout)["validated_guided_invocations"], [invocation["id"]])
+            catalog = json.loads(valid.stdout)
+            self.assertEqual(catalog["validated_guided_invocations"], [invocation["id"]])
+            self.assertEqual(catalog["validated_guided_variants"][invocation["id"]], ["default", "with-probe"])
             self.assertFalse(summary.exists())
 
-            invocation["argv"].append("--removed-preflight-flag")
-            evidence.write_text(json.dumps([invocation]), encoding="utf-8")
+            variant["argv"].append("--removed-preflight-flag")
+            evidence.write_text(json.dumps([invocation, variant]), encoding="utf-8")
             invalid = subprocess.run(command, cwd=root, capture_output=True, text=True, check=False, timeout=30)
             self.assertEqual(invalid.returncode, 1)
             self.assertIn("unrecognized arguments: --removed-preflight-flag", invalid.stderr)
+            self.assertIn("[with-probe]", invalid.stderr)
             self.assertEqual(invalid.stdout, "")
             self.assertFalse(summary.exists())
+
+            evidence.write_text(json.dumps([invocation]), encoding="utf-8")
+            missing = subprocess.run(
+                [*command, "--capability", "catalog_workbench.crossmatch-sky"],
+                cwd=root, capture_output=True, text=True, check=False, timeout=30,
+            )
+            self.assertEqual(missing.returncode, 1)
+            self.assertIn("missing guided arguments for catalog_workbench.crossmatch-sky", missing.stderr)
 
     def test_retained_summary_rejects_a_missing_or_wrong_typed_result(self):
         summary = {

@@ -4,35 +4,10 @@ struct GuidedCapabilityControls: View {
   @ObservedObject var store: WorkbenchStore
   let capability: CapabilityEntry
 
-  @State private var sourceSignal = 10_000.0
-  @State private var skyPerPixel = 50.0
-  @State private var darkPerPixel = 0.1
-  @State private var readNoise = 5.0
-  @State private var aperturePixels = 20.0
-  @State private var includeBackgroundEstimate = true
-  @State private var skyEstimatePixels = 100.0
-  @State private var frameCount = 1
-  @State private var noiseUnits = "electrons"
-  @State private var gain = 1.0
-
-  @State private var forecastTitle = "Scientific Workbench Forecast"
-  @State private var dateColumn = ""
-  @State private var valueColumn = ""
-  @State private var frequency = ""
-  @State private var testHorizon = 12
-  @State private var forecastLanguage = "bilingual"
-  @State private var runtimeProfile = "local"
-
-  @State private var deliverableTitle = "Scientific Workbench Deliverable"
-  @State private var deliverableKind = "status-report"
-  @State private var deliverableFormat = "markdown"
-  @State private var deliverableLanguage = "bilingual"
-
-  @State private var notebookTitle = "Scientific Workbench Analysis"
-  @State private var notebookDomain = "general"
-  @State private var notebookLanguage = "bilingual"
-  @State private var notebookRuntime = "local"
-
+  @State private var noiseBudget = GuidedCapabilityArguments.NoiseBudget()
+  @State private var forecast = GuidedCapabilityArguments.ForecastNotebook()
+  @State private var deliverable = GuidedCapabilityArguments.DeliverableScaffold()
+  @State private var notebook = GuidedCapabilityArguments.AnalysisNotebook()
   @State private var companionTask = ""
 
   static func supports(_ capabilityID: String) -> Bool {
@@ -78,63 +53,45 @@ struct GuidedCapabilityControls: View {
 
       Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
         GridRow {
-          noiseField("Net source signal / frame", value: $sourceSignal)
-          noiseField("Sky / pixel / frame", value: $skyPerPixel)
+          noiseField("Net source signal / frame", value: $noiseBudget.sourceSignal)
+          noiseField("Sky / pixel / frame", value: $noiseBudget.skyPerPixel)
         }
         GridRow {
-          noiseField("Dark / pixel / frame", value: $darkPerPixel)
-          noiseField("Read noise (e⁻ / pixel / frame)", value: $readNoise)
+          noiseField("Dark / pixel / frame", value: $noiseBudget.darkPerPixel)
+          noiseField("Read noise (e⁻ / pixel / frame)", value: $noiseBudget.readNoise)
         }
         GridRow {
-          noiseField("Aperture pixels", value: $aperturePixels)
-          noiseField("Background-estimate pixels", value: $skyEstimatePixels)
-            .disabled(!includeBackgroundEstimate)
+          noiseField("Aperture pixels", value: $noiseBudget.aperturePixels)
+          noiseField("Background-estimate pixels", value: $noiseBudget.skyEstimatePixels)
+            .disabled(!noiseBudget.includeBackgroundEstimate)
         }
         GridRow {
-          Picker("Units", selection: $noiseUnits) {
-            Text("Electrons").tag("electrons")
-            Text("ADU").tag("adu")
+          Picker("Units", selection: $noiseBudget.units) {
+            ForEach(GuidedCapabilityArguments.CountUnit.allCases, id: \.self) { unit in
+              Text(unit.title).tag(unit)
+            }
           }
-          Stepper("Frames: \(frameCount)", value: $frameCount, in: 1...10_000)
+          Stepper("Frames: \(noiseBudget.frameCount)", value: $noiseBudget.frameCount, in: 1...10_000)
         }
-        if noiseUnits == "adu" {
+        if noiseBudget.units == .adu {
           GridRow {
-            noiseField("Gain (e⁻/ADU)", value: $gain)
+            noiseField("Gain (e⁻/ADU)", value: $noiseBudget.gain)
             Spacer()
           }
         }
       }
       .pickerStyle(.segmented)
 
-      Toggle("Include uncertainty from estimating the background", isOn: $includeBackgroundEstimate)
+      Toggle("Include uncertainty from estimating the background", isOn: $noiseBudget.includeBackgroundEstimate)
 
       guidedFooter(
-        readiness: noiseBudgetIsValid
-          ? "Source, sky and dark are in \(noiseUnits)."
+        readiness: noiseBudget.isValid
+          ? "Source, sky and dark are in \(noiseBudget.units.rawValue)."
           : "Enter finite counts and read noise, with positive pixel counts and gain where used.",
-        canRun: noiseBudgetIsValid
+        canRun: noiseBudget.isValid
       ) {
         await store.runGuided(capability: capability, inputPathsOverride: []) { runURL in
-          var arguments = [
-            "--source", number(sourceSignal),
-            "--sky-per-pixel", number(skyPerPixel),
-            "--dark-per-pixel", number(darkPerPixel),
-            "--read-noise", number(readNoise),
-            "--n-pixels", number(aperturePixels),
-            "--n-frames", String(frameCount),
-            "--units", noiseUnits,
-          ]
-          if includeBackgroundEstimate {
-            arguments += ["--sky-estimate-pixels", number(skyEstimatePixels)]
-          }
-          if noiseUnits == "adu" {
-            arguments += ["--gain", number(gain)]
-          }
-          return arguments + [
-            "--summary-json", runURL.appendingPathComponent("summary.json").path,
-            "--report-md", runURL.appendingPathComponent("reports/noise_budget.md").path,
-            "--manifest-json", runURL.appendingPathComponent("manifest.json").path,
-          ]
+          noiseBudget.arguments(runURL: runURL)
         }
       }
     }
@@ -147,27 +104,28 @@ struct GuidedCapabilityControls: View {
         detail: "Create a reproducible notebook and side products from one regular time-series table."
       )
 
-      TextField("Notebook title", text: $forecastTitle)
+      TextField("Notebook title", text: $forecast.title)
         .textFieldStyle(.roundedBorder)
 
       Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
         GridRow {
-          TextField("Date column (optional)", text: $dateColumn)
-          TextField("Value column (optional)", text: $valueColumn)
+          TextField("Date column (optional)", text: $forecast.dateColumn)
+          TextField("Value column (optional)", text: $forecast.valueColumn)
         }
         GridRow {
-          TextField("Frequency, for example MS", text: $frequency)
-          Stepper("Test horizon: \(testHorizon)", value: $testHorizon, in: 1...10_000)
+          TextField("Frequency, for example MS", text: $forecast.frequency)
+          Stepper("Test horizon: \(forecast.testHorizon)", value: $forecast.testHorizon, in: 1...10_000)
         }
         GridRow {
-          Picker("Language", selection: $forecastLanguage) {
-            Text("English").tag("en")
-            Text("Spanish").tag("es")
-            Text("Bilingual").tag("bilingual")
+          Picker("Language", selection: $forecast.language) {
+            ForEach(GuidedCapabilityArguments.Language.allCases, id: \.self) { language in
+              Text(language.title).tag(language)
+            }
           }
-          Picker("Runtime", selection: $runtimeProfile) {
-            Text("Local").tag("local")
-            Text("Colab").tag("colab")
+          Picker("Runtime", selection: $forecast.runtime) {
+            ForEach(GuidedCapabilityArguments.Runtime.allCases, id: \.self) { runtime in
+              Text(runtime.title).tag(runtime)
+            }
           }
         }
       }
@@ -177,24 +135,11 @@ struct GuidedCapabilityControls: View {
         readiness: store.inputPaths.isEmpty
           ? "Add one CSV, TSV, spreadsheet, or table-like source."
           : "Ready to scaffold against \(URL(fileURLWithPath: store.inputPaths[0]).lastPathComponent).",
-        canRun: !store.inputPaths.isEmpty && !forecastTitle.trimmed.isEmpty
+        canRun: !store.inputPaths.isEmpty && !forecast.title.trimmed.isEmpty
       ) {
         guard let input = store.inputPaths.first else { return }
         await store.runGuided(capability: capability, inputPathsOverride: [input]) { runURL in
-          var arguments = [
-            "--output-dir", runURL.appendingPathComponent("artifacts/forecasting").path,
-            "--title=\(forecastTitle.trimmed)",
-            "--language", forecastLanguage,
-            "--runtime-profile", runtimeProfile,
-            "--data-path", input,
-            "--test-horizon", String(testHorizon),
-            "--summary-json", runURL.appendingPathComponent("summary.json").path,
-            "--manifest-json", runURL.appendingPathComponent("manifest.json").path,
-          ]
-          appendOption("--date-column", value: dateColumn, to: &arguments)
-          appendOption("--value-column", value: valueColumn, to: &arguments)
-          appendOption("--frequency", value: frequency, to: &arguments)
-          return arguments
+          forecast.arguments(input: input, runURL: runURL)
         }
       }
     }
@@ -207,30 +152,27 @@ struct GuidedCapabilityControls: View {
         detail: "Create a clean report or handoff structure in a new run folder."
       )
 
-      TextField("Title", text: $deliverableTitle)
+      TextField("Title", text: $deliverable.title)
         .textFieldStyle(.roundedBorder)
 
       Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
         GridRow {
-          Picker("Kind", selection: $deliverableKind) {
-            ForEach([
-              "status-report", "executive-summary", "project-brief", "proposal",
-              "qa-summary", "report", "minutes", "presentation", "academic-report",
-            ], id: \.self) { value in
+          Picker("Kind", selection: $deliverable.kind) {
+            ForEach(GuidedCapabilityArguments.DeliverableScaffold.kinds, id: \.self) { value in
               Text(value.replacingOccurrences(of: "-", with: " ").capitalized).tag(value)
             }
           }
-          Picker("Format", selection: $deliverableFormat) {
-            Text("Markdown").tag("markdown")
-            Text("LaTeX").tag("latex")
-            Text("HTML").tag("html")
+          Picker("Format", selection: $deliverable.format) {
+            ForEach(GuidedCapabilityArguments.DeliverableFormat.allCases, id: \.self) { format in
+              Text(format.title).tag(format)
+            }
           }
         }
         GridRow {
-          Picker("Language", selection: $deliverableLanguage) {
-            Text("English").tag("english")
-            Text("Spanish").tag("spanish")
-            Text("Bilingual").tag("bilingual")
+          Picker("Language", selection: $deliverable.language) {
+            ForEach(GuidedCapabilityArguments.Language.allCases, id: \.self) { language in
+              Text(language.title).tag(language)
+            }
           }
           Spacer()
         }
@@ -238,21 +180,13 @@ struct GuidedCapabilityControls: View {
       .pickerStyle(.menu)
 
       guidedFooter(
-        readiness: deliverableTitle.trimmed.isEmpty
+        readiness: deliverable.title.trimmed.isEmpty
           ? "Enter a title before creating the scaffold."
-          : "Ready to create a \(deliverableKind.replacingOccurrences(of: "-", with: " ")).",
-        canRun: !deliverableTitle.trimmed.isEmpty
+          : "Ready to create a \(deliverable.kind.replacingOccurrences(of: "-", with: " ")).",
+        canRun: !deliverable.title.trimmed.isEmpty
       ) {
         await store.runGuided(capability: capability, inputPathsOverride: []) { runURL in
-          [
-            runURL.appendingPathComponent("artifacts/deliverable").path,
-            "--kind", deliverableKind,
-            "--format", deliverableFormat,
-            "--title=\(deliverableTitle.trimmed)",
-            "--language", deliverableLanguage,
-            "--summary-json", runURL.appendingPathComponent("summary.json").path,
-            "--manifest-json", runURL.appendingPathComponent("manifest.json").path,
-          ]
+          deliverable.arguments(runURL: runURL)
         }
       }
     }
@@ -265,26 +199,27 @@ struct GuidedCapabilityControls: View {
         detail: "Scaffold a reproducible notebook, optionally prefilled with the first selected input."
       )
 
-      TextField("Notebook title", text: $notebookTitle)
+      TextField("Notebook title", text: $notebook.title)
         .textFieldStyle(.roundedBorder)
 
       Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
         GridRow {
-          Picker("Domain", selection: $notebookDomain) {
-            Text("General").tag("general")
-            Text("Applied").tag("applied")
-            Text("Astronomy").tag("astronomy")
+          Picker("Domain", selection: $notebook.domain) {
+            ForEach(GuidedCapabilityArguments.NotebookDomain.allCases, id: \.self) { domain in
+              Text(domain.title).tag(domain)
+            }
           }
-          Picker("Language", selection: $notebookLanguage) {
-            Text("English").tag("en")
-            Text("Spanish").tag("es")
-            Text("Bilingual").tag("bilingual")
+          Picker("Language", selection: $notebook.language) {
+            ForEach(GuidedCapabilityArguments.Language.allCases, id: \.self) { language in
+              Text(language.title).tag(language)
+            }
           }
         }
         GridRow {
-          Picker("Runtime", selection: $notebookRuntime) {
-            Text("Local").tag("local")
-            Text("Colab").tag("colab")
+          Picker("Runtime", selection: $notebook.runtime) {
+            ForEach(GuidedCapabilityArguments.Runtime.allCases, id: \.self) { runtime in
+              Text(runtime.title).tag(runtime)
+            }
           }
           Text(store.inputPaths.first.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "No data source selected")
             .font(.caption)
@@ -294,28 +229,16 @@ struct GuidedCapabilityControls: View {
       .pickerStyle(.menu)
 
       guidedFooter(
-        readiness: notebookTitle.trimmed.isEmpty
+        readiness: notebook.title.trimmed.isEmpty
           ? "Enter a notebook title."
           : "Ready. A data source is optional.",
-        canRun: !notebookTitle.trimmed.isEmpty
+        canRun: !notebook.title.trimmed.isEmpty
       ) {
         await store.runGuided(
           capability: capability,
           inputPathsOverride: Array(store.inputPaths.prefix(1))
         ) { runURL in
-          var arguments = [
-            runURL.appendingPathComponent("artifacts/analysis_notebook.ipynb").path,
-            "--title=\(notebookTitle.trimmed)",
-            "--domain", notebookDomain,
-            "--language", notebookLanguage,
-            "--runtime-profile", notebookRuntime,
-            "--summary-json", runURL.appendingPathComponent("summary.json").path,
-            "--manifest-json", runURL.appendingPathComponent("manifest.json").path,
-          ]
-          if let input = store.inputPaths.first {
-            arguments += ["--data-path", input]
-          }
-          return arguments
+          notebook.arguments(input: store.inputPaths.first, runURL: runURL)
         }
       }
     }
@@ -339,28 +262,12 @@ struct GuidedCapabilityControls: View {
         canRun: !companionTask.trimmed.isEmpty
       ) {
         await store.runGuided(capability: capability) { runURL in
-          var arguments = ["--task=\(companionTask.trimmed)"]
-          for path in store.inputPaths {
-            arguments += ["--file", path]
-          }
-          for format in Set(store.inputPaths.map { URL(fileURLWithPath: $0).pathExtension.lowercased() })
-            .filter({ !$0.isEmpty })
-            .sorted() {
-            arguments += ["--format", format]
-          }
-          arguments += ["--summary-json", runURL.appendingPathComponent("summary.json").path]
-          return arguments
+          GuidedCapabilityArguments.companionRoute(
+            task: companionTask, inputPaths: store.inputPaths, runURL: runURL
+          )
         }
       }
     }
-  }
-
-  private var noiseBudgetIsValid: Bool {
-    [sourceSignal, skyPerPixel, darkPerPixel, readNoise].allSatisfy { $0.isFinite && $0 >= 0 }
-      && aperturePixels.isFinite && aperturePixels > 0
-      && (!includeBackgroundEstimate || (skyEstimatePixels.isFinite && skyEstimatePixels > 0))
-      && frameCount > 0
-      && (noiseUnits != "adu" || (gain.isFinite && gain > 0))
   }
 
   private func noiseField(_ title: String, value: Binding<Double>) -> some View {
@@ -410,15 +317,6 @@ struct GuidedCapabilityControls: View {
     }
   }
 
-  private func number(_ value: Double) -> String {
-    String(format: "%.12g", value)
-  }
-
-  private func appendOption(_ option: String, value: String, to arguments: inout [String]) {
-    let trimmed = value.trimmed
-    guard !trimmed.isEmpty else { return }
-    arguments.append("\(option)=\(trimmed)")
-  }
 }
 
 private extension String {

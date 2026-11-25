@@ -18,16 +18,10 @@ extension ScientificWorkbenchTests {
     )
     defer { try? FileManager.default.removeItem(at: fixture) }
 
-    struct Invocation: Encodable {
-      let id: String
-      let skill: String
-      let argv: [String]
-    }
-
     let first = fixture.appendingPathComponent("first table.csv").path
     let second = fixture.appendingPathComponent("second table.csv").path
     let builder = CapabilityCommandBuilder(pythonExecutable: "/usr/bin/python3")
-    let invocations = try entries.compactMap { entry -> Invocation? in
+    let invocations = try entries.compactMap { entry -> GuidedCLIInvocation? in
       let inputs: [String]
       switch entry.guidedRunRequirement {
       case .noInput: inputs = []
@@ -46,7 +40,7 @@ extension ScientificWorkbenchTests {
       let command = try builder.build(capability: entry, request: request, skillRoot: mother)
       let workingDirectory = try #require(command.workingDirectory)
       #expect(Array(command.arguments.dropFirst().prefix(2)) == ["run-tool", entry.scriptStem])
-      return Invocation(
+      return GuidedCLIInvocation(
         id: entry.id,
         skill: URL(fileURLWithPath: workingDirectory).lastPathComponent,
         argv: Array(command.arguments.dropFirst(3))
@@ -54,11 +48,7 @@ extension ScientificWorkbenchTests {
     }
     #expect(invocations.count == entries.filter(\.supportsGuidedRun).count - 1)
 
-    if let output = ProcessInfo.processInfo.environment["SCIENTIFIC_WORKBENCH_GUIDED_CLI_EVIDENCE"] {
-      let encoder = JSONEncoder()
-      encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-      try encoder.encode(invocations).write(to: URL(fileURLWithPath: output), options: .withoutOverwriting)
-    }
+    try GuidedCLIInvocation.retain(invocations, as: "guided-defaults.json")
   }
 
   @Test

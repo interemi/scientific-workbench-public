@@ -93,7 +93,7 @@ def bundled_script(relative: str) -> Path:
     return target
 
 
-def inspect_parser(relative: str, tail: list[str], arguments: list[str] | None = None) -> dict:
+def inspect_parser(relative: str, tail: list[str], cases: dict[str, list[str]] | None = None) -> dict:
     """Run in an isolated interpreter so imports cannot leak across skills."""
     script = bundled_script(relative)
     sys.argv[:] = [str(script), *tail, "--help"]
@@ -110,9 +110,11 @@ def inspect_parser(relative: str, tail: list[str], arguments: list[str] | None =
         raise ValueError("command returned without exposing a parser")
     finally:
         argparse.ArgumentParser.print_help = print_help
-    if arguments is not None:
+    program = parser.prog
+    for variant, arguments in (cases or {}).items():
         if arguments[:len(tail)] != tail:
-            raise ValueError("guided command is missing its registered subcommand")
+            raise ValueError(f"{variant}: guided command is missing its registered subcommand")
+        parser.prog = f"{program} [{variant}]"
         parser.parse_args(arguments[len(tail):])
     return describe_parser(parser)
 
@@ -148,18 +150,18 @@ def command_records(entries: list[dict]) -> list[dict]:
     return commands
 
 
-def load_command_schema(command: dict, scratch: Path, arguments: list[str] | None = None) -> dict:
+def load_command_schema(command: dict, scratch: Path, cases: dict[str, list[str]] | None = None) -> dict:
     script, *tail = command["argv"]
     environment = {
         **os.environ,
         "DATAANALYSIS_PYTHON": sys.executable,
         "MPLCONFIGDIR": str(scratch / "matplotlib"),
     }
-    operation = "--inspect-parser" if arguments is None else "--inspect-guided-parser"
+    operation = "--inspect-parser" if cases is None else "--inspect-guided-parser"
     process = subprocess.run(
         [sys.executable, "-B", __file__, operation, script.removeprefix("skills/"), *tail],
         cwd=scratch, env=environment, capture_output=True, text=True, timeout=30,
-        input=None if arguments is None else json.dumps(arguments),
+        input=None if cases is None else json.dumps(cases),
     )
     if process.returncode:
         reason = process.stderr.strip().splitlines()
@@ -171,29 +173,39 @@ def load_command_schema(command: dict, scratch: Path, arguments: list[str] | Non
     return {**command, "parser": schema}
 
 
-def load_guided_arguments(path: Path, commands: list[dict]) -> dict[str, list[str]]:
+def load_guided_arguments(paths: list[Path], commands: list[dict]) -> dict[str, dict[str, list[str]]]:
     owners = {command["id"]: command["skill"] for command in commands}
     arguments = {}
-    rows = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(rows, list) or not rows:
-        raise ValueError("guided argument evidence must contain at least one invocation")
-    for row in rows:
-        capability = row["id"]
-        argv = row["argv"]
-        if capability in arguments or owners.get(capability) != row["skill"]:
-            raise ValueError(f"{capability}: duplicate guided invocation or incorrect owning skill")
-        if not isinstance(argv, list) or not all(isinstance(value, str) for value in argv):
-            raise ValueError(f"{capability}: guided arguments must be a list of strings")
-        if "-h" in argv or "--help" in argv:
-            raise ValueError(f"{capability}: guided arguments must describe a workflow invocation")
-        arguments[capability] = argv
+    for path in paths:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(rows, list) or not rows or not all(isinstance(row, dict) for row in rows):
+            raise ValueError(f"{path.name}: guided argument evidence must contain invocation objects")
+        for row in rows:
+            capability = row["id"]
+            variant = row.get("variant", "default")
+            argv = row["argv"]
+            if not isinstance(variant, str) or not variant.strip():
+                raise ValueError(f"{capability}: guided variant must be a non-empty name")
+            if capability not in owners or owners[capability] != row["skill"]:
+                raise ValueError(f"{capability}: incorrect owning skill")
+            if not isinstance(argv, list) or not all(isinstance(value, str) for value in argv):
+                raise ValueError(f"{capability}: guided arguments must be a list of strings")
+            if "-h" in argv or "--help" in argv:
+                raise ValueError(f"{capability}: guided arguments must describe a workflow invocation")
+            variants = arguments.setdefault(capability, {})
+            if variant in variants:
+                raise ValueError(f"{capability}: duplicate guided variant {variant!r}")
+            variants[variant] = argv
     return arguments
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--capability", action="append", help="Limit output to this registry ID. Repeatable.")
-    parser.add_argument("--guided-arguments", type=Path, help="Check command arguments exported by Swift tests.")
+    parser.add_argument("--guided-arguments", type=Path, action="append", default=[],
+                        help="Check command arguments exported by Swift tests. Repeatable.")
+    parser.add_argument("--require-guided-coverage", action="store_true",
+                        help="Require a guided argument case for each selected user-facing capability.")
     args = parser.parse_args(argv)
     try:
         commands = command_records(load_registry())
@@ -207,7 +219,12 @@ def main(argv: list[str] | None = None) -> int:
             if unknown:
                 parser.error(f"unknown registry IDs: {', '.join(sorted(unknown))}")
             commands = [command for command in commands if command["id"] in args.capability]
-        arguments = load_guided_arguments(args.guided_arguments, commands) if args.guided_arguments else {}
+        arguments = load_guided_arguments(args.guided_arguments, commands)
+        if args.require_guided_coverage:
+            user_facing = {command["id"] for command in commands if command["kind"] != "maintainer_only"}
+            missing = user_facing - arguments.keys()
+            if missing:
+                raise ValueError(f"missing guided arguments for {', '.join(sorted(missing))}")
         with tempfile.TemporaryDirectory(prefix="swb-cli-contracts-") as directory:
             scratch = Path(directory)
             with ThreadPoolExecutor(max_workers=4) as pool:
@@ -227,6 +244,9 @@ def main(argv: list[str] | None = None) -> int:
         }
         if arguments:
             catalog["validated_guided_invocations"] = sorted(arguments)
+            catalog["validated_guided_variants"] = {
+                capability: sorted(arguments[capability]) for capability in sorted(arguments)
+            }
         output = json.dumps(catalog, indent=2, allow_nan=False)
     except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
         print(f"CLI contract export failed: {error}", file=sys.stderr)

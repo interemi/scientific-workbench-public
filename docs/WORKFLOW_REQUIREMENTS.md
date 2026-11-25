@@ -49,12 +49,13 @@ subcommands. A value under `default_relative_to_checkout` resolves from the
 repository root. The portable validation workflow retains the full export as
 `cli-contracts.json` with its diagnostic evidence.
 
-Portable validation also records the guided defaults built by the Swift tests
-from synthetic input paths. The exporter checks those arguments with the
-owning CLI parsers and lists the accepted capability IDs in
-`validated_guided_invocations`. This check covers argument syntax for the default
-command builder. Dedicated form choices and workflow execution have their own
-checks.
+Portable validation records commands generated from synthetic inputs by the
+Swift app's default builder, dedicated forms and reviewed document replacement.
+The exporter passes these arguments to the owning CLI parsers. It records
+accepted capability IDs in `validated_guided_invocations` and names the checked
+cases in `validated_guided_variants`. The CI check requires this evidence for
+all 55 user-facing capabilities. Portable workflow tests separately verify
+workflow execution and outputs.
 
 For STILTS and APT the I/O contract lists the arguments and results for each
 subcommand. Its top-level fields mirror the guided preflight so clients that
