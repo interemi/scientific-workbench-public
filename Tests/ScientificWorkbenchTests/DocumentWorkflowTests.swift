@@ -49,7 +49,6 @@ extension ScientificWorkbenchTests {
     )
     store.docxFindText = "-draft"
     store.docxReplacementText = "-final revision"
-    store.docxReplacementConfirmed = true
     let preview = try #require(store.documentStyleDiff.first?.after)
     let capability = CapabilityEntry(
       id: "office_roundtrip.docx-styled-replace", label: "Replace styled DOCX text",
@@ -59,11 +58,19 @@ extension ScientificWorkbenchTests {
       shortDescription: "Write a reviewed copy."
     )
 
+    #expect(await store.runReviewedDOCXReplacement(capability: capability) == nil)
+    store.docxReplacementConfirmed = true
     let job = try #require(await store.runReviewedDOCXReplacement(capability: capability))
     #expect(job.status == .succeeded)
     let output = URL(fileURLWithPath: job.runDirectory).appendingPathComponent("artifacts/edited_copy.docx")
     #expect(try String(contentsOf: output, encoding: .utf8) == preview)
     #expect(try String(contentsOf: source, encoding: .utf8) == sourceText)
+    let record = URL(fileURLWithPath: job.runDirectory).appendingPathComponent(JobRunProvenance.filename)
+    let data = try Data(contentsOf: record)
+    let provenance = try JSONDecoder.scientificWorkbench.decode(JobRunProvenance.self, from: data)
+    #expect(provenance.approvals == [.reviewedDOCXReplacement])
+    #expect(!provenance.limits.contains(.furtherConsentEvidenceRequired))
+    #expect(!String(decoding: data, as: UTF8.self).contains("scientific-workbench:"))
     let argv = try ShellWords.split(job.command)
     #expect(Array(argv.dropFirst(2).prefix(3)) == ["run-tool", "office_roundtrip", "docx-styled-replace"])
     try GuidedCLIInvocation.retain([

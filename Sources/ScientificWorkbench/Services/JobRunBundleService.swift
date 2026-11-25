@@ -86,10 +86,10 @@ struct JobRunBundleService {
           }
         }
         writeNextStepsIfMissing(for: job)
-        hydrate(&job, fallbackEnvelope: fallbackEnvelope, redact: redact)
+        let envelope = hydrate(&job, fallbackEnvelope: fallbackEnvelope, redact: redact)
         if let provenance {
           do {
-            let artifact = try RunProvenanceService().write(start: provenance, job: job)
+            let artifact = try RunProvenanceService().write(start: provenance, job: job, envelope: envelope)
             job.artifacts.append(artifact)
           } catch {
             job.warnings.append("The app could not retain the run provenance record.")
@@ -134,12 +134,13 @@ struct JobRunBundleService {
     )
   }
 
+  @discardableResult
   func hydrate(
     _ job: inout JobRecord,
     fallbackEnvelope: ToolEnvelope? = nil,
     includingCapture: Bool = true,
     redact: (String) -> String = { $0 }
-  ) {
+  ) -> ToolEnvelope? {
     let snapshot = load(
       runDirectory: job.runDirectory, stdoutFallback: job.stdout, includingCapture: includingCapture
     )
@@ -164,7 +165,7 @@ struct JobRunBundleService {
       if !fileNextActions.isEmpty {
         job.nextActions = fileNextActions
       }
-      return
+      return nil
     }
 
     job.parsedTool = envelope.tool.map(redact) ?? job.parsedTool
@@ -196,6 +197,7 @@ struct JobRunBundleService {
     job.severity = envelope.appHints?.severity.map(redact)
     job.previewArtifactTypes = envelope.appHints?.previewArtifactTypes.map(redact) ?? []
     job.tags = envelope.appHints?.tags.map(redact) ?? []
+    return envelope
   }
 
   func capture(for job: JobRecord, redact: (String) -> String) throws -> JobRunCapture {

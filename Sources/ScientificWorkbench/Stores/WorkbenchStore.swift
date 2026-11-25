@@ -1910,7 +1910,8 @@ final class WorkbenchStore: ObservableObject {
         capability: capability,
         rawArguments: arguments.map(ShellWords.quote).joined(separator: " "),
         inputPathsOverride: [staged.stagedPath],
-        runDirectoryOverride: runDirectory
+        runDirectoryOverride: runDirectory,
+        appliedApproval: .reviewedDOCXReplacement
       )
       guard documentWorkflowService.originalIsUnchanged(staged) else {
         documentStyleError = DocumentWorkflowError.originalChanged.localizedDescription
@@ -2028,7 +2029,8 @@ final class WorkbenchStore: ObservableObject {
         capability: capability,
         rawArguments: arguments.map(ShellWords.quote).joined(separator: " "),
         inputPathsOverride: [staged.stagedPath],
-        runDirectoryOverride: runDirectory
+        runDirectoryOverride: runDirectory,
+        appliedApproval: .confirmedKeynoteExport
       )
       guard documentWorkflowService.originalIsUnchanged(staged) else {
         keynoteWorkflowError = DocumentWorkflowError.originalChanged.localizedDescription
@@ -2654,7 +2656,9 @@ final class WorkbenchStore: ObservableObject {
             runDirectoryOverride: request.runDirectory,
             allowDuringAgentWorkflow: true,
             outputRootPathOverride: workflowOutputRootPath,
-            workflowExecutionID: executionIdentity.id
+            workflowExecutionID: executionIdentity.id,
+            appliedApproval: request.restrictedLocalAutomationApproved ? .restrictedLocalAutomation : nil,
+            declaredPlanSource: plan.source
           )
         },
         recordStepExecution: { stepID, execution in
@@ -2738,7 +2742,9 @@ final class WorkbenchStore: ObservableObject {
     allowDuringAgentWorkflow: Bool = false,
     prepareGuidedArtifactsDirectory: Bool = false,
     outputRootPathOverride: String? = nil,
-    workflowExecutionID: UUID? = nil
+    workflowExecutionID: UUID? = nil,
+    appliedApproval: RunApproval? = nil,
+    declaredPlanSource: AgentPlanSource? = nil
   ) async -> JobRecord? {
     if let jobHistoryRestore {
       let inputSelection = inputPathsOverride ?? inputPaths
@@ -2843,7 +2849,8 @@ final class WorkbenchStore: ObservableObject {
       )
       provenance = await RunProvenanceService().captureStart(
         request: request, capability: capability, skillRoot: requestSkillRoot,
-        outputRootConfirmationUsed: outputRootConfirmationUsed, secrets: configuredSecrets, command: command
+        outputRootConfirmationUsed: outputRootConfirmationUsed, secrets: configuredSecrets, command: command,
+        appliedApproval: appliedApproval, declaredPlanSource: declaredPlanSource
       )
       if isCancellationRequested || Task.isCancelled { throw CancellationError() }
       if let request = provenance?.runtimeChannel.request {

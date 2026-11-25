@@ -1,5 +1,13 @@
 import Foundation
 
+enum RunApproval: String, Codable, Sendable {
+  case outputRoot = "output_root"
+  case capabilityAccess = "capability_access"
+  case reviewedDOCXReplacement = "reviewed_docx_replacement"
+  case confirmedKeynoteExport = "confirmed_keynote_export"
+  case restrictedLocalAutomation = "restricted_local_automation"
+}
+
 struct JobRunProvenance: Codable, Sendable {
   static let filename = "run-provenance.json"
 
@@ -33,6 +41,8 @@ struct JobRunProvenance: Codable, Sendable {
     case localArgumentsRequired = "local_arguments_required"
     case runtimeAndDependencyVersionsNotCaptured = "runtime_and_dependency_versions_not_captured"
     case backendAndModelNotCaptured = "backend_and_model_not_captured"
+    case backendNotReported = "backend_not_reported"
+    case planningModelNotRecorded = "planning_model_not_recorded"
     case furtherConsentEvidenceRequired = "further_consent_evidence_required"
   }
 
@@ -48,6 +58,9 @@ struct JobRunProvenance: Codable, Sendable {
   let outputRootConfirmationUsed: Bool
   let runtime: RunRuntimeEvidence?
   let command: RunCommandEvidence?
+  let reportedBackend: RunBackendEvidence?
+  let approvals: [RunApproval]?
+  let declaredPlanSource: AgentPlanSource?
   let inputs: [Input]
   let outputs: [Output]
   let limits: [Limit]
@@ -65,12 +78,16 @@ struct RunProvenanceService {
     fileprivate let outputRootConfirmationUsed: Bool
     fileprivate let command: RunCommandEvidence?
     fileprivate let runLocations: [URL: String]
+    fileprivate let approvals: [RunApproval]
+    fileprivate let missingCapabilityApproval: Bool
+    fileprivate let declaredPlanSource: AgentPlanSource?
     let runtimeChannel: RunRuntimeEvidence.Channel
   }
 
   func captureStart(
     request: RunRequest, capability: CapabilityEntry, skillRoot: String,
-    outputRootConfirmationUsed: Bool, secrets: [String], command: ProcessCommand? = nil
+    outputRootConfirmationUsed: Bool, secrets: [String], command: ProcessCommand? = nil,
+    appliedApproval: RunApproval? = nil, declaredPlanSource: AgentPlanSource? = nil
   ) async -> Start {
     await Task.detached(priority: .utility) {
       let owner = FilesystemPath.canonicalURL(capability.resolvedSkillRoot(fallback: skillRoot))
@@ -95,6 +112,9 @@ struct RunProvenanceService {
           command: $0, capability: capability, inputURLs: inputURLs, runRoot: runRoot, secrets: secrets
         )
       }
+      let isPreflight = capturedCommand?.evidence.operation == "preflight"
+        || capturedCommand?.evidence.arguments.contains { $0.option == "--preflight-only" && $0.kind == .flag } == true
+      let approvals: [RunApproval?] = [outputRootConfirmationUsed ? .outputRoot : nil, appliedApproval]
       return Start(
         inputPaths: request.inputPaths,
         inputURLs: inputURLs,
@@ -106,12 +126,15 @@ struct RunProvenanceService {
         outputRootConfirmationUsed: outputRootConfirmationUsed,
         command: capturedCommand?.evidence,
         runLocations: capturedCommand?.runLocations ?? [:],
+        approvals: approvals.compactMap { $0 },
+        missingCapabilityApproval: capability.requiresPlannerConfirmation && !isPreflight && appliedApproval == nil,
+        declaredPlanSource: declaredPlanSource,
         runtimeChannel: RunRuntimeEvidence.Channel(runRoot: runRoot, tool: capability.scriptStem)
       )
     }.value
   }
 
-  func write(start: Start, job: JobRecord) throws -> Artifact {
+  func write(start: Start, job: JobRecord, envelope: ToolEnvelope? = nil) throws -> Artifact {
     let root = FilesystemPath.canonicalURL(job.runDirectory)
     guard root == start.runRoot else { throw CocoaError(.fileWriteInvalidFileName) }
     let runtime = start.runtimeChannel.consume()
@@ -143,10 +166,28 @@ struct RunProvenanceService {
       )
     }
     let fingerprints = inputs.flatMap { [$0.before, $0.after] } + outputs.map(\.fingerprint)
-    var limits: [JobRunProvenance.Limit] = [
-      .attachedInputScope,
-      .backendAndModelNotCaptured, .furtherConsentEvidenceRequired,
-    ]
+    let reportedTool = start.tool.capabilityID.map { id in
+      guard let operation = start.command?.operation, !id.hasSuffix(".\(operation)") else { return id }
+      return "\(id).\(operation)"
+    }
+    let checksOnly = start.command?.arguments.contains {
+      $0.kind == .flag && ($0.option == "--preflight-only" || $0.option == "--dry-run")
+    } == true
+    let backend: RunBackendEvidence?
+    if !checksOnly, let reportedTool, RunBackendEvidence.tracks(reportedTool) {
+      let report = Self.commandSummary(start: start, root: root) ?? envelope
+      backend = report?.tool == reportedTool ? report?.reportedBackend : nil
+    } else {
+      backend = nil
+    }
+    var limits: [JobRunProvenance.Limit] = [.attachedInputScope]
+    if backend == nil, !checksOnly, let reportedTool, RunBackendEvidence.tracks(reportedTool) {
+      limits.append(.backendNotReported)
+    }
+    if let source = start.declaredPlanSource, source != .local && source != .skillRouter {
+      limits.append(.planningModelNotRecorded)
+    }
+    if start.missingCapabilityApproval { limits.append(.furtherConsentEvidenceRequired) }
     if start.command?.requiresLocalArguments != false { limits.append(.localArgumentsRequired) }
     if runtime == nil { limits.append(.runtimeAndDependencyVersionsNotCaptured) }
     if fingerprints.contains(where: { $0.state == .directory }) { limits.append(.directoryContentsNotCaptured) }
@@ -157,7 +198,8 @@ struct RunProvenanceService {
       schemaVersion: 1, jobID: job.id, appVersion: start.appVersion, appBuild: start.appBuild,
       tool: start.tool, status: job.status, exitCode: job.exitCode, startedAt: job.startedAt,
       finishedAt: job.finishedAt, outputRootConfirmationUsed: start.outputRootConfirmationUsed, runtime: runtime,
-      command: start.command, inputs: inputs, outputs: outputs, limits: limits
+      command: start.command, reportedBackend: backend, approvals: start.approvals,
+      declaredPlanSource: start.declaredPlanSource, inputs: inputs, outputs: outputs, limits: limits
     )
     let data = try JSONEncoder.scientificWorkbench.encode(provenance)
     let destination = root.appendingPathComponent(JobRunProvenance.filename)
@@ -178,6 +220,18 @@ struct RunProvenanceService {
       if let size = digest.byteCount, size >= 0, size <= remaining { remaining -= size }
       return digest
     }
+  }
+
+  private static func commandSummary(start: Start, root: URL) -> ToolEnvelope? {
+    let arguments = start.command?.arguments ?? []
+    let argument = arguments.last { $0.option == "--summary-json" }
+      ?? arguments.last { $0.option == "--output-json" }
+    guard let reference = argument?.reference,
+          let url = start.runLocations.first(where: { $0.value == reference })?.key,
+          isInside(url, root: root), FilesystemPath.canonicalURL(url.path) == url,
+          let capture = BoundedProcessOutput.read(at: url, maximumBytes: 512_000),
+          !capture.wasTruncated else { return nil }
+    return ToolEnvelopeParser().parse(capture.text)
   }
 
   private static func digest(_ url: URL, inside root: URL) -> String? {

@@ -14,6 +14,7 @@ struct ToolEnvelope: Equatable, Sendable {
   let nextActions: [ToolEnvelopeNextAction]
   let originalModified: String?
   let appHints: ToolEnvelopeAppHints?
+  let reportedBackend: RunBackendEvidence?
 }
 
 struct ToolEnvelopeCommand: Equatable, Sendable {
@@ -72,7 +73,8 @@ struct ToolEnvelopeParser {
       errors: parseErrors(payload["errors"]),
       nextActions: parseNextActions(payload["next_actions"]),
       originalModified: parseOriginalModified(payload["original_modified"]),
-      appHints: parseAppHints(payload["app_hints"])
+      appHints: parseAppHints(payload["app_hints"]),
+      reportedBackend: RunBackendEvidence.reported(in: payload)
     )
   }
 

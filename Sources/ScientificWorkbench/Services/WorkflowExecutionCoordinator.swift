@@ -16,6 +16,7 @@ struct WorkflowExecutionCoordinator {
     var rawArguments: String
     var inputPaths: [String]
     var runDirectory: String
+    var restrictedLocalAutomationApproved = false
   }
 
   struct Callbacks {
@@ -146,7 +147,8 @@ struct WorkflowExecutionCoordinator {
           capability: capability,
           rawArguments: rawArguments,
           inputPaths: stepInputs,
-          runDirectory: plannedRunDirectory
+          runDirectory: plannedRunDirectory,
+          restrictedLocalAutomationApproved: explicitlyApprovedLocalAutomationStep
         )
       ) else {
         let message = "Could not start \(capability.label)."

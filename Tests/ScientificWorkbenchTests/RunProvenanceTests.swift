@@ -135,6 +135,7 @@ extension ScientificWorkbenchTests {
     let record = try JSONDecoder.scientificWorkbench.decode(JobRunProvenance.self, from: retained)
     #expect(record.status == .failed)
     #expect(record.outputRootConfirmationUsed)
+    #expect(record.approvals == [.outputRoot])
     #expect(record.inputs.map { $0.before.state } == [.recorded, .directory, .missing, .recorded])
     #expect(record.inputs.map { $0.after.state } == [.recorded, .directory, .missing, .changed])
     #expect(record.inputs.map(\.contentUnchanged) == [false, nil, nil, nil])
@@ -236,5 +237,83 @@ extension ScientificWorkbenchTests {
     ])
     #expect(lithium.arguments[1].numbers == [-1.25, 2.5])
     #expect(lithium.arguments[2].kind == .withheld)
+  }
+
+  @Test
+  func runProvenanceMatchesBackendReceiptsToTheSelectedTool() async throws {
+    let checkout = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent().deletingLastPathComponent()
+    let mother = checkout.appendingPathComponent("skills/scientific-data-analysis").path
+    let entries = try CapabilityRegistryLoader().load(skillRoot: mother)
+    let apt = try #require(entries.first { $0.id == "apt_workbench" })
+    let fixture = try makeScenarioFixture(name: "backend-run-evidence", files: [:])
+    defer { try? FileManager.default.removeItem(at: fixture) }
+
+    for (reportedTool, backend) in [("apt_workbench.run-batch", RunBackendEvidence.Backend.apt),
+                                    ("stilts_workbench.convert", nil)] {
+      let run = fixture.appendingPathComponent(reportedTool)
+      try FileManager.default.createDirectory(at: run.appendingPathComponent("reports"), withIntermediateDirectories: true)
+      let summary = run.appendingPathComponent("reports/selected-summary.json")
+      try """
+        {"tool":"apt_workbench.run-batch","app_status":"PASS","results":{"dry_run":false,"returncode":42}}
+        """.write(to: run.appendingPathComponent("summary.json"), atomically: true, encoding: .utf8)
+      let payload = """
+        {"tool":"\(reportedTool)","app_status":"FAIL","results":{
+          "dry_run":false,"returncode":7,"command":["/Users/private-person/native-backend"]
+        }}
+        """
+      try payload.write(to: summary, atomically: true, encoding: .utf8)
+      let request = RunRequest(capabilityID: apt.id, inputPaths: [], outputDirectory: run.path, rawArguments: "")
+      let command = ProcessCommand(
+        executable: "/private/python", arguments: ["/private/wrapper.py", "run-tool", apt.scriptStem,
+                                                     "run-batch", "--summary-json", summary.path],
+        workingDirectory: "/private"
+      )
+      let start = await RunProvenanceService().captureStart(
+        request: request, capability: apt, skillRoot: mother, outputRootConfirmationUsed: false,
+        secrets: [], command: command, appliedApproval: .capabilityAccess, declaredPlanSource: .openAI
+      )
+      let job = JobRecord(capability: apt, runDirectory: run.path)
+      let result = ProcessResult(exitCode: 2, stdout: "", stderr: "", startedAt: Date(), finishedAt: Date())
+      let completed = await JobRunBundleService().finalize(
+        job, completion: .finished(result, cancellationRequested: false), secrets: [], provenance: start
+      )
+      let artifact = try #require(completed.artifacts.first { $0.relativePath == JobRunProvenance.filename })
+      let data = try Data(contentsOf: artifact.url)
+      let record = try JSONDecoder.scientificWorkbench.decode(JobRunProvenance.self, from: data)
+      #expect(record.reportedBackend?.backend == backend)
+      #expect(record.reportedBackend?.reportedExitCodes == (backend == nil ? nil : [7]))
+      #expect(record.limits.contains(.backendNotReported) == (backend == nil))
+      #expect(record.declaredPlanSource == .openAI)
+      #expect(record.limits.contains(.planningModelNotRecorded))
+      #expect(record.approvals == [.capabilityAccess])
+      #expect(!String(decoding: data, as: UTF8.self).contains("private-person"))
+    }
+  }
+
+  @Test
+  func toolEnvelopeSeparatesBackendUseFromPreflightAndDryRun() {
+    func backend(_ tool: String, _ details: String, qa: String = "{}") -> RunBackendEvidence? {
+      ToolEnvelopeParser().parse(
+        #"{"tool":"\#(tool)","app_status":"PASS","results":\#(details),"qa":\#(qa)}"#
+      )?.reportedBackend
+    }
+    #expect(backend("stilts_workbench.preflight", #"{"dry_run":false,"returncode":0}"#) == nil)
+    #expect(backend("stilts_workbench.convert", #"{"dry_run":true,"returncode":0}"#) == nil)
+    #expect(backend("stilts_workbench.convert", #"{"dry_run":false,"returncode":true}"#) == nil)
+    #expect(backend("stilts_workbench.convert", #"{"dry_run":false,"returncode":0}"#)?.backend == .stilts)
+    #expect(backend("latex_workbench.compile", #"{"engine":"pdflatex","attempted":true,"pass_count":1}"#)?.backend == .pdflatex)
+    #expect(backend("latex_workbench.compile", #"{"engine":"pdflatex","attempted":false,"pass_count":0}"#) == nil)
+    #expect(backend("keynote_export", #"{"capabilities":{"keynote_app":true}}"#) == nil)
+    #expect(backend("keynote_export", "{}", qa: #"{"metrics":{"used_gui_path":true}}"#)?.backend == .keynote)
+    #expect(backend("quicklook_bridge", #"{"method":"pdf_first_page","used_fallback":true}"#)?.backend == .pdfFirstPage)
+    #expect(backend("iwork_workbench", #"{"native_preview":"/private/preview.png","native_preview_method":"qlmanage"}"#)?.backend == .quickLook)
+    #expect(backend("fxcor_iraf_workbench.run-auto", #"{"case_runs":[{"outcome":{"returncode":1}}]}"#)?.backend == .iraf)
+    #expect(backend("presentation_workbench.inspect",
+                    #"{"inspection":{"preview_export":{"success":true,"backend_used":"soffice"}}}"#)?.backend == .libreOffice)
+    #expect(backend("presentation_workbench.inspect",
+                    #"{"inspection":{"preview_export":{"success":false,"backend_used":"soffice"}}}"#) == nil)
+    #expect(backend("presentation_workbench.existing-deck-style-audit",
+                    #"{"reference_preview":{"success":true,"export_result":{"success":true,"backend_used":"keynote"}}}"#)?.backend == .keynote)
   }
 }

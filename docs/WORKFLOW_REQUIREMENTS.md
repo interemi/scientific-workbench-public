@@ -125,6 +125,15 @@ environment. Consult the tool's own report for external backends and subprocesse
 Older skill installations may omit this runtime observation, which the app
 reports as missing evidence.
 
+The provenance record retains a backend identifier when a reviewed tool
+summary reports execution. Supported reports include STILTS, APT, IRAF/FXCOR,
+LaTeX compilation, Keynote export, Quick Look, iWork and presentation previews.
+Preflight and dry-run results do not establish that a backend ran. The app
+also records approvals it applied for the output root, reviewed document
+actions, the capability access control and restricted local automation.
+An approved action can still fail, as shown by its job and tool outcomes.
+Workflow jobs retain the plan's declared source.
+
 ## Registry coverage
 
 The canonical registry contains 61 entries:

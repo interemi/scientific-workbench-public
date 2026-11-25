@@ -598,8 +598,9 @@ struct CapabilityDetailPanel: View {
       Spacer()
 
       Button {
+        let approval: RunApproval? = requiresAccessConfirmation(capability) && accessConfirmed ? .capabilityAccess : nil
         Task {
-          await store.run(capability: capability, rawArguments: rawArguments)
+          await store.run(capability: capability, rawArguments: rawArguments, appliedApproval: approval)
         }
       } label: {
         Label(
