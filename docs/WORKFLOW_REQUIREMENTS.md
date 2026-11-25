@@ -174,6 +174,13 @@ evidence status without numerical claims. Earlier jobs can still be browsed
 in Results. Their workflow summaries need a matching run provenance record
 to cite measurements.
 
+In Results, select a measurement summary and choose **Summarize evidence**.
+Review the exact measurement data and the destination before sending. The
+request includes up to twelve measurements and twelve diagnostics, plus the
+tool outcome. The app supplies the values, units, uncertainties and citations
+from the verified artifact after the model selects the highlights. A changed
+artifact, invalid selection or unavailable source produces an evidence status.
+
 ## Registry coverage
 
 The canonical registry contains 61 entries:

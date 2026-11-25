@@ -25,9 +25,13 @@ struct RunMeasurementEvidenceService {
 
   private let inspection = ArtifactInspectionService()
 
+  static func isSummary(_ artifact: Artifact) -> Bool {
+    artifact.artifactType == "summary_json" || artifact.relativePath == "summary.json"
+  }
+
   func read(for job: JobRecord) -> Result<RunMeasurementEvidence, Unavailable> {
     guard job.status == .succeeded else { return .failure(.unfinishedJob) }
-    let registered = job.artifacts.filter { $0.artifactType == "summary_json" || $0.relativePath == "summary.json" }
+    let registered = job.artifacts.filter(Self.isSummary)
     let standard = registered.filter { $0.relativePath == "summary.json" }
     let candidates = standard.isEmpty ? registered : standard
     guard let summary = candidates.first else { return .failure(.missingSummary) }
@@ -37,8 +41,7 @@ struct RunMeasurementEvidenceService {
 
   func read(_ artifact: Artifact, for job: JobRecord) -> Result<RunMeasurementEvidence, Unavailable> {
     guard job.status == .succeeded else { return .failure(.unfinishedJob) }
-    guard job.artifacts.contains(artifact),
-          artifact.artifactType == "summary_json" || artifact.relativePath == "summary.json",
+    guard job.artifacts.contains(artifact), Self.isSummary(artifact),
           let preview = inspection.previewURL(for: artifact, in: job) else { return .failure(.missingSummary) }
     let root = FilesystemPath.canonicalURL(job.runDirectory)
     let url = FilesystemPath.canonicalURL(preview.path)

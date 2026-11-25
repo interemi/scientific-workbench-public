@@ -3003,6 +3003,68 @@ final class WorkbenchStore: ObservableObject {
     return { SecretsRedactor.redact($0, secrets: secrets) }
   }
 
+  func prepareMeasurementSynthesis(
+    artifact: Artifact, jobID: UUID
+  ) async throws -> MeasurementSynthesisReview {
+    guard let job = selectedMeasurementJob(artifact, jobID: jobID) else {
+      throw MeasurementSynthesisError.reviewChanged
+    }
+    loadSavedSecretIfNeeded(for: aiProvider)
+    guard selectedAIIsConfigured else { throw MeasurementSynthesisError.missingConfiguration }
+    let destination = measurementSynthesisDestination
+    let secrets = configuredSecrets
+    let redact = previewRedactor()
+    let review = try await Task.detached(priority: .userInitiated) {
+      try MeasurementSynthesisService().review(
+        artifact: artifact, job: job, destination: destination, redact: redact
+      )
+    }.value
+    try Task.checkCancellation()
+    guard measurementSynthesisDestination == destination, configuredSecrets == secrets,
+          selectedMeasurementJob(artifact, jobID: jobID)?.runDirectory == job.runDirectory else {
+      throw MeasurementSynthesisError.reviewChanged
+    }
+    return review
+  }
+
+  func confirmMeasurementSynthesis(
+    _ review: MeasurementSynthesisReview
+  ) async throws -> [MeasurementSynthesisReview.Fact] {
+    let verified = try await revalidateMeasurementSynthesisReview(review)
+    try Task.checkCancellation()
+    guard measurementSynthesisDestination == review.destination,
+          selectedMeasurementJob(review.artifact, jobID: review.jobID) != nil else {
+      throw MeasurementSynthesisError.reviewChanged
+    }
+    let selected = try await MeasurementSynthesisService().synthesize(
+      from: verified, apiKey: selectedAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines), client: cloudAIClient
+    )
+    _ = try await revalidateMeasurementSynthesisReview(review)
+    return selected
+  }
+
+  private var measurementSynthesisDestination: MeasurementSynthesisReview.Destination {
+    .init(provider: aiProvider, model: selectedAIModel.trimmingCharacters(in: .whitespacesAndNewlines),
+          baseURL: selectedAIBaseURL)
+  }
+
+  private func selectedMeasurementJob(_ artifact: Artifact, jobID: UUID) -> JobRecord? {
+    guard let job = selectedJob, job.id == jobID,
+          selectedResultArtifactID(for: job) == artifact.id, job.artifacts.contains(artifact) else { return nil }
+    return job
+  }
+
+  private func revalidateMeasurementSynthesisReview(
+    _ review: MeasurementSynthesisReview
+  ) async throws -> MeasurementSynthesisReview {
+    let current = try await prepareMeasurementSynthesis(artifact: review.artifact, jobID: review.jobID)
+    guard current.destination == review.destination, current.evidence.source == review.evidence.source,
+          current.evidence.sha256 == review.evidence.sha256, current.userMessage == review.userMessage else {
+      throw MeasurementSynthesisError.reviewChanged
+    }
+    return current
+  }
+
   func refreshRunBundle(for job: JobRecord) async {
     guard !isPreparingToQuit, !isRestoringJobHistory, !isSavingJobHistory, !isRefreshingRunBundle,
           let current = jobs.first(where: { $0.id == job.id }) else { return }

@@ -68,10 +68,10 @@ struct ArtifactComparisonSheet: View {
         }
 
         HStack(alignment: .top, spacing: 10) {
-          ArtifactPreview(store: store, job: source.job, artifact: source.artifact)
+          ArtifactPreview(store: store, job: source.job, artifact: source.artifact, allowsMeasurementSynthesis: false)
             .frame(minWidth: 430, maxWidth: .infinity)
           Divider()
-          ArtifactPreview(store: store, job: comparisonJob, artifact: comparisonArtifact)
+          ArtifactPreview(store: store, job: comparisonJob, artifact: comparisonArtifact, allowsMeasurementSynthesis: false)
             .frame(minWidth: 430, maxWidth: .infinity)
         }
       } else {

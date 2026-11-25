@@ -336,10 +336,12 @@ struct ArtifactPreview: View {
   @ObservedObject var store: WorkbenchStore
   let job: JobRecord
   let artifact: Artifact
+  var allowsMeasurementSynthesis = true
   @State private var loadedPreview: (id: RequestID, snapshot: ArtifactPreviewSnapshot)?
   @State private var showTableText = false
   @State private var showFITSJSON = false
   @State private var showMeasurementJSON = false
+  @State private var showMeasurementSynthesis = false
   private var isTable: Bool { TablePreviewService.supports(artifact) }
   private var requestID: RequestID {
     RequestID(job: job.id, runDirectory: job.runDirectory, artifact: artifact,
@@ -365,6 +367,11 @@ struct ArtifactPreview: View {
             .textSelection(.enabled)
         }
         Spacer()
+        if allowsMeasurementSynthesis, ScientificMeasurementSummary.supports(job.capabilityID),
+           RunMeasurementEvidenceService.isSummary(artifact) {
+          Button("Summarize evidence") { showMeasurementSynthesis = true }
+            .accessibilityIdentifier("results.measurements.synthesize")
+        }
         if ScientificMeasurementSummary.supports(job.capabilityID),
            let summary = job.artifacts.first(where: { $0.relativePath == "summary.json" }),
            summary.id != artifact.id {
@@ -427,12 +434,16 @@ struct ArtifactPreview: View {
       }
     }
     .padding(24)
+    .sheet(isPresented: $showMeasurementSynthesis) {
+      MeasurementSynthesisSheet(store: store, jobID: job.id, artifact: artifact)
+    }
     .task(id: requestID) {
       guard !Task.isCancelled else { return }
       let id = requestID
       loadedPreview = nil
       showFITSJSON = false
       showMeasurementJSON = false
+      showMeasurementSynthesis = false
       guard var result = await ArtifactPreviewLoader.shared.load(
         artifact, in: job, includePreview: !isTable || id.showTableText, redact: store.previewRedactor()
       ), !Task.isCancelled else { return }
