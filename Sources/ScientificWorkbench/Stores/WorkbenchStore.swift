@@ -2768,6 +2768,12 @@ final class WorkbenchStore: ObservableObject {
     let requestInputPaths = inputPathsOverride ?? inputPaths
     let requestOutputRootPath = outputRootPathOverride ?? outputRootPath
     guard ensureOutputRootWriteApproved(inputPaths: requestInputPaths, outputRootPathOverride: requestOutputRootPath) else { return nil }
+    let outputRootConfirmationUsed: Bool
+    if case .requiresConfirmation = filesystemSafetyPolicy.assessOutputRoot(requestOutputRootPath, inputPaths: requestInputPaths) {
+      outputRootConfirmationUsed = true
+    } else {
+      outputRootConfirmationUsed = false
+    }
     let runDirectory = runDirectoryOverride ?? makeRunDirectory(for: capability, outputRootPathOverride: requestOutputRootPath)
     let allowedRunRoot = legacyWorkspacePolicy.runRoot(
       for: capability.id,
@@ -2804,6 +2810,7 @@ final class WorkbenchStore: ObservableObject {
     }
 
     let completion: JobRunBundleService.Completion
+    var provenance: RunProvenanceService.Start?
     do {
       if isCancellationRequested || Task.isCancelled { throw CancellationError() }
       try FileManager.default.createDirectory(
@@ -2834,6 +2841,11 @@ final class WorkbenchStore: ObservableObject {
         request: request,
         skillRoot: requestSkillRoot
       )
+      provenance = await RunProvenanceService().captureStart(
+        request: request, capability: capability, skillRoot: requestSkillRoot,
+        outputRootConfirmationUsed: outputRootConfirmationUsed, secrets: configuredSecrets
+      )
+      if isCancellationRequested || Task.isCancelled { throw CancellationError() }
 
       job.status = .running
       job.command = redactSecrets(command.pretty)
@@ -2866,7 +2878,9 @@ final class WorkbenchStore: ObservableObject {
     }
     isFinalizingJobEvidence = true
     defer { isFinalizingJobEvidence = false }
-    job = await runBundleService.finalize(job, completion: completion, secrets: configuredSecrets)
+    job = await runBundleService.finalize(
+      job, completion: completion, secrets: configuredSecrets, provenance: provenance
+    )
     await replace(job)
     if ownsCancellationState {
       isCancellationRequested = false

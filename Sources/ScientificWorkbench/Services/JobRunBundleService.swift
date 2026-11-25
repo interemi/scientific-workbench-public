@@ -33,7 +33,10 @@ struct JobRunBundleService {
   private let parser = ToolEnvelopeParser()
   private let artifactDiscovery = ArtifactDiscovery()
 
-  func finalize(_ record: JobRecord, completion: Completion, secrets: [String]) async -> JobRecord {
+  func finalize(
+    _ record: JobRecord, completion: Completion, secrets: [String],
+    provenance: RunProvenanceService.Start? = nil
+  ) async -> JobRecord {
     // An interrupted or cancelled caller still needs its captured evidence.
     await Task.detached(priority: .userInitiated) {
       autoreleasepool {
@@ -84,6 +87,14 @@ struct JobRunBundleService {
         }
         writeNextStepsIfMissing(for: job)
         hydrate(&job, fallbackEnvelope: fallbackEnvelope, redact: redact)
+        if let provenance {
+          do {
+            let artifact = try RunProvenanceService().write(start: provenance, job: job)
+            job.artifacts.append(artifact)
+          } catch {
+            job.warnings.append("The app could not retain the run provenance record.")
+          }
+        }
         return job
       }
     }.value

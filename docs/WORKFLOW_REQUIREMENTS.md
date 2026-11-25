@@ -95,6 +95,22 @@ A rejected command may write its diagnostic only to standard output when the
 requested path cannot safely be used. Older installed skill snapshots can
 still load the capability registry and run their supported routes.
 
+## Run fingerprints
+
+After preparing a command, Scientific Workbench fingerprints attached files
+before execution. At finalization it compares those files and fingerprints the
+products found inside the run folder. The app writes `run-provenance.json` with
+the job outcome, available app and capability identifiers, and numbered file
+references such as `input-1` and `output-1`. The app's record contains no file
+names or command arguments. Tool-specific summaries and manifests stay in the
+run folder with their existing formats.
+
+Each input or output pass reads at most 64 MiB of regular files. Directory
+contents, unreadable files and files beyond the budget have explicit states.
+`contentUnchanged` reports equality of two successful SHA-256 observations.
+The `limits` field identifies evidence still needed for replay, including the
+local arguments and runtime details.
+
 ## Registry coverage
 
 The canonical registry contains 61 entries:
