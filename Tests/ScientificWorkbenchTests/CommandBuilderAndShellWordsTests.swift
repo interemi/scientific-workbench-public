@@ -330,7 +330,7 @@ extension ScientificWorkbenchTests {
     #expect(command.arguments.contains { canonicalPath($0) == canonicalPath(fitsRoot.path) })
     #expect(command.arguments.contains("--output-dir"))
     #expect(command.arguments.contains { canonicalPath($0) == canonicalPath(runURL.appendingPathComponent("artifacts").path) })
-    #expect(command.arguments.contains("--clean-derived"))
+    #expect(!command.arguments.contains("--clean-derived"))
     #expect(command.arguments.contains("--summary-json"))
     #expect(!command.arguments.contains("--manifest-json"))
   }

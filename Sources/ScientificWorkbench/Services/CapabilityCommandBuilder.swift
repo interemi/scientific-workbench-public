@@ -164,7 +164,6 @@ struct CapabilityCommandBuilder {
       return [
         "--input-root", try preferredFITSRoot(request),
         "--output-dir", artifacts,
-        "--clean-derived",
         "--summary-json", summary
       ]
     case "rgb_visual_fits_export":
