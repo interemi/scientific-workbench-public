@@ -104,6 +104,12 @@ the job outcome, available app and capability identifiers, and numbered file
 references such as `input-1` and `output-1`. Tool-specific summaries and
 manifests stay in the run folder with their existing formats.
 
+The record includes the macOS version, app bundle version and build when
+available, the release declared by the selected skill's registry, and the
+tool contract version reported by a matching tool summary. The declared
+release is a label from the installed registry. Compare the registry and
+script hashes to identify the exact code, including local variations.
+
 The command record retains supported flags, typed numerical values and public
 choices for reviewed capability arguments. It refers to attached files and
 destinations inside the run folder by numbered references. An output that
@@ -114,8 +120,11 @@ prepared by the app. The job outcome and tool summary report what happened.
 Each input or output pass reads at most 64 MiB of regular files. Directory
 contents, unreadable files and files beyond the budget have explicit states.
 `contentUnchanged` reports equality of two successful SHA-256 observations.
-The `limits` field identifies evidence still needed for replay, including any
-withheld local arguments and missing runtime details.
+The `limits` field identifies evidence still needed for reproduction. Each
+entry in `reproductionRequirements` explains what to check or obtain. For
+example, use the before-run hashes to match inputs, recover any withheld
+arguments locally, and identify any unrecorded application or backend version.
+Earlier records of schema 1 may only contain the `limits` codes.
 
 The bundled tools can also record the Python implementation, version and
 architecture at their entry point. The package inventory covers direct Core
@@ -144,6 +153,15 @@ Workflow state schema 3 is the first version with a planning receipt. The app
 preserves the original state file before migrating schema 1 or 2. Earlier plans
 continue to load and report missing model or approval evidence where relevant.
 The portable plan format retains its existing schema.
+
+### Sharing the provenance record
+
+Open the job's Results, find `run-provenance.json` in the artifacts, and use
+**Reveal** to locate it in Finder. Copy that file by itself to share the
+record. Review its hashes, timestamps and identifiers for suitability. The
+recipient will need the inputs separately and may need to recover additional
+evidence listed in `reproductionRequirements`. Review the contents of other
+run-folder files individually before sharing them.
 
 ## Registry coverage
 

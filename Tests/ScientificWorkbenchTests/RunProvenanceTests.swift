@@ -22,7 +22,7 @@ extension ScientificWorkbenchTests {
           summary = Path(sys.argv[sys.argv.index("--summary-json") + 1])
           output = summary.parent / "private-observer-product.csv"
           output.write_text("world")
-          summary.write_text(json.dumps({"tool": "profile_table", "app_status": "PASS"}))
+          summary.write_text(json.dumps({"tool": "profile_table", "contract_version": "1.8", "app_status": "PASS"}))
           request = json.loads(os.environ["SCIENTIFIC_WORKBENCH_RUNTIME_EVIDENCE"])
           Path(request["destination"]).write_text(json.dumps({
               "schemaVersion": 1, "tool": request["tool"], "implementation": "cpython",
@@ -52,15 +52,27 @@ extension ScientificWorkbenchTests {
     })
     #expect(job.status == .succeeded)
     let provenance = try #require(job.artifacts.first { $0.relativePath == JobRunProvenance.filename })
-    let retained = try Data(contentsOf: provenance.url)
-    let text = String(decoding: retained, as: UTF8.self)
+    let received = root.appendingPathComponent("received")
+    try FileManager.default.createDirectory(at: received, withIntermediateDirectories: false)
+    let sharedCopy = received.appendingPathComponent(JobRunProvenance.filename)
+    try FileManager.default.copyItem(at: provenance.url, to: sharedCopy)
+    #expect(try FileManager.default.contentsOfDirectory(atPath: received.path) == [JobRunProvenance.filename])
+    let retained = try Data(contentsOf: sharedCopy)
+    let payload = try #require(JSONSerialization.jsonObject(with: retained) as? [String: Any])
+    let normalized = try JSONSerialization.data(withJSONObject: payload, options: [.withoutEscapingSlashes])
+    let text = String(decoding: normalized, as: UTF8.self)
     #expect(!text.contains(source.path))
     #expect(!text.contains("private-observer"))
     #expect(!text.contains("synthetic-secret-argument"))
+    #expect(!text.contains(store.outputRootPath))
+    #expect(!text.contains(store.skillRootPath))
+    #expect(!text.contains(store.pythonExecutable))
     let record = try JSONDecoder.scientificWorkbench.decode(JobRunProvenance.self, from: retained)
     #expect(record.schemaVersion == 1)
     #expect(record.jobID == job.id)
     #expect(record.tool.capabilityID == "profile_table")
+    #expect(record.reportedToolContractVersion == "1.8")
+    #expect(record.hostMacOSVersion != nil)
     #expect(record.status == .succeeded)
     #expect(record.exitCode == 0)
     let command = try #require(record.command)
@@ -88,6 +100,24 @@ extension ScientificWorkbenchTests {
     #expect(record.outputs.contains { $0.fingerprint.sha256 == world })
     #expect(record.outputs.filter { $0.commandReference == "run-location-1" }.count == 1)
     #expect(record.limits.contains(.localArgumentsRequired))
+    #expect(record.limits.contains(.runtimeInventoryPartial))
+    #expect(record.limits.contains(.skillReleaseNotRecorded))
+    #expect(record.limits.contains(.skillCodeIdentityIncomplete))
+    let requirements = try #require(record.reproductionRequirements)
+    #expect(requirements.map(\.limit) == record.limits)
+    #expect(requirements.first { $0.limit == .fileContentsNotIncluded }?.guidance.contains("SHA-256") == true)
+    #expect(requirements.first { $0.limit == .localArgumentsRequired }?.guidance.contains("withheld") == true)
+    var earlierPayload = payload
+    for key in ["hostMacOSVersion", "reportedToolContractVersion", "reproductionRequirements"] {
+      earlierPayload.removeValue(forKey: key)
+    }
+    earlierPayload["limits"] = ["attached_input_scope", "local_arguments_required", "backend_and_model_not_captured"]
+    let earlierRecord = try JSONDecoder.scientificWorkbench.decode(
+      JobRunProvenance.self, from: JSONSerialization.data(withJSONObject: earlierPayload)
+    )
+    #expect(earlierRecord.jobID == record.jobID)
+    #expect(earlierRecord.reproductionRequirements == nil)
+    #expect(earlierRecord.limits.contains(.backendAndModelNotCaptured))
     #expect(try String(contentsOf: source, encoding: .utf8) == "hello")
   }
 
@@ -145,6 +175,8 @@ extension ScientificWorkbenchTests {
     #expect(record.limits.contains(.inputContentChanged))
     #expect(record.runtime == nil)
     #expect(record.limits.contains(.runtimeAndDependencyVersionsNotCaptured))
+    #expect(record.limits.contains(.unsuccessfulRun))
+    #expect(record.limits.contains(.commandNotRecorded))
     #expect(throws: (any Error).self) { try service.write(start: start, job: job) }
     #expect(try Data(contentsOf: artifact.url) == retained)
     #expect(RunFileFingerprint.read(source, maximumBytes: 4).state == .overBudget)
@@ -258,7 +290,7 @@ extension ScientificWorkbenchTests {
         {"tool":"apt_workbench.run-batch","app_status":"PASS","results":{"dry_run":false,"returncode":42}}
         """.write(to: run.appendingPathComponent("summary.json"), atomically: true, encoding: .utf8)
       let payload = """
-        {"tool":"\(reportedTool)","app_status":"FAIL","results":{
+        {"tool":"\(reportedTool)","contract_version":"1.8","app_status":"FAIL","results":{
           "dry_run":false,"returncode":7,"command":["/Users/private-person/native-backend"]
         }}
         """
@@ -284,6 +316,10 @@ extension ScientificWorkbenchTests {
       #expect(record.reportedBackend?.backend == backend)
       #expect(record.reportedBackend?.reportedExitCodes == (backend == nil ? nil : [7]))
       #expect(record.limits.contains(.backendNotReported) == (backend == nil))
+      #expect(record.limits.contains(.backendVersionNotRecorded) == (backend != nil))
+      #expect(record.reportedToolContractVersion == (backend == nil ? nil : "1.8"))
+      #expect(record.tool.registryDeclaredRelease == "v2.8")
+      #expect(!record.limits.contains(.skillCodeIdentityIncomplete))
       #expect(record.declaredPlanSource == .openAI)
       #expect(record.limits.contains(.planningModelNotRecorded))
       #expect(record.approvals == [.capabilityAccess])

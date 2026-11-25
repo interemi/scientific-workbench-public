@@ -14,6 +14,7 @@ struct JobRunProvenance: Codable, Sendable {
   struct Tool: Codable, Sendable {
     let capabilityID: String?
     let skillRole: SkillRootRole?
+    let registryDeclaredRelease: String?
     let contractRevision: Int?
     let registrySHA256: String?
     let entryPointSHA256: String?
@@ -35,23 +36,82 @@ struct JobRunProvenance: Codable, Sendable {
 
   enum Limit: String, Codable, Sendable {
     case attachedInputScope = "attached_input_scope"
+    case fileContentsNotIncluded = "file_contents_not_included"
     case directoryContentsNotCaptured = "directory_contents_not_captured"
     case incompleteFingerprints = "incomplete_fingerprints"
     case inputContentChanged = "input_content_changed"
+    case unsuccessfulRun = "unsuccessful_run"
+    case commandNotRecorded = "command_not_recorded"
     case localArgumentsRequired = "local_arguments_required"
+    case appIdentityNotRecorded = "app_identity_not_recorded"
+    case skillReleaseNotRecorded = "skill_release_not_recorded"
+    case skillCodeIdentityIncomplete = "skill_code_identity_incomplete"
     case runtimeAndDependencyVersionsNotCaptured = "runtime_and_dependency_versions_not_captured"
+    case runtimeInventoryPartial = "runtime_inventory_partial"
     case backendAndModelNotCaptured = "backend_and_model_not_captured"
     case backendNotReported = "backend_not_reported"
+    case backendVersionNotRecorded = "backend_version_not_recorded"
     case planningModelNotRecorded = "planning_model_not_recorded"
     case planningReportedModelNotRecorded = "planning_reported_model_not_recorded"
     case planningConsentNotRecorded = "planning_consent_not_recorded"
     case furtherConsentEvidenceRequired = "further_consent_evidence_required"
+
+    var guidance: String {
+      switch self {
+      case .attachedInputScope:
+        "Check whether the operation also read files outside the attached inputs."
+      case .fileContentsNotIncluded:
+        "Obtain the inputs separately. Match them by SHA-256 and use a new directory for the outputs."
+      case .directoryContentsNotCaptured:
+        "Obtain an independent inventory with hashes for the contents of attached directories."
+      case .incompleteFingerprints:
+        "Check the fingerprint states and verify the missing or unreadable files separately."
+      case .inputContentChanged:
+        "Recover inputs matching the before-run hashes before attempting reproduction."
+      case .unsuccessfulRun:
+        "Resolve the reported job outcome before treating its products as complete."
+      case .commandNotRecorded:
+        "Recover the original command from the local run and review it for sensitive values."
+      case .localArgumentsRequired:
+        "Supply withheld arguments locally. Use the argument order and references to locate them."
+      case .appIdentityNotRecorded:
+        "Identify the application version and build from the original installation or source revision."
+      case .skillReleaseNotRecorded:
+        "Identify the original skill release. Compare the available registry and script hashes."
+      case .skillCodeIdentityIncomplete:
+        "Obtain the original skill snapshot and compare the registry and entry point."
+      case .runtimeAndDependencyVersionsNotCaptured:
+        "Identify the interpreter and installed dependency versions from the original environment."
+      case .runtimeInventoryPartial:
+        "Check the transitive dependencies, subprocess environments and skill snapshot separately."
+      case .backendAndModelNotCaptured:
+        "Identify the external backend and planning model using the original run evidence."
+      case .backendNotReported:
+        "Check the original tool report for evidence that an external backend ran."
+      case .backendVersionNotRecorded:
+        "Identify the external backend version and any separately configured preferences."
+      case .planningModelNotRecorded:
+        "Check the original planning environment for the model identifier."
+      case .planningReportedModelNotRecorded:
+        "Check the original provider response for the model that actually served the request."
+      case .planningConsentNotRecorded:
+        "Review and authorize a new cloud request using its own provider and data scope."
+      case .furtherConsentEvidenceRequired:
+        "Review the capability and obtain any required approval before a new execution."
+      }
+    }
+  }
+
+  struct ReproductionRequirement: Codable, Sendable {
+    let limit: Limit
+    let guidance: String
   }
 
   let schemaVersion: Int
   let jobID: UUID
   let appVersion: String?
   let appBuild: String?
+  let hostMacOSVersion: String?
   let tool: Tool
   let status: JobStatus
   let exitCode: Int32?
@@ -60,6 +120,7 @@ struct JobRunProvenance: Codable, Sendable {
   let outputRootConfirmationUsed: Bool
   let runtime: RunRuntimeEvidence?
   let command: RunCommandEvidence?
+  let reportedToolContractVersion: String?
   let reportedBackend: RunBackendEvidence?
   let approvals: [RunApproval]?
   let declaredPlanSource: AgentPlanSource?
@@ -67,6 +128,7 @@ struct JobRunProvenance: Codable, Sendable {
   let inputs: [Input]
   let outputs: [Output]
   let limits: [Limit]
+  let reproductionRequirements: [ReproductionRequirement]?
 }
 
 struct RunProvenanceService {
@@ -85,6 +147,7 @@ struct RunProvenanceService {
     fileprivate let missingCapabilityApproval: Bool
     fileprivate let declaredPlanSource: AgentPlanSource?
     fileprivate let planningEvidence: WorkflowPlanningEvidence?
+    fileprivate let secrets: [String]
     let runtimeChannel: RunRuntimeEvidence.Channel
   }
 
@@ -103,6 +166,7 @@ struct RunProvenanceService {
       let tool = JobRunProvenance.Tool(
         capabilityID: Self.safeIdentifier(capability.id, secrets: secrets),
         skillRole: capability.owningSkillRole.flatMap(SkillRootRole.init(rawValue:)),
+        registryDeclaredRelease: Self.publicVersion(capability.registryDeclaredRelease, secrets: secrets),
         contractRevision: capability.ioContract?.revision,
         registrySHA256: registry.flatMap { value in
           value.utf8.count == 64 && value.utf8.allSatisfy(Self.isHexDigit) ? value.lowercased() : nil
@@ -120,14 +184,16 @@ struct RunProvenanceService {
       let isPreflight = capturedCommand?.evidence.operation == "preflight"
         || capturedCommand?.evidence.arguments.contains { $0.option == "--preflight-only" && $0.kind == .flag } == true
       let approvals: [RunApproval?] = [outputRootConfirmationUsed ? .outputRoot : nil, appliedApproval]
+      let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+      let appBuild = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
       return Start(
         inputPaths: request.inputPaths,
         inputURLs: inputURLs,
         fingerprints: Self.fingerprints(inputURLs),
         runRoot: runRoot,
         tool: tool,
-        appVersion: Self.appVersion("CFBundleShortVersionString"),
-        appBuild: Self.appVersion("CFBundleVersion"),
+        appVersion: Self.publicVersion(appVersion, secrets: secrets),
+        appBuild: Self.publicVersion(appBuild, secrets: secrets),
         outputRootConfirmationUsed: outputRootConfirmationUsed,
         command: capturedCommand?.evidence,
         runLocations: capturedCommand?.runLocations ?? [:],
@@ -135,6 +201,7 @@ struct RunProvenanceService {
         missingCapabilityApproval: capability.requiresPlannerConfirmation && !isPreflight && appliedApproval == nil,
         declaredPlanSource: declaredPlanSource,
         planningEvidence: planningEvidence?.sanitized(secrets: secrets),
+        secrets: secrets,
         runtimeChannel: RunRuntimeEvidence.Channel(runRoot: runRoot, tool: capability.scriptStem)
       )
     }.value
@@ -179,17 +246,23 @@ struct RunProvenanceService {
     let checksOnly = start.command?.arguments.contains {
       $0.kind == .flag && ($0.option == "--preflight-only" || $0.option == "--dry-run")
     } == true
-    let backend: RunBackendEvidence?
-    if !checksOnly, let reportedTool, RunBackendEvidence.tracks(reportedTool) {
-      let report = Self.commandSummary(start: start, root: root) ?? envelope
-      backend = report?.tool == reportedTool ? report?.reportedBackend : nil
-    } else {
-      backend = nil
+    let report = reportedTool.flatMap { expectedTool in
+      let candidate = Self.commandSummary(start: start, root: root) ?? envelope
+      return candidate?.tool == expectedTool ? candidate : nil
     }
-    var limits: [JobRunProvenance.Limit] = [.attachedInputScope]
+    let backend = checksOnly ? nil : report?.reportedBackend
+    let reportedToolContractVersion = Self.publicVersion(report?.contractVersion, secrets: start.secrets)
+    var limits: [JobRunProvenance.Limit] = [.attachedInputScope, .fileContentsNotIncluded]
+    if job.status != .succeeded { limits.append(.unsuccessfulRun) }
+    if start.appVersion == nil || start.appBuild == nil { limits.append(.appIdentityNotRecorded) }
+    if start.tool.registryDeclaredRelease == nil { limits.append(.skillReleaseNotRecorded) }
+    if start.tool.registrySHA256 == nil || start.tool.entryPointSHA256 == nil {
+      limits.append(.skillCodeIdentityIncomplete)
+    }
     if backend == nil, !checksOnly, let reportedTool, RunBackendEvidence.tracks(reportedTool) {
       limits.append(.backendNotReported)
     }
+    if backend != nil { limits.append(.backendVersionNotRecorded) }
     if let evidence = start.planningEvidence {
       if evidence.requestedModel == nil && evidence.reportedModel == nil { limits.append(.planningModelNotRecorded) }
       if evidence.outcome == .usedForPlan && evidence.reportedModel == nil {
@@ -201,19 +274,28 @@ struct RunProvenanceService {
       if source != .ollama { limits.append(.planningConsentNotRecorded) }
     }
     if start.missingCapabilityApproval { limits.append(.furtherConsentEvidenceRequired) }
-    if start.command?.requiresLocalArguments != false { limits.append(.localArgumentsRequired) }
-    if runtime == nil { limits.append(.runtimeAndDependencyVersionsNotCaptured) }
+    if let command = start.command {
+      if command.requiresLocalArguments { limits.append(.localArgumentsRequired) }
+    } else {
+      limits.append(.commandNotRecorded)
+    }
+    limits.append(runtime == nil ? .runtimeAndDependencyVersionsNotCaptured : .runtimeInventoryPartial)
     if fingerprints.contains(where: { $0.state == .directory }) { limits.append(.directoryContentsNotCaptured) }
     if fingerprints.contains(where: { $0.state != .recorded }) { limits.append(.incompleteFingerprints) }
     if inputs.contains(where: { $0.contentUnchanged == false }) { limits.append(.inputContentChanged) }
 
+    let host = ProcessInfo.processInfo.operatingSystemVersion
+    let hostVersion = "\(host.majorVersion).\(host.minorVersion).\(host.patchVersion)"
     let provenance = JobRunProvenance(
       schemaVersion: 1, jobID: job.id, appVersion: start.appVersion, appBuild: start.appBuild,
+      hostMacOSVersion: Self.publicVersion(hostVersion, secrets: start.secrets),
       tool: start.tool, status: job.status, exitCode: job.exitCode, startedAt: job.startedAt,
       finishedAt: job.finishedAt, outputRootConfirmationUsed: start.outputRootConfirmationUsed, runtime: runtime,
-      command: start.command, reportedBackend: backend, approvals: start.approvals,
+      command: start.command, reportedToolContractVersion: reportedToolContractVersion,
+      reportedBackend: backend, approvals: start.approvals,
       declaredPlanSource: start.declaredPlanSource, planningEvidence: start.planningEvidence,
-      inputs: inputs, outputs: outputs, limits: limits
+      inputs: inputs, outputs: outputs, limits: limits,
+      reproductionRequirements: limits.map { .init(limit: $0, guidance: $0.guidance) }
     )
     let data = try JSONEncoder.scientificWorkbench.encode(provenance)
     let destination = root.appendingPathComponent(JobRunProvenance.filename)
@@ -264,9 +346,9 @@ struct RunProvenanceService {
     return value
   }
 
-  private static func appVersion(_ key: String) -> String? {
-    guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,
-          value.range(of: #"^[0-9]+(?:\.[0-9]+){0,3}$"#, options: .regularExpression) != nil else { return nil }
+  private static func publicVersion(_ value: String?, secrets: [String]) -> String? {
+    guard let value, value.range(of: #"\Av?[0-9]{1,5}(?:\.[0-9]{1,5}){0,3}\z"#, options: .regularExpression) != nil,
+          !secrets.contains(where: { !$0.isEmpty && value.contains($0) }) else { return nil }
     return value
   }
 

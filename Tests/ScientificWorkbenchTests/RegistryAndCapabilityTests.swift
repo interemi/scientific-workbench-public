@@ -131,8 +131,8 @@ extension ScientificWorkbenchTests {
     let root = try makeScenarioFixture(
       name: "canonical-registry",
       files: [
-        "public_surface_registry.yaml": "canonical_registry: nested/stub.yaml\n",
-        "nested/stub.yaml": "canonical_registry: canonical/public_surface_registry.yaml\n",
+        "public_surface_registry.yaml": "canonical_registry: nested/stub.yaml\nrelease: v2.8\n",
+        "nested/stub.yaml": "canonical_registry: canonical/public_surface_registry.yaml\nrelease: v9.9\n",
         "nested/canonical/public_surface_registry.yaml": """
         registry_schema_version: 1 # versioned canonical snapshot
         entries:
@@ -164,8 +164,10 @@ extension ScientificWorkbenchTests {
     #expect(entries[0].owningSkillRole == SkillRootRole.mother.rawValue)
     #expect(entries[0].registrySourcePath?.hasSuffix("nested/canonical/public_surface_registry.yaml") == true)
     #expect(entries[0].registryFingerprint?.isEmpty == false)
+    #expect(entries[0].registryDeclaredRelease == "v2.8")
     #expect(entries[0].ioContract == nil)
     #expect(resolution.schemaVersion == 1)
+    #expect(resolution.declaredRelease == "v2.8")
     #expect(resolution.fingerprint == entries[0].registryFingerprint)
   }
 

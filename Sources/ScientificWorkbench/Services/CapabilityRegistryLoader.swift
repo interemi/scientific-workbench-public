@@ -25,6 +25,7 @@ struct CapabilityRegistryResolution: Hashable, Sendable {
   var resolvedPath: String
   var fingerprint: String
   var schemaVersion: Int
+  var declaredRelease: String?
 }
 
 enum CapabilityRegistryDegradationReason: String, Hashable, Sendable {
@@ -264,6 +265,7 @@ struct CapabilityRegistryLoader {
     var registryURL = root.registryStubURL
     var visited: Set<String> = []
     var depth = 0
+    var declaredRelease: String?
     let skillsDirectory = root.url.deletingLastPathComponent()
     let allowedFamilyRoots = ([root.url] + SkillRootRole.allCases.map { role in
       skillsDirectory.appendingPathComponent(role.defaultDirectoryName, isDirectory: true)
@@ -292,6 +294,7 @@ struct CapabilityRegistryLoader {
       }
       let text = try String(contentsOf: registryURL, encoding: .utf8)
       let schemaVersion = try registrySchemaVersion(in: text, path: standardizedPath)
+      if depth == 0 { declaredRelease = registryDeclaredRelease(in: text) }
       if let canonical = canonicalRegistryPath(in: text) {
         depth += 1
         guard depth <= maximumCanonicalDepth else {
@@ -311,7 +314,8 @@ struct CapabilityRegistryLoader {
         stubPath: root.registryStubURL.path,
         resolvedPath: registryURL.path,
         fingerprint: stableFingerprint(for: text),
-        schemaVersion: schemaVersion
+        schemaVersion: schemaVersion,
+        declaredRelease: declaredRelease
       )
       return (resolution, text)
     }
@@ -338,6 +342,17 @@ struct CapabilityRegistryLoader {
       throw RegistryError.unsupportedRegistrySchema(path: path, value: String(value), supported: Self.schemaVersion)
     }
     return Self.schemaVersion
+  }
+
+  private func registryDeclaredRelease(in text: String) -> String? {
+    let values = text.split(whereSeparator: \.isNewline).compactMap { line -> String? in
+      guard line.hasPrefix("release:"), let pair = parseKeyValue(String(line)) else { return nil }
+      return pair.value
+    }
+    guard values.count == 1, let value = values.first,
+          value.range(of: #"\Av?[0-9]{1,5}(?:\.[0-9]{1,5}){0,3}\z"#, options: .regularExpression) != nil
+    else { return nil }
+    return value
   }
 
   private func parseRawEntries(_ text: String) throws -> [CapabilityRegistryRawEntry] {
@@ -520,6 +535,7 @@ struct CapabilityRegistryLoader {
       owningSkillRole: owningRoot?.role.rawValue,
       registrySourcePath: registryResolution?.resolvedPath,
       registryFingerprint: registryResolution?.fingerprint,
+      registryDeclaredRelease: registryResolution?.role == owningRoot?.role ? registryResolution?.declaredRelease : nil,
       ioContract: ioContract
     )
   }
