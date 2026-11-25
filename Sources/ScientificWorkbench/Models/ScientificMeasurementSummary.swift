@@ -1,6 +1,10 @@
 import Foundation
 
 struct ScientificMeasurementSummary: Sendable {
+  enum EvidenceOutcome: String, Sendable {
+    case pass, warning
+  }
+
   struct Quantity: Decodable, Sendable {
     let label: String
     let value: Double
@@ -45,6 +49,8 @@ struct ScientificMeasurementSummary: Sendable {
     }
 
     let tool: String
+    let appStatus: String?
+    let status: String?
     let results: Results
     let qa: Quality
   }
@@ -54,6 +60,8 @@ struct ScientificMeasurementSummary: Sendable {
   let diagnostics: [Quantity]
   let assumptions: [String]
   let quality: Quality
+  let evidenceOutcome: EvidenceOutcome?
+  static let maximumBytes = 1_000_000
 
   static func supports(_ capabilityID: String) -> Bool {
     [
@@ -64,11 +72,14 @@ struct ScientificMeasurementSummary: Sendable {
   }
 
   static func load(from url: URL, capabilityID: String) -> Self? {
-    let maximumBytes = 1_000_000
     guard supports(capabilityID), let handle = try? FileHandle(forReadingFrom: url) else { return nil }
     defer { try? handle.close() }
-    guard let data = try? handle.read(upToCount: maximumBytes + 1),
-          data.count <= maximumBytes else { return nil }
+    guard let data = try? handle.read(upToCount: maximumBytes + 1) else { return nil }
+    return decode(data, capabilityID: capabilityID)
+  }
+
+  static func decode(_ data: Data, capabilityID: String) -> Self? {
+    guard supports(capabilityID), data.count <= maximumBytes else { return nil }
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
     guard let envelope = try? decoder.decode(Envelope.self, from: data) else { return nil }
@@ -79,7 +90,13 @@ struct ScientificMeasurementSummary: Sendable {
       $0.value.isFinite && !$0.unit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         && ($0.uncertainty.map { $0.isFinite && $0 >= 0 } ?? true)
     }) else { return nil }
+    let statuses = [envelope.appStatus, envelope.status, envelope.qa.status].compactMap { $0?.lowercased() }
+    let usableStatuses: Set<String> = ["ok", "pass", "warning"]
+    let canCite = envelope.appStatus != nil && statuses.allSatisfy(usableStatuses.contains)
+      && !details.method.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    let outcome: EvidenceOutcome? = canCite ? (statuses.contains("warning") ? .warning : .pass) : nil
     return Self(method: details.method, measurements: details.measurements,
-                diagnostics: details.diagnostics, assumptions: details.assumptions, quality: envelope.qa)
+                diagnostics: details.diagnostics, assumptions: details.assumptions, quality: envelope.qa,
+                evidenceOutcome: outcome)
   }
 }

@@ -163,6 +163,17 @@ recipient will need the inputs separately and may need to recover additional
 evidence listed in `reproductionRequirements`. Review the contents of other
 run-folder files individually before sharing them.
 
+### Measurements in workflow summaries
+
+The workflow summary links each measurement to its job, summary file and JSON
+field. It checks that the summary belongs to a successful linked job, matches
+an output SHA-256 recorded by the app and contains usable tool and QA results.
+The report keeps the method, assumptions, QA findings and uncertainties with
+the reported values. Unavailable, changed or invalid summaries produce an
+evidence status without numerical claims. Earlier jobs can still be browsed
+in Results. Their workflow summaries need a matching run provenance record
+to cite measurements.
+
 ## Registry coverage
 
 The canonical registry contains 61 entries:
