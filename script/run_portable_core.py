@@ -23,7 +23,8 @@ def validate_output(path, root=ROOT):
     path = path.expanduser().absolute()
     if path.exists() or path.is_symlink():
         raise ValueError("output already exists; choose a new directory to preserve evidence")
-    if path.resolve().is_relative_to(root.resolve()):
+    path = path.resolve()
+    if path.is_relative_to(root.resolve()):
         raise ValueError("output must be outside the source checkout")
     return path
 
