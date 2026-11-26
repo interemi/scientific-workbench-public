@@ -160,6 +160,7 @@ struct RunProvenanceService {
     fileprivate let appBuild: String?
     fileprivate let outputRootConfirmationUsed: Bool
     fileprivate let command: RunCommandEvidence?
+    fileprivate let commandSHA256: String?
     fileprivate let runLocations: [URL: String]
     fileprivate let approvals: [RunApproval]
     fileprivate let missingCapabilityApproval: Bool
@@ -199,6 +200,7 @@ struct RunProvenanceService {
         appBuild: Self.publicVersion(appBuild, secrets: secrets),
         outputRootConfirmationUsed: outputRootConfirmationUsed,
         command: capturedCommand?.evidence,
+        commandSHA256: command.flatMap { RunExecutionEvidence.commandDigest($0, secrets: secrets) },
         runLocations: capturedCommand?.runLocations ?? [:],
         approvals: approvals.compactMap { $0 },
         missingCapabilityApproval: capability.requiresPlannerConfirmation && !isPreflight && appliedApproval == nil,
@@ -287,7 +289,7 @@ struct RunProvenanceService {
       schemaVersion: 1, jobID: job.id, appVersion: start.appVersion, appBuild: start.appBuild,
       hostMacOSVersion: Self.publicVersion(hostVersion, secrets: start.secrets),
       tool: start.tool, status: job.status, exitCode: job.exitCode, startedAt: job.startedAt,
-      finishedAt: job.finishedAt, outputRootConfirmationUsed: start.outputRootConfirmationUsed, runtime: runtime,
+      finishedAt: job.finishedAt, outputRootConfirmationUsed: start.outputRootConfirmationUsed, runtime: runtime?.shareable,
       command: start.command, reportedToolContractVersion: reportedToolContractVersion,
       reportedBackend: backend, approvals: start.approvals,
       declaredPlanSource: start.declaredPlanSource, planningEvidence: start.planningEvidence,
@@ -300,6 +302,10 @@ struct RunProvenanceService {
     try data.write(to: staging, options: .withoutOverwriting)
     defer { try? FileManager.default.removeItem(at: staging) }
     try FileManager.default.moveItem(at: staging, to: destination)
+    if job.status == .succeeded, let commandHash = start.commandSHA256, let inventory = runtime?.inventorySHA256 {
+      // Private replay evidence supplements provenance. Its absence does not invalidate retained artifacts.
+      try? RunExecutionEvidence.retain(jobID: job.id, root: root, command: commandHash, pythonInventory: inventory)
+    }
     return Artifact(path: destination.path, relativePath: JobRunProvenance.filename,
                     byteCount: Int64(data.count), artifactType: "metadata_json")
   }
@@ -323,6 +329,7 @@ struct RunProvenanceService {
     return Set(job.artifacts.map { FilesystemPath.canonicalURL($0.path) }).filter { url in
       isInside(url, root: root) && !isInside(url, root: stagedInputs)
         && url != root.appendingPathComponent(JobRunProvenance.filename)
+        && url != root.appendingPathComponent(RunExecutionEvidence.filename)
         && !inputs.contains(url) && !attachedDirectories.contains { isInside(url, root: $0) }
     }.sorted { $0.path < $1.path }
   }

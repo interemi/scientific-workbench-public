@@ -30,6 +30,7 @@ class RuntimeEvidenceTests(unittest.TestCase):
                 environment = {
                     **os.environ,
                     "DATAANALYSIS_PYTHON": sys.executable,
+                    "PYTHONPATH": str(WRAPPER.parent),
                     EVIDENCE_KEY: json.dumps({
                         "destination": str(destination),
                         "tool": tool,
@@ -53,6 +54,15 @@ class RuntimeEvidenceTests(unittest.TestCase):
                 except PackageNotFoundError:
                     expected = {}
                 self.assertEqual(observation["packages"], expected)
+                self.assertRegex(observation["inventorySHA256"], r"^[0-9a-f]{64}$")
+                probe = subprocess.run(
+                    [sys.executable, "-B", str(WRAPPER), "python", "-B", "-c",
+                     "from _internal.fixture_script_dispatch import runtime_inventory_sha256; "
+                     "print(runtime_inventory_sha256())"],
+                    cwd=root, env={key: value for key, value in environment.items() if key != EVIDENCE_KEY},
+                    capture_output=True, text=True, timeout=30, check=True,
+                )
+                self.assertEqual(observation["inventorySHA256"], probe.stdout.strip())
                 self.assertNotIn(str(root).encode(), retained)
                 self.assertEqual(destination.stat().st_mode & 0o777, 0o600)
 

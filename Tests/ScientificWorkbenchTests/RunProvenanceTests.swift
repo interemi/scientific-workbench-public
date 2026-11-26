@@ -12,6 +12,10 @@ extension ScientificWorkbenchTests {
         "private-observer.csv": "hello",
         "skills/scripts/profile_table.py": "hello",
         "skills/fixtures/profile_table.py": "world",
+        "skills/fixtures/datanalysis_env.py": "launcher body",
+        "skills/fixtures/_internal/fixture_script_dispatch.py": "dispatcher body",
+        "skills/scripts/_internal/fixture_script_dispatch.py": "dispatch shim",
+        "skills/scripts/_internal/deferred_internal.py": "deferred helper",
         "skills/scripts/datanalysis_env.py": """
           import json
           import os
@@ -28,6 +32,7 @@ extension ScientificWorkbenchTests {
               "schemaVersion": 1, "tool": request["tool"], "implementation": "cpython",
               "version": "3.11.14", "architecture": "arm64",
               "packages": {"pandas": "2.3.0", "numpy": "1.0+private-observer", "private-observer": "1.0"},
+              "inventorySHA256": "a" * 64,
           }))
           """,
       ]
@@ -82,6 +87,31 @@ extension ScientificWorkbenchTests {
     #expect(record.runtime?.pythonImplementation == "cpython")
     #expect(record.runtime?.pythonVersion == "3.11.14")
     #expect(record.runtime?.profilePackages == ["pandas": "2.3.0"])
+    #expect(record.runtime?.inventorySHA256 == nil)
+    #expect(!text.contains("inventorySHA256"))
+    let receipt = try #require(RunExecutionEvidence.read(for: job))
+    #expect(receipt.pythonInventorySHA256 == String(repeating: "a", count: 64))
+    #expect(!job.artifacts.contains { $0.relativePath == RunExecutionEvidence.filename })
+    let receiptURL = URL(fileURLWithPath: job.runDirectory).appendingPathComponent(RunExecutionEvidence.filename)
+    let receiptText = try String(contentsOf: receiptURL, encoding: .utf8)
+    #expect(!receiptText.contains("synthetic-secret-argument"))
+    #expect(!receiptText.contains(source.path))
+    let skillRoot = store.skillRootPath
+    let builder = CapabilityCommandBuilder(
+      pythonExecutable: store.pythonExecutable, timeoutSeconds: store.externalProcessTimeoutSeconds
+    )
+    let current = try builder.build(
+      capability: sampleCapability(), request: .init(capabilityID: job.capabilityID, inputPaths: job.requestInputPaths,
+        outputDirectory: job.runDirectory, rawArguments: job.requestRawArguments),
+      skillRoot: skillRoot
+    )
+    #expect(RunExecutionEvidence.commandDigest(current, secrets: []) == receipt.commandSHA256)
+    #expect(RunExecutionEvidence.commandDigest(current, secrets: ["synthetic-secret-argument"]) == nil)
+    var changed = current
+    changed.environmentOverrides["LC_ALL"] = "C"
+    #expect(RunExecutionEvidence.commandDigest(changed, secrets: []) != receipt.commandSHA256)
+    try Data("changed".utf8).write(to: URL(fileURLWithPath: skillRoot).appendingPathComponent("fixtures/datanalysis_env.py"))
+    #expect(RunExecutionEvidence.commandDigest(current, secrets: []) != receipt.commandSHA256)
     #expect(!record.limits.contains(.runtimeAndDependencyVersionsNotCaptured))
     let runFiles = try FileManager.default.contentsOfDirectory(atPath: job.runDirectory)
     #expect(!runFiles.contains { $0.hasPrefix(".swb-runtime-") })

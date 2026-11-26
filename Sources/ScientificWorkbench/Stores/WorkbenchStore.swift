@@ -1323,7 +1323,8 @@ final class WorkbenchStore: ObservableObject {
   }
 
   private var runVerificationSettings: RunVerificationService.Settings {
-    .init(skillRoot: skillRootPath, pythonExecutable: pythonExecutable, outputRoot: outputRootPath,
+    .init(skillRoot: skillRootPath, pythonExecutable: pythonExecutable,
+          timeoutSeconds: externalProcessTimeoutSeconds, outputRoot: outputRootPath,
           secrets: configuredSecrets)
   }
 

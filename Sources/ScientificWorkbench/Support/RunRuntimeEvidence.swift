@@ -6,6 +6,7 @@ struct RunRuntimeEvidence: Codable, Equatable, Sendable {
   let pythonVersion: String
   let architecture: String
   let profilePackages: [String: String]
+  var inventorySHA256: String? = nil
 
   static let environmentKey = "SCIENTIFIC_WORKBENCH_RUNTIME_EVIDENCE"
   // Direct requirements documented by the bundled Core and Full profiles.
@@ -22,7 +23,14 @@ struct RunRuntimeEvidence: Codable, Equatable, Sendable {
           Self.isVersion(pythonVersion) else { return nil }
     let names = Set(Self.profilePackageNames)
     return Self(pythonImplementation: pythonImplementation, pythonVersion: pythonVersion, architecture: architecture,
-                profilePackages: profilePackages.filter { names.contains($0.key) && Self.isVersion($0.value) })
+                profilePackages: profilePackages.filter { names.contains($0.key) && Self.isVersion($0.value) },
+                inventorySHA256: inventorySHA256.flatMap { RunExecutionEvidence.isDigest($0) ? $0 : nil })
+  }
+
+  var shareable: Self {
+    var runtime = self
+    runtime.inventorySHA256 = nil
+    return runtime
   }
 
   private static func isVersion(_ value: String) -> Bool {
@@ -49,6 +57,7 @@ struct RunRuntimeEvidence: Codable, Equatable, Sendable {
       let version: String
       let architecture: String
       let packages: [String: String]
+      let inventorySHA256: String?
     }
 
     init(runRoot: URL, tool: String) {
@@ -84,7 +93,7 @@ struct RunRuntimeEvidence: Codable, Equatable, Sendable {
             observed.schemaVersion == 1, observed.tool == tool else { return nil }
       return RunRuntimeEvidence(
         pythonImplementation: observed.implementation, pythonVersion: observed.version,
-        architecture: observed.architecture, profilePackages: observed.packages
+        architecture: observed.architecture, profilePackages: observed.packages, inventorySHA256: observed.inventorySHA256
       ).validated()
     }
   }

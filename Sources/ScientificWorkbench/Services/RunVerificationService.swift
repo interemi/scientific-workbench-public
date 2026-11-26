@@ -23,6 +23,7 @@ struct RunVerificationService {
   struct Settings: Equatable, Sendable {
     let skillRoot: String
     let pythonExecutable: String
+    let timeoutSeconds: TimeInterval?
     let outputRoot: String
     let secrets: [String]
   }
@@ -70,7 +71,7 @@ struct RunVerificationService {
     checks.append(verifySkill(record, capability: capability, settings: settings))
     checks.append(verifyPermissions(job: job, record: record, capability: capability, settings: settings))
     let command = capability.flatMap { capability in
-      try? CapabilityCommandBuilder(pythonExecutable: settings.pythonExecutable).build(
+      try? CapabilityCommandBuilder(pythonExecutable: settings.pythonExecutable, timeoutSeconds: settings.timeoutSeconds).build(
         capability: capability, request: RunRequest(capabilityID: capability.id, inputPaths: job.requestInputPaths,
           outputDirectory: job.runDirectory, rawArguments: job.requestRawArguments),
         skillRoot: settings.skillRoot
@@ -86,6 +87,17 @@ struct RunVerificationService {
     let runtime: RunRuntimeEvidence?
     if record.runtime != nil, let command { runtime = await observeRuntime(for: command) } else { runtime = nil }
     checks.append(compareRuntime(record.runtime, runtime))
+    if let receipt = RunExecutionEvidence.read(for: job) {
+      let digest = command.flatMap { RunExecutionEvidence.commandDigest($0, secrets: settings.secrets) }
+      checks.append(compareDigest(
+        subject: "Local command", recorded: receipt.commandSHA256, current: digest,
+        scope: "the complete arguments, launcher, and process settings"
+      ))
+      checks.append(compareDigest(
+        subject: "Local Python inventory", recorded: receipt.pythonInventorySHA256, current: runtime?.inventorySHA256,
+        scope: "the Python binaries and installed distribution metadata"
+      ))
+    }
     return .init(jobID: job.id, checks: checks)
   }
 
@@ -185,6 +197,12 @@ struct RunVerificationService {
     let script = """
       import json, platform, sys
       from importlib.metadata import PackageNotFoundError, version
+      try:
+          from _internal.fixture_script_dispatch import runtime_inventory_sha256
+      except ImportError:
+          inventory = None
+      else:
+          inventory = runtime_inventory_sha256()
       packages = {}
       for name in sys.argv[1:]:
           try:
@@ -192,7 +210,8 @@ struct RunVerificationService {
           except PackageNotFoundError:
               pass
       print(json.dumps({"pythonImplementation": sys.implementation.name, "pythonVersion": platform.python_version(),
-                        "architecture": platform.machine(), "profilePackages": packages}))
+                        "architecture": platform.machine(), "profilePackages": packages,
+                        "inventorySHA256": inventory}))
       """
     var overrides = command.environmentOverrides
     overrides["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -210,7 +229,7 @@ struct RunVerificationService {
     guard let recorded, let current else {
       return .init(subject: "Python runtime", status: .unavailable, detail: "The original or currently selected Python inventory is unavailable.")
     }
-    if recorded == current {
+    if recorded.shareable == current.shareable {
       return .init(subject: "Python runtime", status: .matches, detail: "The interpreter, architecture, and recorded direct packages match.")
     }
     let changed = Set(recorded.profilePackages.keys).union(current.profilePackages.keys)
@@ -220,5 +239,14 @@ struct RunVerificationService {
       && recorded.pythonVersion == current.pythonVersion && recorded.architecture == current.architecture
     return .init(subject: "Python runtime", status: .changed,
                  detail: (interpreter ? "The direct package inventory changed." : "The interpreter or architecture changed.") + packages)
+  }
+
+  private func compareDigest(subject: String, recorded: String, current: String?, scope: String) -> Check {
+    guard let current else {
+      return .init(subject: subject, status: .unavailable, detail: "Could not fingerprint \(scope).")
+    }
+    let matches = recorded == current
+    return .init(subject: subject, status: matches ? .matches : .changed,
+                 detail: matches ? "The fingerprint matches for \(scope)." : "The fingerprint changed for \(scope).")
   }
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -41,6 +42,42 @@ def load_fixture_module(wrapper_file: str) -> ModuleType | None:
     return module
 
 
+def runtime_inventory_sha256() -> str | None:
+    """Fingerprint interpreter binaries and installed distribution metadata."""
+    from importlib.metadata import distributions
+
+    try:
+        binaries = {}
+        for value in (sys.executable, getattr(sys, "_base_executable", sys.executable)):
+            path = Path(value).resolve(strict=True)
+            if str(path) in binaries:
+                continue
+            if not path.is_file() or path.stat().st_size > 64 * 1024 * 1024:
+                return None
+            digest = hashlib.sha256()
+            with path.open("rb") as stream:
+                for block in iter(lambda: stream.read(65536), b""):
+                    digest.update(block)
+            binaries[str(path)] = digest.hexdigest()
+
+        packages = []
+        for distribution in distributions():
+            name, release = distribution.metadata["Name"], distribution.version
+            if not name or not release:
+                return None
+            metadata = tuple(distribution.read_text(file) or "" for file in ("METADATA", "RECORD", "direct_url.json"))
+            packages.append((
+                re.sub(r"[-_.]+", "-", name).lower(), release,
+                str(distribution.locate_file("").resolve()), hashlib.sha256(
+                    json.dumps(metadata, ensure_ascii=True).encode("utf-8")
+                ).hexdigest(),
+            ))
+        inventory = (sys.prefix, sys.base_prefix, sys.version, binaries, sorted(packages))
+        return hashlib.sha256(json.dumps(inventory, sort_keys=True).encode("utf-8")).hexdigest()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
 def _record_runtime(tool: str) -> None:
     raw = os.environ.get("SCIENTIFIC_WORKBENCH_RUNTIME_EVIDENCE")
     if not raw or len(raw) > 16384:
@@ -75,6 +112,7 @@ def _record_runtime(tool: str) -> None:
             json.dump({
                 "schemaVersion": 1, "tool": tool, "implementation": sys.implementation.name,
                 "version": platform.python_version(), "architecture": platform.machine(), "packages": packages,
+                "inventorySHA256": runtime_inventory_sha256(),
             }, stream, sort_keys=True)
     except (OSError, RuntimeError, TypeError, ValueError, KeyError):
         # Evidence is optional and must not interrupt the scientific command.

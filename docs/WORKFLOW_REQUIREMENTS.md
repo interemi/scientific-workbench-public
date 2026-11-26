@@ -198,6 +198,14 @@ architecture and direct package versions. The report identifies any
 differences and evidence gaps. Past approvals and external backends
 require separate review before a replay.
 
+With the current bundled skills, successful runs can also retain private
+fingerprints of the exact command and the selected Python installation.
+When present, **Verify Run** compares these fingerprints with the current
+command, launcher and process settings, Python binaries, and installed
+distribution metadata. Package source files and external executables are
+outside the inventory's coverage. The fingerprints stay in the local run
+directory, outside the shareable provenance record.
+
 ## Registry coverage
 
 The canonical registry contains 61 entries:

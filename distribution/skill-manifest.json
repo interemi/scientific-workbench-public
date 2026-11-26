@@ -1487,8 +1487,8 @@
     "scientific-data-analysis/fixtures/_internal/fixture_script_dispatch.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "69c0ccb113d33aaddc1f6aed5a45d399e30a6ef21ae42b7f7ff8c6d993a4b62a",
-      "size": 3535
+      "sha256": "2d2e5d815a1d61341fee3900fd59a3ea0a33b58bdc29e385399ae3417e5bdf6a",
+      "size": 5269
     },
     "scientific-data-analysis/fixtures/_internal/path_safety.py": {
       "executable": false,
@@ -4755,8 +4755,8 @@
     "scientific-data-astro/fixtures/_internal/fixture_script_dispatch.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "69c0ccb113d33aaddc1f6aed5a45d399e30a6ef21ae42b7f7ff8c6d993a4b62a",
-      "size": 3535
+      "sha256": "2d2e5d815a1d61341fee3900fd59a3ea0a33b58bdc29e385399ae3417e5bdf6a",
+      "size": 5269
     },
     "scientific-data-astro/fixtures/_internal/iwork_iwa.py": {
       "executable": false,
@@ -5763,8 +5763,8 @@
     "scientific-data-documents/fixtures/_internal/fixture_script_dispatch.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "69c0ccb113d33aaddc1f6aed5a45d399e30a6ef21ae42b7f7ff8c6d993a4b62a",
-      "size": 3535
+      "sha256": "2d2e5d815a1d61341fee3900fd59a3ea0a33b58bdc29e385399ae3417e5bdf6a",
+      "size": 5269
     },
     "scientific-data-documents/fixtures/_internal/iwork_iwa.py": {
       "executable": false,
@@ -7397,8 +7397,8 @@
     "scientific-data-maintainer/fixtures/_internal/fixture_script_dispatch.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "69c0ccb113d33aaddc1f6aed5a45d399e30a6ef21ae42b7f7ff8c6d993a4b62a",
-      "size": 3535
+      "sha256": "2d2e5d815a1d61341fee3900fd59a3ea0a33b58bdc29e385399ae3417e5bdf6a",
+      "size": 5269
     },
     "scientific-data-maintainer/fixtures/_internal/path_safety.py": {
       "executable": false,
@@ -10185,8 +10185,8 @@
     "scientific-data-notebooks/fixtures/_internal/fixture_script_dispatch.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "69c0ccb113d33aaddc1f6aed5a45d399e30a6ef21ae42b7f7ff8c6d993a4b62a",
-      "size": 3535
+      "sha256": "2d2e5d815a1d61341fee3900fd59a3ea0a33b58bdc29e385399ae3417e5bdf6a",
+      "size": 5269
     },
     "scientific-data-notebooks/fixtures/_internal/iwork_iwa.py": {
       "executable": false,
