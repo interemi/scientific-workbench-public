@@ -36,16 +36,23 @@ struct RunOutputEvidence {
     guard url.path.hasPrefix(prefix) else { throw RunEvidenceUnavailable.missingArtifact }
     source = String(url.path.dropFirst(prefix.count))
 
+    guard let provenance = Self.provenance(for: job), provenance.status == .succeeded else {
+      throw RunEvidenceUnavailable.missingProvenance
+    }
+    outputs = provenance.outputs
+  }
+
+  static func provenance(for job: JobRecord) -> JobRunProvenance? {
+    let inspection = ArtifactInspectionService()
+    let root = FilesystemPath.canonicalURL(job.runDirectory)
     let name = JobRunProvenance.filename
     let record = Artifact(path: root.appendingPathComponent(name).path, relativePath: name, byteCount: 0)
     guard let recordURL = inspection.previewURL(for: record, in: job),
           let data = Self.readJSON(at: recordURL),
           let provenance = try? JSONDecoder.scientificWorkbench.decode(JobRunProvenance.self, from: data),
           provenance.schemaVersion == 1, provenance.jobID == job.id,
-          provenance.status == .succeeded, provenance.tool.capabilityID == job.capabilityID else {
-      throw RunEvidenceUnavailable.missingProvenance
-    }
-    outputs = provenance.outputs
+          provenance.tool.capabilityID == job.capabilityID else { return nil }
+    return provenance
   }
 
   func matches(_ fingerprint: RunFileFingerprint) -> Bool {

@@ -298,6 +298,7 @@ struct JobsView: View {
 struct JobDetailView: View {
   @ObservedObject var store: WorkbenchStore
   let job: JobRecord
+  @State private var showsVerification = false
 
   var body: some View {
     ScrollView {
@@ -313,6 +314,14 @@ struct JobDetailView: View {
           }
           Spacer()
           StatusBadge(status: job.displaySeverity)
+          if job.status != .queued && job.status != .running {
+            Button { showsVerification = true } label: {
+              Label("Verify Run", systemImage: "checkmark.shield")
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(store.hasActiveOperation)
+            .accessibilityIdentifier("jobs.verify-run")
+          }
         }
 
         if job.status == .queued || job.status == .running {
@@ -432,6 +441,10 @@ struct JobDetailView: View {
 
       }
       .padding(24)
+    }
+    .sheet(isPresented: $showsVerification) {
+      RunVerificationSheet(store: store, job: job)
+        .id(job.id)
     }
   }
 }

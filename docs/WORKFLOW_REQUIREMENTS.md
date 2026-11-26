@@ -188,6 +188,16 @@ from the selected cells. The app displays highlights with their file, record
 and column. A full-file hash ties the chosen bytes to the recorded run, so a
 change beyond the selected range also invalidates the review.
 
+### Verifying a retained run
+
+In Jobs, open a completed job and choose **Verify Run**. The report compares
+recorded input and output fingerprints, app and macOS versions, the active
+skill registry and code hashes, and the typed command. A metadata probe uses
+the tool's configured Python launcher to compare the interpreter,
+architecture and direct package versions. The report identifies any
+differences and evidence gaps. Past approvals and external backends
+require separate review before a replay.
+
 ## Registry coverage
 
 The canonical registry contains 61 entries:

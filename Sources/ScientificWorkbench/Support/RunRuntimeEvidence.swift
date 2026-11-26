@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-struct RunRuntimeEvidence: Codable, Sendable {
+struct RunRuntimeEvidence: Codable, Equatable, Sendable {
   let pythonImplementation: String
   let pythonVersion: String
   let architecture: String
@@ -15,6 +15,22 @@ struct RunRuntimeEvidence: Codable, Sendable {
     plotly nbclient nbformat nbconvert jupyter_client ipykernel notebook pypdfium2 pdfplumber rapidocr-onnxruntime
     python-calamine pyxlsb pyxlsbwriter numbers-parser olefile tifffile zarr
     """.split(whereSeparator: \.isWhitespace).map(String.init)
+
+  func validated() -> Self? {
+    guard ["cpython", "pypy", "graalpy"].contains(pythonImplementation),
+          ["arm64", "aarch64", "x86_64", "amd64", "i386", "i686"].contains(architecture),
+          Self.isVersion(pythonVersion) else { return nil }
+    let names = Set(Self.profilePackageNames)
+    return Self(pythonImplementation: pythonImplementation, pythonVersion: pythonVersion, architecture: architecture,
+                profilePackages: profilePackages.filter { names.contains($0.key) && Self.isVersion($0.value) })
+  }
+
+  private static func isVersion(_ value: String) -> Bool {
+    value.utf8.count <= 48 && value.range(
+      of: #"\A(?:[0-9]+!)?[0-9]+(?:\.[0-9]+)*(?:(?:a|b|rc)[0-9]+)?(?:\.post[0-9]+)?(?:\.dev[0-9]+)?\z"#,
+      options: .regularExpression
+    ) != nil
+  }
 
   struct Channel: Sendable {
     let url: URL
@@ -65,23 +81,11 @@ struct RunRuntimeEvidence: Codable, Sendable {
       guard fileStatus.st_size <= maximumBytes,
             let data = try? file.read(upToCount: maximumBytes + 1), data.count <= maximumBytes,
             let observed = try? JSONDecoder().decode(Observation.self, from: data),
-            observed.schemaVersion == 1, observed.tool == tool,
-            ["cpython", "pypy", "graalpy"].contains(observed.implementation),
-            ["arm64", "aarch64", "x86_64", "amd64", "i386", "i686"].contains(observed.architecture),
-            Self.isVersion(observed.version) else { return nil }
-      let names = Set(RunRuntimeEvidence.profilePackageNames)
-      let packages = observed.packages.filter { names.contains($0.key) && Self.isVersion($0.value) }
+            observed.schemaVersion == 1, observed.tool == tool else { return nil }
       return RunRuntimeEvidence(
         pythonImplementation: observed.implementation, pythonVersion: observed.version,
-        architecture: observed.architecture, profilePackages: packages
-      )
-    }
-
-    private static func isVersion(_ value: String) -> Bool {
-      value.utf8.count <= 48 && value.range(
-        of: #"\A(?:[0-9]+!)?[0-9]+(?:\.[0-9]+)*(?:(?:a|b|rc)[0-9]+)?(?:\.post[0-9]+)?(?:\.dev[0-9]+)?\z"#,
-        options: .regularExpression
-      ) != nil
+        architecture: observed.architecture, profilePackages: observed.packages
+      ).validated()
     }
   }
 }

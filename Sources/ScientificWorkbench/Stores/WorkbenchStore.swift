@@ -1306,6 +1306,27 @@ final class WorkbenchStore: ObservableObject {
     return agentStatusMessage
   }
 
+  func verifyJob(_ job: JobRecord) async -> RunVerificationReport? {
+    guard let current = jobs.first(where: { $0.id == job.id }), !hasActiveOperation else { return nil }
+    let settings = runVerificationSettings
+    let task = Task.detached(priority: .userInitiated) {
+      await RunVerificationService().verify(job: current, settings: settings)
+    }
+    let report = await withTaskCancellationHandler {
+      await task.value
+    } onCancel: {
+      task.cancel()
+    }
+    guard !Task.isCancelled, settings == runVerificationSettings,
+          jobs.first(where: { $0.id == job.id }) == current else { return nil }
+    return report
+  }
+
+  private var runVerificationSettings: RunVerificationService.Settings {
+    .init(skillRoot: skillRootPath, pythonExecutable: pythonExecutable, outputRoot: outputRootPath,
+          secrets: configuredSecrets)
+  }
+
   func testAIConnection(_ provider: AIProvider? = nil) async {
     let provider = provider ?? aiProvider
     loadSavedSecretIfNeeded(for: provider)

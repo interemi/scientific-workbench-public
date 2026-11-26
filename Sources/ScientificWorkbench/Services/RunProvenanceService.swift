@@ -11,7 +11,7 @@ enum RunApproval: String, Codable, Sendable {
 struct JobRunProvenance: Codable, Sendable {
   static let filename = "run-provenance.json"
 
-  struct Tool: Codable, Sendable {
+  struct Tool: Codable, Equatable, Sendable {
     let capabilityID: String?
     let skillRole: SkillRootRole?
     let registryDeclaredRelease: String?
@@ -132,6 +132,24 @@ struct JobRunProvenance: Codable, Sendable {
 }
 
 struct RunProvenanceService {
+  static func toolIdentity(capability: CapabilityEntry, skillRoot: String, secrets: [String]) -> JobRunProvenance.Tool {
+    let owner = FilesystemPath.canonicalURL(capability.resolvedSkillRoot(fallback: skillRoot))
+    let entryPoint = owner.appendingPathComponent(capability.script)
+    let implementation = owner.appendingPathComponent("fixtures", isDirectory: true)
+      .appendingPathComponent(entryPoint.lastPathComponent)
+    return .init(
+      capabilityID: safeIdentifier(capability.id, secrets: secrets),
+      skillRole: capability.owningSkillRole.flatMap(SkillRootRole.init(rawValue:)),
+      registryDeclaredRelease: publicVersion(capability.registryDeclaredRelease, secrets: secrets),
+      contractRevision: capability.ioContract?.revision,
+      registrySHA256: capability.registryFingerprint.flatMap { value in
+        value.utf8.count == 64 && value.utf8.allSatisfy(isHexDigit) ? value.lowercased() : nil
+      },
+      entryPointSHA256: digest(entryPoint, inside: owner),
+      implementationSHA256: digest(implementation, inside: owner)
+    )
+  }
+
   struct Start: Sendable {
     fileprivate let inputPaths: [String]
     fileprivate let inputURLs: [URL]
@@ -158,22 +176,7 @@ struct RunProvenanceService {
     planningEvidence: WorkflowPlanningEvidence? = nil
   ) async -> Start {
     await Task.detached(priority: .utility) {
-      let owner = FilesystemPath.canonicalURL(capability.resolvedSkillRoot(fallback: skillRoot))
-      let entryPoint = owner.appendingPathComponent(capability.script)
-      let implementation = owner.appendingPathComponent("fixtures", isDirectory: true)
-        .appendingPathComponent(entryPoint.lastPathComponent)
-      let registry = capability.registryFingerprint
-      let tool = JobRunProvenance.Tool(
-        capabilityID: Self.safeIdentifier(capability.id, secrets: secrets),
-        skillRole: capability.owningSkillRole.flatMap(SkillRootRole.init(rawValue:)),
-        registryDeclaredRelease: Self.publicVersion(capability.registryDeclaredRelease, secrets: secrets),
-        contractRevision: capability.ioContract?.revision,
-        registrySHA256: registry.flatMap { value in
-          value.utf8.count == 64 && value.utf8.allSatisfy(Self.isHexDigit) ? value.lowercased() : nil
-        },
-        entryPointSHA256: Self.digest(entryPoint, inside: owner),
-        implementationSHA256: Self.digest(implementation, inside: owner)
-      )
+      let tool = Self.toolIdentity(capability: capability, skillRoot: skillRoot, secrets: secrets)
       let inputURLs = request.inputPaths.map(FilesystemPath.canonicalURL)
       let runRoot = FilesystemPath.canonicalURL(request.outputDirectory)
       let capturedCommand = command.flatMap {
@@ -221,17 +224,11 @@ struct RunProvenanceService {
       )
     }
 
-    let stagedInputs = root.appendingPathComponent("inputs", isDirectory: true)
     let inputURLs = Set(start.inputURLs + updatedURLs)
     let inputDirectories = zip(start.inputURLs, start.fingerprints).compactMap { url, digest in
       digest.state == .directory ? url : nil
     }
-    let outputURLs = Set(job.artifacts.map { FilesystemPath.canonicalURL($0.path) }).filter { url in
-      Self.isInside(url, root: root) && !Self.isInside(url, root: stagedInputs)
-        && url != root.appendingPathComponent(JobRunProvenance.filename)
-        && !inputURLs.contains(url) && !inputDirectories.contains { Self.isInside(url, root: $0) }
-    }
-    let sortedOutputs = outputURLs.sorted { $0.path < $1.path }
+    let sortedOutputs = Self.retainedOutputFiles(for: job, excluding: inputURLs, attachedDirectories: inputDirectories)
     let outputs = zip(sortedOutputs, Self.fingerprints(sortedOutputs)).enumerated().map { index, item in
       let (url, digest) = item
       return JobRunProvenance.Output(
@@ -307,7 +304,7 @@ struct RunProvenanceService {
                     byteCount: Int64(data.count), artifactType: "metadata_json")
   }
 
-  private static func fingerprints(_ urls: [URL?]) -> [RunFileFingerprint] {
+  static func fingerprints(_ urls: [URL?]) -> [RunFileFingerprint] {
     // Each pass has its own budget so a large input cannot hide the outputs.
     var remaining = RunFileFingerprint.defaultReadBudget
     return urls.map { url in
@@ -316,6 +313,18 @@ struct RunProvenanceService {
       if let size = digest.byteCount, size >= 0, size <= remaining { remaining -= size }
       return digest
     }
+  }
+
+  static func retainedOutputFiles(
+    for job: JobRecord, excluding inputs: Set<URL>, attachedDirectories: [URL]
+  ) -> [URL] {
+    let root = FilesystemPath.canonicalURL(job.runDirectory)
+    let stagedInputs = root.appendingPathComponent("inputs", isDirectory: true)
+    return Set(job.artifacts.map { FilesystemPath.canonicalURL($0.path) }).filter { url in
+      isInside(url, root: root) && !isInside(url, root: stagedInputs)
+        && url != root.appendingPathComponent(JobRunProvenance.filename)
+        && !inputs.contains(url) && !attachedDirectories.contains { isInside(url, root: $0) }
+    }.sorted { $0.path < $1.path }
   }
 
   private static func commandSummary(start: Start, root: URL) -> ToolEnvelope? {

@@ -1,7 +1,7 @@
 import Foundation
 
-struct RunCommandEvidence: Codable, Sendable {
-  struct Argument: Codable, Sendable {
+struct RunCommandEvidence: Codable, Equatable, Sendable {
+  struct Argument: Codable, Equatable, Sendable {
     let option: String?
     let kind: Kind
     var reference: String?
