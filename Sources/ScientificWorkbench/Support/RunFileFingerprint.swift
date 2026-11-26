@@ -15,6 +15,29 @@ struct RunFileFingerprint: Codable, Equatable, Sendable {
   let sha256: String?
 
   static func read(_ url: URL, maximumBytes: Int64) -> Self {
+    measure(url, maximumBytes: maximumBytes, observe: nil)
+  }
+
+  static func readSample(
+    _ url: URL, maximumBytes: Int64, range: Range<Int64>
+  ) -> (fingerprint: Self, bytes: Data, information: stat?) {
+    var sample = Data()
+    var information: stat?
+    let fingerprint = measure(url, maximumBytes: maximumBytes, capturedInformation: { information = $0 }) { offset, data in
+      try Task.checkCancellation()
+      let lower = max(range.lowerBound, offset)
+      let upper = min(range.upperBound, offset + Int64(data.count))
+      if lower < upper {
+        sample.append(data[Int(lower - offset)..<Int(upper - offset)])
+      }
+    }
+    return (fingerprint, fingerprint.state == .recorded ? sample : Data(), information)
+  }
+
+  private static func measure(
+    _ url: URL, maximumBytes: Int64, capturedInformation: ((stat) -> Void)? = nil,
+    observe: ((Int64, Data) throws -> Void)?
+  ) -> Self {
     var before = stat()
     guard lstat(url.path, &before) == 0 else {
       return Self(state: errno == ENOENT ? .missing : .unreadable, byteCount: nil, sha256: nil)
@@ -46,6 +69,7 @@ struct RunFileFingerprint: Codable, Equatable, Sendable {
         let count = Int(min(65_536, size - consumed))
         guard let data = try file.read(upToCount: count), !data.isEmpty else { break }
         hasher.update(data: data)
+        try observe?(consumed, data)
         consumed += Int64(data.count)
       }
     } catch {
@@ -58,6 +82,7 @@ struct RunFileFingerprint: Codable, Equatable, Sendable {
       return Self(state: .changed, byteCount: size, sha256: nil)
     }
 
+    capturedInformation?(before)
     return Self(
       state: .recorded, byteCount: consumed,
       sha256: hasher.finalize().map { String(format: "%02x", $0) }.joined()

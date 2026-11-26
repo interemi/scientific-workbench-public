@@ -3004,7 +3004,7 @@ final class WorkbenchStore: ObservableObject {
   }
 
   func prepareMeasurementSynthesis(
-    artifact: Artifact, jobID: UUID
+    artifact: Artifact, jobID: UUID, tableScope: TableSynthesisScope? = nil
   ) async throws -> MeasurementSynthesisReview {
     guard let job = selectedMeasurementJob(artifact, jobID: jobID) else {
       throw MeasurementSynthesisError.reviewChanged
@@ -3015,8 +3015,8 @@ final class WorkbenchStore: ObservableObject {
     let secrets = configuredSecrets
     let redact = previewRedactor()
     let review = try await Task.detached(priority: .userInitiated) {
-      try MeasurementSynthesisService().review(
-        artifact: artifact, job: job, destination: destination, redact: redact
+      try await MeasurementSynthesisService().review(
+        artifact: artifact, job: job, destination: destination, tableScope: tableScope, redact: redact
       )
     }.value
     try Task.checkCancellation()
@@ -3057,9 +3057,11 @@ final class WorkbenchStore: ObservableObject {
   private func revalidateMeasurementSynthesisReview(
     _ review: MeasurementSynthesisReview
   ) async throws -> MeasurementSynthesisReview {
-    let current = try await prepareMeasurementSynthesis(artifact: review.artifact, jobID: review.jobID)
-    guard current.destination == review.destination, current.evidence.source == review.evidence.source,
-          current.evidence.sha256 == review.evidence.sha256, current.userMessage == review.userMessage else {
+    let current = try await prepareMeasurementSynthesis(
+      artifact: review.artifact, jobID: review.jobID, tableScope: review.tableScope
+    )
+    guard current.destination == review.destination, current.source == review.source,
+          current.sha256 == review.sha256, current.userMessage == review.userMessage else {
       throw MeasurementSynthesisError.reviewChanged
     }
     return current

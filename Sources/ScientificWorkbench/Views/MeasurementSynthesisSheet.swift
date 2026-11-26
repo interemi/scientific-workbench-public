@@ -5,6 +5,7 @@ struct MeasurementSynthesisSheet: View {
   @ObservedObject var store: WorkbenchStore
   let jobID: UUID
   let artifact: Artifact
+  var tableScope: TableSynthesisScope? = nil
 
   @State private var review: MeasurementSynthesisReview?
   @State private var highlights: [MeasurementSynthesisReview.Fact]?
@@ -13,7 +14,7 @@ struct MeasurementSynthesisSheet: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      Text(highlights == nil ? "Review measurement synthesis" : "Verified measurements")
+      Text(highlights == nil ? "Review evidence synthesis" : "Verified highlights")
         .font(.title2.weight(.semibold))
       if let review, let highlights {
         summary(review, highlights: highlights)
@@ -44,7 +45,7 @@ struct MeasurementSynthesisSheet: View {
     .frame(width: 610, height: 505)
     .task {
       do {
-        review = try await store.prepareMeasurementSynthesis(artifact: artifact, jobID: jobID)
+        review = try await store.prepareMeasurementSynthesis(artifact: artifact, jobID: jobID, tableScope: tableScope)
       } catch {
         guard !Task.isCancelled else { return }
         self.error = store.redactedPreviewText(error.localizedDescription)
@@ -69,9 +70,9 @@ struct MeasurementSynthesisSheet: View {
     VStack(alignment: .leading, spacing: 8) {
       Text("\(review.destination.provider.title) · \(store.redactedPreviewText(review.destination.model))")
         .font(.headline)
-      Text("Review the measurement data below before sending it to the selected model.")
+      Text("Review the data below before sending it to the selected model.")
         .foregroundStyle(.secondary)
-      GroupBox("Measurement data sent") {
+      GroupBox("Data sent to the model") {
         ScrollView {
           Text(verbatim: review.userMessage)
             .font(.system(.caption, design: .monospaced))
@@ -87,38 +88,48 @@ struct MeasurementSynthesisSheet: View {
   private func summary(
     _ review: MeasurementSynthesisReview, highlights: [MeasurementSynthesisReview.Fact]
   ) -> some View {
-    let evidence = review.evidence
     return ScrollView {
       VStack(alignment: .leading, spacing: 12) {
         Text("Highlights selected by \(review.destination.provider.title)")
           .foregroundStyle(.secondary)
         Text("Job \(review.jobID.uuidString)").font(.caption.monospaced())
-        if evidence.summary.evidenceOutcome == .warning {
+        if review.measurementSummary?.evidenceOutcome == .warning {
           Label("The tool reported warnings.", systemImage: "exclamationmark.triangle")
         }
-        Text(verbatim: store.redactedPreviewText(evidence.summary.method))
+        if let scope = review.tableScope {
+          Text("Records \(scope.rows.lowerBound)–\(scope.rows.upperBound), columns \(scope.columns.lowerBound)–\(scope.columns.upperBound)")
+        }
+        if let summary = review.measurementSummary {
+          Text(verbatim: store.redactedPreviewText(summary.method))
+        }
         ForEach(highlights) { fact in
-          let quantity = fact.quantity
-          let uncertainty = quantity.uncertainty.map { " ± \($0)" } ?? ""
           VStack(alignment: .leading, spacing: 3) {
-            Text(verbatim: store.redactedPreviewText(quantity.label)).font(.headline)
-            Text(verbatim: "\(quantity.value)\(uncertainty) \(store.redactedPreviewText(quantity.unit))")
-              .monospacedDigit()
-            if quantity.uncertainty == nil && fact.id.hasPrefix("measurements-") {
-              Text("Uncertainty unavailable").font(.caption).foregroundStyle(.secondary)
+            Text(verbatim: store.redactedPreviewText(fact.label)).font(.headline)
+            switch fact.value {
+            case .measurement(let quantity):
+              let uncertainty = quantity.uncertainty.map { " ± \($0)" } ?? ""
+              Text(verbatim: "\(quantity.value)\(uncertainty) \(store.redactedPreviewText(quantity.unit))")
+                .monospacedDigit()
+              if quantity.uncertainty == nil && fact.id.hasPrefix("measurements-") {
+                Text("Uncertainty unavailable").font(.caption).foregroundStyle(.secondary)
+              }
+            case .tableCell(let text):
+              Text(verbatim: text).monospacedDigit()
             }
-            Text(verbatim: "\(store.redactedPreviewText(evidence.source))#\(fact.pointer)")
+            Text(verbatim: "\(store.redactedPreviewText(review.source))#\(fact.pointer)")
               .font(.caption.monospaced())
           }
           .accessibilityElement(children: .combine)
         }
-        ForEach(Array(evidence.summary.quality.findings.prefix(12).enumerated()), id: \.offset) { _, finding in
-          Text(verbatim: "QA finding — \(store.redactedPreviewText(finding))")
+        if let summary = review.measurementSummary {
+          ForEach(Array(summary.quality.findings.prefix(12).enumerated()), id: \.offset) { _, finding in
+            Text(verbatim: "QA finding — \(store.redactedPreviewText(finding))")
+          }
+          ForEach(Array(summary.assumptions.prefix(12).enumerated()), id: \.offset) { _, assumption in
+            Text(verbatim: "Assumption — \(store.redactedPreviewText(assumption))")
+          }
         }
-        ForEach(Array(evidence.summary.assumptions.prefix(12).enumerated()), id: \.offset) { _, assumption in
-          Text(verbatim: "Assumption — \(store.redactedPreviewText(assumption))")
-        }
-        Text("SHA-256 \(evidence.sha256)").font(.caption.monospaced())
+        Text("SHA-256 \(review.sha256)").font(.caption.monospaced())
       }
       .textSelection(.enabled)
       .frame(maxWidth: .infinity, alignment: .leading)

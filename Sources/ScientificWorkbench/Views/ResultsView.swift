@@ -399,7 +399,8 @@ struct ArtifactPreview: View {
           .accessibilityIdentifier("results.table.text-sample")
       }
       if isTable && !showTableText {
-        TableArtifactPreview(store: store, job: job, artifact: artifact)
+        TableArtifactPreview(store: store, job: job, artifact: artifact,
+                             allowsSynthesis: allowsMeasurementSynthesis)
           .id(requestID)
       } else if let fits = snapshot?.fitsInspection {
         Toggle("Raw JSON", isOn: $showFITSJSON)

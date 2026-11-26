@@ -135,11 +135,11 @@ struct ArtifactMetadataView: View {
         Text("Manifest size: \(ByteCountFormatter.string(fromByteCount: recordedByteCount, countStyle: .file))")
       }
       if let hash = inspection.recordedSHA256 {
-        Text("Recorded SHA-256: \(hash)")
+        Text("Tool manifest SHA-256: \(hash)")
           .font(.system(.caption2, design: .monospaced))
           .textSelection(.enabled)
       } else {
-        Text("Recorded SHA-256: not available")
+        Text("Tool manifest SHA-256: not available")
       }
       if let current = inspection.currentByteCount,
          let recorded = inspection.recordedByteCount,

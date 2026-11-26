@@ -10,6 +10,25 @@ struct TablePreviewPage: Sendable {
   let next: TablePreviewService.Cursor?
 }
 
+struct TableSynthesisScope: Equatable, Sendable {
+  static let maximumCells = 24
+  let cursor: TablePreviewService.Cursor
+  let rows: ClosedRange<Int>
+  let columns: ClosedRange<Int>
+}
+
+struct TableRangeEvidence: Sendable {
+  struct Cell: Sendable {
+    let record: Int
+    let column: Int
+    let value: String
+  }
+
+  let source: String
+  let sha256: String
+  let cells: [Cell]
+}
+
 actor TablePreviewService {
   static let shared = TablePreviewService()
   static let maximumColumns = 16
@@ -39,6 +58,10 @@ actor TablePreviewService {
       guard fstat(file.fileDescriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
         throw PreviewError.unavailable
       }
+      self.init(info)
+    }
+
+    init(_ info: stat) {
       device = info.st_dev
       inode = info.st_ino
       size = Int(info.st_size)
@@ -85,8 +108,85 @@ actor TablePreviewService {
     try handle.seek(toOffset: UInt64(cursor.offset))
     let bytes = Array(try handle.read(upToCount: maximumBytes) ?? Data())
     let atEnd = cursor.offset + bytes.count == version.size
+    let parsed = try parsePage(bytes, from: cursor, ext: artifact.url.pathExtension.lowercased(),
+                               atEnd: atEnd, redact: redact)
+    guard try FileVersion(handle) == version else { throw PreviewError.changed }
+
+    var hasOmittedCellText = false
+    let rows = redactedRows(parsed.records, redact: redact).map { row in
+      row.map { value in
+        let prefix = value.prefix(maximumCellCharacters)
+        guard prefix.endIndex != value.endIndex else { return value }
+        hasOmittedCellText = true
+        return String(prefix) + "…"
+      }
+    }
+    let nextOffset = cursor.offset + parsed.bytesConsumed
+    let next = nextOffset < version.size
+      ? Cursor(offset: nextOffset, record: cursor.record + parsed.records.count, version: version,
+               delimiter: parsed.delimiter, ecsvHeader: parsed.ecsvHeader)
+      : nil
+    return TablePreviewPage(
+      firstRecord: cursor.record,
+      rows: rows,
+      widestRecord: parsed.records.map(\.columns).max() ?? 0,
+      hasOmittedCellText: hasOmittedCellText,
+      ecsvHeader: parsed.ecsvHeader,
+      next: next
+    )
+  }
+
+  func readEvidence(
+    _ artifact: Artifact, in job: JobRecord, scope: TableSynthesisScope, redact: @Sendable (String) -> String
+  ) throws -> TableRangeEvidence {
+    let cursor = scope.cursor
+    let budget = RunFileFingerprint.defaultReadBudget
+    guard Self.supports(artifact), scope.rows.lowerBound >= cursor.record, scope.columns.lowerBound >= 1,
+          scope.columns.upperBound <= Self.maximumColumns, scope.rows.upperBound - scope.rows.lowerBound < maximumRows,
+          scope.rows.count * scope.columns.count <= TableSynthesisScope.maximumCells,
+          cursor.offset >= 0, Int64(cursor.offset) < budget else { throw RunEvidenceUnavailable.invalidTableRange }
+    let output = try RunOutputEvidence(artifact: artifact, job: job)
+    let offset = Int64(cursor.offset)
+    let read = RunFileFingerprint.readSample(output.url, maximumBytes: budget,
+                                             range: offset..<(offset + Int64(maximumBytes)))
+    try Task.checkCancellation()
+    guard output.matches(read.fingerprint), let hash = read.fingerprint.sha256, let info = read.information
+    else { throw RunEvidenceUnavailable.changedArtifact }
+    let version = FileVersion(info)
+    guard cursor.version.map({ $0 == version }) ?? true else { throw PreviewError.changed }
+    let bytes = Array(read.bytes)
+    let parsed = try parsePage(bytes, from: cursor, ext: artifact.url.pathExtension.lowercased(),
+                               atEnd: cursor.offset + bytes.count == version.size, redact: redact)
+    guard scope.rows.upperBound - cursor.record < parsed.records.count else {
+      throw RunEvidenceUnavailable.invalidTableRange
+    }
+    let rows = redactedRows(parsed.records, redact: redact)
+    let cells = scope.rows.flatMap { record in
+      let row = rows[record - cursor.record]
+      return scope.columns.compactMap { column -> TableRangeEvidence.Cell? in
+        guard row.indices.contains(column - 1) else { return nil }
+        let value = row[column - 1].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard value.utf8.count <= 80, Double(value)?.isFinite == true,
+              value.range(of: #"\A[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\z"#,
+                          options: .regularExpression) != nil else { return nil }
+        return .init(record: record, column: column, value: value)
+      }
+    }
+    guard !cells.isEmpty else { throw RunEvidenceUnavailable.noNumericCells }
+    return TableRangeEvidence(source: output.source, sha256: hash, cells: cells)
+  }
+
+  private struct ParsedPage {
+    let records: [Record]
+    let bytesConsumed: Int
+    let delimiter: UInt8
+    let ecsvHeader: String?
+  }
+
+  private func parsePage(
+    _ bytes: [UInt8], from cursor: Cursor, ext: String, atEnd: Bool, redact: (String) -> String
+  ) throws -> ParsedPage {
     var position = cursor.offset == 0 && bytes.starts(with: [0xEF, 0xBB, 0xBF]) ? 3 : 0
-    let ext = artifact.url.pathExtension.lowercased()
     var delimiter = cursor.delimiter ?? (ext == "tsv" ? 9 : 44)
     var ecsvHeader = cursor.ecsvHeader
     if cursor.offset == 0, ext == "ecsv" {
@@ -104,37 +204,16 @@ actor TablePreviewService {
       }
       records.append(record)
     }
-    guard try FileVersion(handle) == version else { throw PreviewError.changed }
+    return .init(records: records, bytesConsumed: position, delimiter: delimiter, ecsvHeader: ecsvHeader)
+  }
 
+  private func redactedRows(_ records: [Record], redact: (String) -> String) -> [[String]] {
     let rawPage = records.map(\.source).joined()
     let redactedRecords = records.map { redact($0.source) }
-    let redactionSpansRecords = redact(rawPage) != redactedRecords.joined()
-    var hasOmittedCellText = false
-    let rows = zip(records, redactedRecords).map { record, redactedRecord in
-      if redactionSpansRecords || record.source != redactedRecord {
-        return ["[REDACTED]"]
-      }
-      return record.cells.map { cell in
-        let value = redact(cell)
-        let prefix = value.prefix(maximumCellCharacters)
-        guard prefix.endIndex != value.endIndex else { return value }
-        hasOmittedCellText = true
-        return String(prefix) + "…"
-      }
+    let spansRecords = redact(rawPage) != redactedRecords.joined()
+    return zip(records, redactedRecords).map { record, redactedRecord in
+      spansRecords || record.source != redactedRecord ? ["[REDACTED]"] : record.cells.map(redact)
     }
-    let nextOffset = cursor.offset + position
-    let next = nextOffset < version.size
-      ? Cursor(offset: nextOffset, record: cursor.record + records.count, version: version,
-               delimiter: delimiter, ecsvHeader: ecsvHeader)
-      : nil
-    return TablePreviewPage(
-      firstRecord: cursor.record,
-      rows: rows,
-      widestRecord: records.map(\.columns).max() ?? 0,
-      hasOmittedCellText: hasOmittedCellText,
-      ecsvHeader: ecsvHeader,
-      next: next
-    )
   }
 
   private struct Record {

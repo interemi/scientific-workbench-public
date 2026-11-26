@@ -181,6 +181,13 @@ tool outcome. The app supplies the values, units, uncertainties and citations
 from the verified artifact after the model selects the highlights. A changed
 artifact, invalid selection or unavailable source produces an evidence status.
 
+For CSV, TSV and supported ECSV previews, choose **Summarize range** to review
+up to 24 cells on the current page. Record numbering follows the preview and
+includes any column header. The model receives the exact finite numeric text
+from the selected cells. The app displays highlights with their file, record
+and column. A full-file hash ties the chosen bytes to the recorded run, so a
+change beyond the selected range also invalidates the review.
+
 ## Registry coverage
 
 The canonical registry contains 61 entries:
