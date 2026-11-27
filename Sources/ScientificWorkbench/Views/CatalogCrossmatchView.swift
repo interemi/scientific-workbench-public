@@ -343,7 +343,8 @@ struct CatalogCrossmatchView: View {
       )
       await store.runGuided(
         capability: capability,
-        inputPathsOverride: [prepared.leftPath, prepared.rightPath]
+        inputPathsOverride: [prepared.leftPath, prepared.rightPath],
+        appliedApproval: .capabilityAccess
       ) { runURL in
         prepared.arguments(runURL: runURL)
       }

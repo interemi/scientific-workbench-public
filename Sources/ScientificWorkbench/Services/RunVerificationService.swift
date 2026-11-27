@@ -16,6 +16,7 @@ struct RunVerificationReport: Sendable {
 
   let jobID: UUID
   let checks: [Check]
+  var replayBlockReason: String? = "Complete original evidence is required."
   var matchesRecordedEvidence: Bool { checks.allSatisfy { $0.status == .matches } }
 }
 
@@ -83,14 +84,18 @@ struct RunVerificationService {
                                    runRoot: FilesystemPath.canonicalURL(job.runDirectory), secrets: settings.secrets)?.evidence
       }
     }
-    checks.append(verifyCommand(record.command, currentCommand))
+    let receipt = RunExecutionEvidence.read(for: job)
+    let localDigest = receipt.flatMap { _ in
+      command.flatMap { RunExecutionEvidence.commandDigest($0, secrets: settings.secrets) }
+    }
+    let localCommandMatches = localDigest != nil && receipt?.commandSHA256 == localDigest
+    checks.append(verifyCommand(record.command, currentCommand, localCommandMatches: localCommandMatches))
     let runtime: RunRuntimeEvidence?
     if record.runtime != nil, let command { runtime = await observeRuntime(for: command) } else { runtime = nil }
     checks.append(compareRuntime(record.runtime, runtime))
-    if let receipt = RunExecutionEvidence.read(for: job) {
-      let digest = command.flatMap { RunExecutionEvidence.commandDigest($0, secrets: settings.secrets) }
+    if let receipt {
       checks.append(compareDigest(
-        subject: "Local command", recorded: receipt.commandSHA256, current: digest,
+        subject: "Local command", recorded: receipt.commandSHA256, current: localDigest,
         scope: "the complete arguments, launcher, and process settings"
       ))
       checks.append(compareDigest(
@@ -98,7 +103,17 @@ struct RunVerificationService {
         scope: "the Python binaries and installed distribution metadata"
       ))
     }
-    return .init(jobID: job.id, checks: checks)
+    let replayBlockReason: String?
+    if !RunReplayService.supports(job.capabilityID) {
+      replayBlockReason = "Replay is unavailable for this workflow."
+    } else if receipt == nil || record.tool.implementationSHA256 == nil {
+      replayBlockReason = "The original run has no complete local execution record."
+    } else if checks.contains(where: { $0.status != .matches }) {
+      replayBlockReason = "Resolve the changed or unavailable checks before replaying."
+    } else {
+      replayBlockReason = nil
+    }
+    return .init(jobID: job.id, checks: checks, replayBlockReason: replayBlockReason)
   }
 
   private func compareFiles(
@@ -173,18 +188,24 @@ struct RunVerificationService {
     guard case .safe = FilesystemSafetyPolicy().assessOutputRoot(settings.outputRoot, inputPaths: job.requestInputPaths) else {
       return .init(subject: "Permissions", status: .changed, detail: "The current output folder requires a separate filesystem review.")
     }
-    if !approvals.isEmpty || record.outputRootConfirmationUsed || capability.requiresPlannerConfirmation
-      || capability.isMaintainerOnly || record.limits.contains(.furtherConsentEvidenceRequired) {
+    let recoverableApproval = RunReplayService.supports(capability.id) && approvals == [.capabilityAccess]
+    if (!recoverableApproval && (!approvals.isEmpty || capability.requiresPlannerConfirmation))
+      || record.outputRootConfirmationUsed || capability.isMaintainerOnly || record.limits.contains(.furtherConsentEvidenceRequired) {
       return .init(subject: "Permissions", status: .unavailable, detail: "The run or current capability requires a separate approval review.")
     }
     if record.reportedBackend != nil || record.limits.contains(.backendNotReported) {
       return .init(subject: "Permissions", status: .unavailable, detail: "The external backend and its settings require separate verification.")
     }
-    return .init(subject: "Permissions", status: .matches, detail: "The recorded run and current settings require no special approval.")
+    return .init(subject: "Permissions", status: .matches,
+                 detail: recoverableApproval ? "Replay asks you to renew the recorded approval for these exact inputs and settings."
+                   : "The recorded run and current settings require no special approval.")
   }
 
-  private func verifyCommand(_ recorded: RunCommandEvidence?, _ current: RunCommandEvidence?) -> Check {
-    guard let recorded, let current, !recorded.requiresLocalArguments, !current.requiresLocalArguments else {
+  private func verifyCommand(
+    _ recorded: RunCommandEvidence?, _ current: RunCommandEvidence?, localCommandMatches: Bool
+  ) -> Check {
+    guard let recorded, let current,
+          localCommandMatches || (!recorded.requiresLocalArguments && !current.requiresLocalArguments) else {
       return .init(subject: "Command", status: .unavailable, detail: "Some original or current arguments lack complete recorded evidence.")
     }
     let matches = recorded == current
@@ -192,7 +213,7 @@ struct RunVerificationService {
                  detail: matches ? "The recorded typed arguments match." : "The operation or its recorded arguments changed.")
   }
 
-  private func observeRuntime(for command: ProcessCommand) async -> RunRuntimeEvidence? {
+  func observeRuntime(for command: ProcessCommand) async -> RunRuntimeEvidence? {
     guard let wrapper = command.arguments.first, !Task.isCancelled else { return nil }
     let script = """
       import json, platform, sys

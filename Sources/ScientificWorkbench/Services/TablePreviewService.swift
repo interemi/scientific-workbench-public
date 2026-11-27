@@ -183,6 +183,21 @@ actor TablePreviewService {
     let ecsvHeader: String?
   }
 
+  static func completeDelimitedRows(_ data: Data, delimiter: UInt8) throws -> [[String]] {
+    let bytes = Array(data)
+    var position = bytes.starts(with: [0xEF, 0xBB, 0xBF]) ? 3 : 0
+    var rows: [[String]] = []
+    while position < bytes.count {
+      try Task.checkCancellation()
+      guard rows.count < 50_000, let record = try readRecord(
+        bytes, from: &position, delimiter: delimiter, atEnd: true, maximumColumns: 256
+      ),
+            record.cells.count == record.columns else { throw PreviewError.invalidRecord }
+      rows.append(record.cells)
+    }
+    return rows
+  }
+
   private func parsePage(
     _ bytes: [UInt8], from cursor: Cursor, ext: String, atEnd: Bool, redact: (String) -> String
   ) throws -> ParsedPage {
@@ -198,7 +213,7 @@ actor TablePreviewService {
     var records: [Record] = []
     while position < bytes.count, records.count < maximumRows {
       try Task.checkCancellation()
-      guard let record = try readRecord(bytes, from: &position, delimiter: delimiter, atEnd: atEnd) else {
+      guard let record = try Self.readRecord(bytes, from: &position, delimiter: delimiter, atEnd: atEnd) else {
         if records.isEmpty { throw PreviewError.recordTooLarge }
         break
       }
@@ -226,8 +241,8 @@ actor TablePreviewService {
     case start, unquoted, quoted, closingQuote
   }
 
-  private func readRecord(
-    _ bytes: [UInt8], from position: inout Int, delimiter: UInt8, atEnd: Bool
+  private static func readRecord(
+    _ bytes: [UInt8], from position: inout Int, delimiter: UInt8, atEnd: Bool, maximumColumns: Int = maximumColumns
   ) throws -> Record? {
     var index = position
     var fieldStart = index
@@ -237,7 +252,7 @@ actor TablePreviewService {
 
     func finishField(at end: Int) throws {
       columns += 1
-      guard columns <= Self.maximumColumns else { return }
+      guard columns <= maximumColumns else { return }
       let quoted = state == .closingQuote
       let range = quoted ? (fieldStart + 1)..<(end - 1) : fieldStart..<end
       guard let text = String(bytes: bytes[range], encoding: .utf8) else {

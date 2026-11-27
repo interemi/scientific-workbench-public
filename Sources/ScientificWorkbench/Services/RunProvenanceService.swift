@@ -330,6 +330,7 @@ struct RunProvenanceService {
       isInside(url, root: root) && !isInside(url, root: stagedInputs)
         && url != root.appendingPathComponent(JobRunProvenance.filename)
         && url != root.appendingPathComponent(RunExecutionEvidence.filename)
+        && url != root.appendingPathComponent(RunReplayComparison.filename)
         && !inputs.contains(url) && !attachedDirectories.contains { isInside(url, root: $0) }
     }.sorted { $0.path < $1.path }
   }

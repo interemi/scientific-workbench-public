@@ -1322,6 +1322,43 @@ final class WorkbenchStore: ObservableObject {
     return report
   }
 
+  func replayJob(_ job: JobRecord) async -> String? {
+    guard let original = jobs.first(where: { $0.id == job.id }), !hasActiveOperation, !isPreparingToQuit else {
+      return "Wait for active work to finish and open a fresh verification."
+    }
+    let settings = runVerificationSettings
+    let destination = runDirectoryFactory.makePath(
+      root: legacyWorkspacePolicy.runRoot(for: original.capabilityID, preferredOutputRoot: settings.outputRoot),
+      capabilityID: original.capabilityID + "-replay"
+    )
+    let task = Task.detached(priority: .userInitiated) {
+      try await RunReplayService().prepare(job: original, settings: settings, destination: destination)
+    }
+    do {
+      let plan = try await withTaskCancellationHandler {
+        try await task.value
+      } onCancel: {
+        task.cancel()
+      }
+      guard !Task.isCancelled, settings == runVerificationSettings,
+            jobs.first(where: { $0.id == original.id }) == original, !hasActiveOperation else {
+        return "The job or execution settings changed. Open a fresh verification."
+      }
+      let replayed = await run(
+        capability: plan.capability, rawArguments: plan.rawArguments, inputPathsOverride: plan.inputPaths,
+        runDirectoryOverride: plan.directory.path, prepareGuidedArtifactsDirectory: true,
+        appliedApproval: plan.approvals.first, replay: plan
+      )
+      return replayed == nil ? agentStatusMessage : nil
+    } catch let reason as RunReplayService.Unavailable {
+      return reason.localizedDescription
+    } catch is CancellationError {
+      return "Replay was cancelled."
+    } catch {
+      return "Could not safely prepare the replay folder or command."
+    }
+  }
+
   private var runVerificationSettings: RunVerificationService.Settings {
     .init(skillRoot: skillRootPath, pythonExecutable: pythonExecutable,
           timeoutSeconds: externalProcessTimeoutSeconds, outputRoot: outputRootPath,
@@ -2241,7 +2278,8 @@ final class WorkbenchStore: ObservableObject {
         rawArguments: "",
         inputPathsOverride: [staged.tablePath],
         selectJobs: selectJobs,
-        runDirectoryOverride: runDirectory
+        runDirectoryOverride: runDirectory,
+        appliedApproval: .capabilityAccess
       )
     } catch {
       photometricCalibrationError = error.localizedDescription
@@ -2813,7 +2851,8 @@ final class WorkbenchStore: ObservableObject {
     workflowExecutionID: UUID? = nil,
     appliedApproval: RunApproval? = nil,
     declaredPlanSource: AgentPlanSource? = nil,
-    planningEvidence: WorkflowPlanningEvidence? = nil
+    planningEvidence: WorkflowPlanningEvidence? = nil,
+    replay: RunReplayService.Plan? = nil
   ) async -> JobRecord? {
     if let jobHistoryRestore {
       let inputSelection = inputPathsOverride ?? inputPaths
@@ -2850,6 +2889,10 @@ final class WorkbenchStore: ObservableObject {
       outputRootConfirmationUsed = false
     }
     let runDirectory = runDirectoryOverride ?? makeRunDirectory(for: capability, outputRootPathOverride: requestOutputRootPath)
+    if let replay, !replay.ownsDirectory() || replay.directory.path != runDirectory {
+      agentStatusMessage = "The reserved replay folder changed."
+      return nil
+    }
     let allowedRunRoot = legacyWorkspacePolicy.runRoot(
       for: capability.id,
       preferredOutputRoot: requestOutputRootPath
@@ -2922,14 +2965,31 @@ final class WorkbenchStore: ObservableObject {
         appliedApproval: appliedApproval, declaredPlanSource: declaredPlanSource, planningEvidence: planningEvidence
       )
       if isCancellationRequested || Task.isCancelled { throw CancellationError() }
-      if let request = provenance?.runtimeChannel.request {
-        command.environmentOverrides[RunRuntimeEvidence.environmentKey] = request
-      }
-
       job.status = .running
       job.command = redactSecrets(command.pretty)
       job.startedAt = Date()
       await replace(job)
+
+      if let replay {
+        let launchCommand = command
+        let review = Task.detached(priority: .userInitiated) {
+          try await replay.checkBeforeLaunch(launchCommand)
+        }
+        try await withTaskCancellationHandler {
+          try await review.value
+        } onCancel: {
+          review.cancel()
+        }
+        guard runVerificationSettings == replay.settings,
+              jobs.first(where: { $0.id == replay.original.id }) == replay.original,
+              replay.ownsDirectory() else {
+          throw RunReplayService.Unavailable.reason("The original job, replay folder, or settings changed before launch.")
+        }
+      }
+      if let request = provenance?.runtimeChannel.request {
+        command.environmentOverrides[RunRuntimeEvidence.environmentKey] = request
+      }
+      if isCancellationRequested || Task.isCancelled { throw CancellationError() }
 
       let result = try await runner.run(
         command,
@@ -2957,9 +3017,31 @@ final class WorkbenchStore: ObservableObject {
     }
     isFinalizingJobEvidence = true
     defer { isFinalizingJobEvidence = false }
+    if let replay, !replay.ownsDirectory() {
+      job.status = .blocked
+      job.message = "The reserved replay folder changed before evidence could be retained."
+      job.finishedAt = Date()
+      await replace(job)
+      return job
+    }
     job = await runBundleService.finalize(
       job, completion: completion, secrets: configuredSecrets, provenance: provenance
     )
+    if let replay {
+      let completedJob = job
+      let comparison = await Task.detached(priority: .utility) {
+        try? RunReplayComparison.retain(replay, for: completedJob)
+      }.value
+      if let (report, artifact) = comparison {
+        job.artifacts.append(artifact)
+        agentStatusMessage = report.outcome.title
+        if report.outcome != .matches {
+          job.warnings.append(report.outcome.title)
+        }
+      } else {
+        job.warnings.append("The app could not retain the replay comparison.")
+      }
+    }
     await replace(job)
     if ownsCancellationState {
       isCancellationRequested = false
@@ -2972,6 +3054,7 @@ final class WorkbenchStore: ObservableObject {
     capability: CapabilityEntry,
     inputPathsOverride: [String]? = nil,
     selectJobs: Bool = true,
+    appliedApproval: RunApproval? = nil,
     arguments: (URL) -> [String]
   ) async -> JobRecord? {
     let runDirectory = makeRunDirectory(for: capability)
@@ -2985,7 +3068,8 @@ final class WorkbenchStore: ObservableObject {
       inputPathsOverride: inputPathsOverride,
       selectJobs: selectJobs,
       runDirectoryOverride: runDirectory,
-      prepareGuidedArtifactsDirectory: true
+      prepareGuidedArtifactsDirectory: true,
+      appliedApproval: appliedApproval
     )
   }
 

@@ -84,6 +84,8 @@ extension ScientificWorkbenchTests {
     for subject in ["Original run", "Inputs", "Retained outputs", "Skill", "Permissions", "Command", "Python runtime"] {
       #expect(completed.checks.first { $0.subject == subject }?.status == .matches)
     }
+    #expect(completed.replayBlockReason == "The original run has no complete local execution record.")
+    #expect(await store.replayJob(job) == completed.replayBlockReason)
 
     try Data("x,y\n1,3\n".utf8).write(to: input, options: .atomic)
     try Data("value\n9\n".utf8).write(to: output, options: .atomic)
@@ -98,5 +100,60 @@ extension ScientificWorkbenchTests {
     #expect(try String(contentsOf: skill.appendingPathComponent("execution-counter"), encoding: .utf8) == "run\n")
     #expect(try Data(contentsOf: provenance) == baseline)
     #expect(try String(contentsOf: input, encoding: .utf8) == "x,y\n1,3\n")
+  }
+
+  @Test
+  func replayRebasesOnlyAttachedInputsAndNewRunDestinations() throws {
+    let root = try makeScenarioFixture(name: "replay-relative-paths", files: ["input/synthetic table.csv": "x\n1\n"])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let base = FilesystemPath.canonicalURL(root.path)
+    let original = base.appendingPathComponent("original")
+    let replay = base.appendingPathComponent("replay")
+    let input = base.appendingPathComponent("input/synthetic table.csv").path
+    let copy = replay.appendingPathComponent("inputs/1/synthetic table.csv").path
+    let capability = sampleCapability()
+    let prefix = ["datanalysis_env.py", "run-tool", capability.scriptStem]
+    let output = original.appendingPathComponent("summary.json").path
+    let arguments = [input, "--summary-json=\(output)", "--max-columns", "3"]
+    let command = ProcessCommand(executable: "/usr/bin/python3", arguments: prefix + arguments, workingDirectory: base.path)
+    let rebased = try RunReplayService.remap(command, capability: capability, old: original, root: replay,
+                                             inputLocations: [input: copy])
+    #expect(rebased == [copy, "--summary-json=\(replay.appendingPathComponent("summary.json").path)", "--max-columns", "3"])
+    for path in [base.appendingPathComponent("untracked.csv").path,
+                 original.appendingPathComponent("inputs/protected.csv").path,
+                 original.appendingPathComponent("replay-comparison.json").path] {
+      let unsafe = ProcessCommand(executable: command.executable, arguments: prefix + [input, "--summary-json", path],
+                                  workingDirectory: base.path)
+      #expect(throws: RunReplayService.Unavailable.self) {
+        try RunReplayService.remap(unsafe, capability: capability, old: original, root: replay, inputLocations: [input: copy])
+      }
+    }
+    #expect(try String(contentsOfFile: input, encoding: .utf8) == "x\n1\n")
+    #expect(!FileManager.default.fileExists(atPath: replay.path))
+  }
+
+  @Test
+  func replayComparisonAppliesToleranceOnlyToMeasurementColumns() throws {
+    let root = try makeScenarioFixture(
+      name: "replay-numeric-comparison",
+      files: [
+        "original.csv": "id,match_sep_arcsec,label\r\n1234567890123456789,0.2,\"example, A\"\r\n",
+        "rounded.csv": "id,match_sep_arcsec,label\n1234567890123456789,0.20000000002,\"example, A\"\n",
+        "changed.csv": "id,match_sep_arcsec,label\n1234567890123456788,0.21,\"example, A\"\n",
+      ]
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+    let original = root.appendingPathComponent("original.csv")
+    let digest = RunFileFingerprint.read(original, maximumBytes: 1_024)
+    for (name, expected) in [("rounded.csv", 0), ("changed.csv", 2)] {
+      let new = root.appendingPathComponent(name)
+      let measurement = try #require(RunReplayComparison.compareTable(
+        original, new, original: digest, replay: RunFileFingerprint.read(new, maximumBytes: 1_024),
+        columns: ["match_sep_arcsec"]
+      ))
+      #expect(measurement.compared == 1)
+      #expect(measurement.differences == expected)
+      #expect(measurement.maximum > 0)
+    }
   }
 }

@@ -206,6 +206,25 @@ distribution metadata. Package source files and external executables are
 outside the inventory's coverage. The fingerprints stay in the local run
 directory, outside the shareable provenance record.
 
+**Replay in New Folder** is available for eligible saved runs of Table
+Profile, Inspect FITS, Photometric Solution, Li I equivalent width, and
+local sky crossmatch. Replay uses a new private run directory and copies
+the attached regular files after checking their original SHA-256 values.
+The app also rechecks the launcher, selected Python environment, and
+the approvals required by the original job. The replay action renews a
+recorded capability approval for the same inputs and settings. Special
+filesystem or automation approvals, external backends, untracked files,
+and gaps in the original evidence make the run ineligible.
+
+The new job contains **Replay comparison**, which links both job IDs and
+compares output files by relative path. For supported measurement fields
+in CSV and TSV outputs, the comparison permits the greater of an
+absolute tolerance of `1e-10` and a relative tolerance of `1e-10` times
+the larger absolute value. IDs, units, and other table fields must match
+exactly. Other outputs use SHA-256. Paths and timestamps can cause
+differences in logs and manifests. The comparison records these differences
+alongside the scientific products.
+
 ## Registry coverage
 
 The canonical registry contains 61 entries:
