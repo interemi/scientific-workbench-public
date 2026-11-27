@@ -1207,6 +1207,18 @@ final class WorkbenchStore: ObservableObject {
     }
   }
 
+  func exportTechnicalRunReport(_ job: JobRecord, question: String, parent: URL) async throws -> URL {
+    let secrets = configuredSecrets
+    let operation = Task.detached(priority: .userInitiated) {
+      try TechnicalRunReportService().export(job: job, question: question, parent: parent, secrets: secrets)
+    }
+    return try await withTaskCancellationHandler {
+      try await operation.value
+    } onCancel: {
+      operation.cancel()
+    }
+  }
+
   @discardableResult
   func importAgentPlan(from path: String) -> AgentPlan? {
     guard canChangeWorkflowContext else {

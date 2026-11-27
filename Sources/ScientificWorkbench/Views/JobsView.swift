@@ -11,6 +11,7 @@ struct JobsView: View {
   @State private var searchResult: (request: SearchRequest, offsets: [Int])?
   @State private var pageIndex = 0
   @State private var showsPortableInspection = false
+  @State private var showsReportRegeneration = false
 
   private var recentFilter: Binding<RecentJobFilter> { $store.recentJobFilter }
 
@@ -100,6 +101,9 @@ struct JobsView: View {
     .sheet(isPresented: $showsPortableInspection) {
       PortableRunInspectionSheet(store: store)
     }
+    .sheet(isPresented: $showsReportRegeneration) {
+      TechnicalRunReportRegenerationSheet()
+    }
   }
 
   private var selectedJobOffset: Int? {
@@ -128,6 +132,8 @@ struct JobsView: View {
           .foregroundStyle(.secondary)
         Button("Inspect Portable ZIP", systemImage: "doc.zipper") { showsPortableInspection = true }
           .accessibilityIdentifier("jobs.inspect-portable")
+        Button("Regenerate Report PDF…", systemImage: "doc.richtext") { showsReportRegeneration = true }
+          .accessibilityIdentifier("jobs.regenerate-report")
       }
       .padding(.horizontal, 16)
       .padding(.top, 18)
@@ -306,6 +312,7 @@ struct JobDetailView: View {
   let job: JobRecord
   @State private var showsVerification = false
   @State private var showsPortableExport = false
+  @State private var showsTechnicalReport = false
 
   var body: some View {
     ScrollView {
@@ -412,6 +419,11 @@ struct JobDetailView: View {
 
         JobEvidenceStagesView(job: job)
 
+        if job.status == .succeeded {
+          Button("Technical Report", systemImage: "doc.text") { showsTechnicalReport = true }
+            .accessibilityIdentifier("jobs.technical-report")
+        }
+
         if let shortSummary = job.shortSummary {
           Text(shortSummary)
             .font(.headline)
@@ -461,6 +473,9 @@ struct JobDetailView: View {
     }
     .sheet(isPresented: $showsPortableExport) {
       PortableRunExportSheet(store: store, job: job)
+    }
+    .sheet(isPresented: $showsTechnicalReport) {
+      TechnicalRunReportSheet(store: store, job: job)
     }
   }
 }

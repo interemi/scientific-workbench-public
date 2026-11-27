@@ -251,6 +251,27 @@ adding jobs to the local history. Hashes establish member integrity against
 the supplied manifest. Use an independently verified source when authorship
 or scientific validity matters.
 
+### Generating a technical report
+
+In Jobs, open a successful run with retained provenance and choose
+**Technical Report**. Enter the research question or technical objective
+and choose a parent folder. Scientific Workbench saves `report.md` and
+`report.pdf` in a new report directory. The report separates author input,
+recorded execution settings, verified results, generated template text, and
+limitations.
+
+The evidence index maps each `[A1]`-style citation to a file relative to the
+original run folder and its SHA-256. A changed or unavailable output cannot
+support a citation. Recognized table, FITS, and measurement summaries can
+supply documented quantities and units. For other workflows, follow the
+verified file references to review the recorded results.
+
+Use **Jobs → Regenerate Report PDF** to render a saved Markdown source into
+a new PDF. The regenerated PDF reproduces the source content and layout
+with the same rendering environment. The PDF container can carry a new
+creation timestamp. Regeneration renders the supplied source. Verify the
+cited files separately when reviewing the evidence.
+
 ## Registry coverage
 
 The canonical registry contains 61 entries:
