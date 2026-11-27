@@ -15,8 +15,10 @@ remain proposals until their prerequisites and scope are clear.
 2. Make small changes that preserve original inputs and existing local work.
 3. For skill changes, update the snapshot and manifest together after reviewing
    provenance, symlinks, contracts, and the diff. Do not copy installed environments.
-4. Run tests relevant to the change and document actual failures or limits.
-5. Review staging explicitly. Never add models, credentials, or scientific run data.
+4. Run the checks that exercise the changed behavior. Record the revision,
+   commands, results, environment, and any failed or pending checks.
+5. Review the staged diff, licensing, and the contents of any shared evidence.
+   Never add models, credentials, or scientific run data.
 
 The manifest identifies the backend in this distribution. Do not regenerate it
 during installation or merely to turn a failure into PASS.
@@ -37,15 +39,19 @@ environment and new output directories. Historical audit scripts may contain
 paths from the original environment; they are not portable CI instructions.
 
 The [portable workflow](docs/PORTABLE_VALIDATION.md) checks Swift sources,
-distribution safeguards, core installation, and synthetic workflows. Preserve
-every failing job and identify the platform actually tested. Use the
-[acceptance form](docs/CLEAN_INSTALL_ACCEPTANCE.md) to verify installation and
-use by another person.
+distribution safeguards, Core installation, and synthetic workflows. Link the
+run for the reviewed revision and report each architecture, profile, and
+dependency mode that ran. Keep failed runs visible and explain what changed
+before a rerun. Record manual checks with the app build and Mac actually used.
+The [acceptance form](docs/CLEAN_INSTALL_ACCEPTANCE.md) is available if someone
+can test independently. Otherwise, record independent acceptance as unverified.
 
-Changes to persisted models require explicit migrations. Scientific-command
-changes require review of units, parameters, statuses, and original-input
-protection. Missing optional features must have a visible explanation without
-blocking unrelated core functionality.
+Changes to persisted models require explicit migrations. For a change to a
+scientific workflow, run a synthetic case in a fresh output directory and record
+the expected result, units, tolerance, actual result, and input hashes before
+and after. Include the method and limits of any reference calculation. Report
+technical execution and scientific review separately. Missing optional features
+must have a visible explanation without blocking unrelated Core functionality.
 
 ## Reporting problems
 

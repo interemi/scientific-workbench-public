@@ -364,7 +364,10 @@ limits, with replay status stated rather than assumed.
 | --- | --- |
 | P0.11 | If a binary is requested, separately review signing, notarization, installation, updates, and recovery on available equipment; keep other Macs unverified. |
 
-The public source repository does not itself imply a downloadable app release.
+Binary distribution is deferred. Its readiness checklist is maintained
+separately from the active improvement phases. See the
+[GitHub Release plan](GITHUB_RELEASE_PLAN.md) for the source-release route and
+the separate requirements for a downloadable app.
 
 ## Phase 8 — Demand-driven extensions
 
@@ -382,6 +385,26 @@ The public source repository does not itself imply a downloadable app release.
 
 Exit: each extension has a documented user need, permission boundary, contract,
 and validation scope. Deferred items are not presented as supported features.
+
+### Phase 8 decisions
+
+The review at [`8588bb2`](https://github.com/interemi/scientific-workbench-public/commit/8588bb2)
+used the [user-needs research](USER_NEEDS_DESK_RESEARCH.md), the current app
+workflows, and the repository's issue history. The scientific desk research
+describes likely needs and their limits. An extension requires a concrete
+workflow gap to justify its interface, permissions, and support burden.
+
+| ID | Decision and evidence needed to revisit it |
+| --- | --- |
+| P3.06 | Apply the [contribution workflow](../CONTRIBUTING.md) and [PR template](../.github/pull_request_template.md). For an example, [PR #30](https://github.com/interemi/scientific-workbench-public/pull/30) records the exact revision, local checks, synthetic fixtures, and separate hosted [Core](https://github.com/interemi/scientific-workbench-public/actions/runs/46027592582) and [Full](https://github.com/interemi/scientific-workbench-public/actions/runs/46027593923) runs. |
+| P3.02 | Defer a stable app CLI. [STILTS](https://www.star.bristol.ac.uk/~mbt/stilts/sun256/sun256.html) and [Jupyter nbconvert](https://nbconvert.readthedocs.io/en/latest/usage.html) document scripting practices. The [existing synthetic workflow commands](SCIENTIFIC_KNOWN_ANSWER_FIXTURES.md) and in-app replay cover the automation verified here. Revisit with a recurring headless Workbench task that those routes cannot cover. Verify exit codes, versioned JSON, dry-run, and preserved inputs for the selected workflows before promising compatibility. |
+| P3.01 | Defer importable skill packs until a named external capability needs to be shared beyond the bundled family. Require a reviewed manifest, version, license, hashes, dependency isolation, and explicit permissions before a pack can be enabled. |
+| P3.05 | Defer whole-project transfer. The verified portable run archive covers sharing selected run evidence. Revisit through a concrete request to move project inputs, sessions, and runs together. Verify hashes, versions, and non-executing import into a second directory on the same Mac. |
+| P3.03 | Defer an MCP/API server until an identified client needs read access to selected jobs or artifacts. Start with a read-only contract, a workspace boundary, and a public threat model. Verify allowed queries and rejection of out-of-scope requests. |
+| P3.04 | Defer additional endpoints until a named local provider enables a documented workflow. Verify transport, authentication, structured replies, timeouts, redaction, and consent before advertising compatibility. |
+| P3.09 | Defer model-based report review. Use the existing deterministic evidence checks and manual scientific review. Revisit with a recurring review gap and a test that limits the reviewer to cited artifacts and preserves verifier failures. |
+| P3.07 | Keep SSH and Slurm deferred until an available cluster can exercise job submission, cancellation, outputs, and recovery. |
+| P3.08 | Keep macOS as the supported target. Revisit other operating systems when there is a concrete need and a test environment for installation and the selected workflows. |
 
 ## How to track changes on GitHub
 
