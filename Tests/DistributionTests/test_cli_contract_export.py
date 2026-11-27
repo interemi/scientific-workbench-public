@@ -14,6 +14,23 @@ from capability_io_contracts import validate_summary_contract
 
 
 class CLIContractExportTests(unittest.TestCase):
+    def test_photometry_parser_does_not_load_scientific_dependencies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            process = subprocess.run(
+                [sys.executable, "-I", "-S", "-B", "-c",
+                 "import json, sys; "
+                 "sys.path.insert(0, sys.argv[1]); "
+                 "from render_cli_contracts import inspect_parser; "
+                 "parser = inspect_parser('scientific-data-astro/scripts/photometric_solution.py', [], "
+                 "{'fit': ['standard-stars.csv', '--residual-plot', 'residuals.png']}); "
+                 "assert not {'numpy', 'pandas', 'matplotlib'}.intersection(sys.modules); "
+                 "print(json.dumps(parser))",
+                 str(EXPORTER.parent)],
+                cwd=directory, capture_output=True, text=True, check=True, timeout=15,
+            )
+            self.assertIn("--residual-plot", process.stdout)
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
     def test_exports_live_selected_parsers_and_owned_subcommands(self):
         with tempfile.TemporaryDirectory() as directory:
             process = subprocess.run(

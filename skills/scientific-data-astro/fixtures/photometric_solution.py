@@ -6,25 +6,18 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from _internal.datanalysis_bootstrap import ensure_datanalysis_runtime
 from _internal.public_contract import build_blocked_payload, build_tool_payload, emit_payload, emit_payload_best_effort
 from _internal.runtime_common import configure_runtime, suppress_fd_output
 
-ensure_datanalysis_runtime("photometric_solution")
-configure_runtime("photometric_solution")
-
-import numpy as np
-with suppress_fd_output(True):
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    import pandas as pd
-
 from _internal.provenance_utils import public_path, write_manifest
 from _internal.tabular_io import read_table_any
 
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
 
 PARAMETER_DETAILS = {
     "zero_point": ("Zero point", "mag"),
@@ -142,6 +135,9 @@ def read_table(path: Path) -> pd.DataFrame:
         table = read_table_any(Table, path)
         return table.to_pandas()
     except Exception:
+        with suppress_fd_output(True):
+            import pandas as pd
+
         suffix = path.suffix.lower()
         if suffix == ".tsv":
             return pd.read_csv(path, sep="\t")
@@ -149,6 +145,10 @@ def read_table(path: Path) -> pd.DataFrame:
 
 
 def numeric_column(work: pd.DataFrame, column: str, label: str) -> np.ndarray:
+    import numpy as np
+    with suppress_fd_output(True):
+        import pandas as pd
+
     try:
         values = pd.to_numeric(work[column], errors="raise").to_numpy(dtype=float)
     except Exception as exc:
@@ -159,6 +159,8 @@ def numeric_column(work: pd.DataFrame, column: str, label: str) -> np.ndarray:
 
 
 def weighted_lstsq(design: np.ndarray, values: np.ndarray, sigma: np.ndarray | None):
+    import numpy as np
+
     weights = np.ones_like(values) if sigma is None else 1.0 / np.square(sigma)
     w_sqrt = np.sqrt(weights)
     xw = design * w_sqrt[:, None]
@@ -186,6 +188,8 @@ def weighted_lstsq(design: np.ndarray, values: np.ndarray, sigma: np.ndarray | N
 
 
 def build_design(df: pd.DataFrame, args) -> tuple[np.ndarray, list[str]]:
+    import numpy as np
+
     columns = ["zero_point", "extinction"]
     pieces = [np.ones(len(df), dtype=float), df[args.airmass_col].to_numpy(dtype=float)]
     if args.include_color_term:
@@ -198,6 +202,9 @@ def build_design(df: pd.DataFrame, args) -> tuple[np.ndarray, list[str]]:
 
 
 def save_coefficients(path: Path, parameters: dict):
+    with suppress_fd_output(True):
+        import pandas as pd
+
     rows = [{"parameter": name, **details} for name, details in parameters.items()]
     pd.DataFrame(rows).to_csv(path, index=False)
 
@@ -213,9 +220,15 @@ def save_residuals(path: Path, work: pd.DataFrame, observed_offset: np.ndarray, 
 
 
 def plot_residuals(path: Path, df: pd.DataFrame, args, residuals: np.ndarray):
+    with suppress_fd_output(True):
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
     fig, axes = plt.subplots(1, 2 if args.include_color_term else 1, figsize=(9 if args.include_color_term else 5.2, 4.1))
-    if not isinstance(axes, np.ndarray):
-        axes = np.array([axes])
+    if not args.include_color_term:
+        axes = (axes,)
 
     axes[0].axhline(0.0, color="0.35", linewidth=1.0, linestyle="--")
     axes[0].scatter(df[args.airmass_col], residuals, color="tab:blue", s=28)
@@ -238,6 +251,8 @@ def plot_residuals(path: Path, df: pd.DataFrame, args, residuals: np.ndarray):
 
 
 def build_quality_flags(work: pd.DataFrame, args, residuals: np.ndarray, sigma: np.ndarray | None, parameter_count: int):
+    import numpy as np
+
     flags = []
     airmass_span = float(work[args.airmass_col].max() - work[args.airmass_col].min())
     if airmass_span < 0.25:
@@ -331,6 +346,9 @@ def measurement_summary(summary: dict, work: pd.DataFrame, *, weighted: bool) ->
 
 
 def run_solution(args) -> int:
+    configure_runtime("photometric_solution")
+    import numpy as np
+
     input_path = Path(args.input_table).expanduser()
     if not input_path.exists():
         raise SystemExit(f"Input table does not exist: {input_path}")
@@ -519,6 +537,7 @@ def run_solution(args) -> int:
 
 def main() -> int:
     args = parse_args()
+    ensure_datanalysis_runtime("photometric_solution")
     try:
         return run_solution(args)
     except SystemExit as exc:
