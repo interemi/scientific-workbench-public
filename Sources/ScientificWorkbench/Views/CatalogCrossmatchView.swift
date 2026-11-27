@@ -19,12 +19,11 @@ struct CatalogCrossmatchView: View {
   @State private var leftInspection: Inspection?
   @State private var rightInspection: Inspection?
   @State private var runError: String?
-  @State private var leftRAColumn: Int?
-  @State private var leftDecColumn: Int?
-  @State private var rightRAColumn: Int?
-  @State private var rightDecColumn: Int?
-  @State private var radiusArcseconds = 1.0
-  @State private var coordinateUnitsConfirmed = false
+  @State private var leftMapping = CatalogCrossmatchMapping()
+  @State private var rightMapping = CatalogCrossmatchMapping()
+  @State private var radiusText = "1"
+  @State private var sharedICRSConfirmed = false
+  @State private var coordinateEpochText = ""
 
   private let inspectionService = CatalogCrossmatchInspectionService()
 
@@ -37,7 +36,7 @@ struct CatalogCrossmatchView: View {
         VStack(alignment: .leading, spacing: 4) {
           Text("Sky Crossmatch Review")
             .font(.headline)
-          Text("Choose both catalogs, map decimal-degree coordinates, and review the angular radius before matching.")
+          Text("Map the coordinates in both catalogs and confirm their frame and epoch before matching.")
             .font(.callout)
             .foregroundStyle(.secondary)
         }
@@ -75,28 +74,37 @@ struct CatalogCrossmatchView: View {
           title: "Left catalog",
           result: result(of: leftInspection, for: leftRequest),
           hasSelection: leftRequest != nil,
-          raColumn: $leftRAColumn,
-          decColumn: $leftDecColumn
+          mapping: $leftMapping
         )
         catalogMapping(
           title: "Right catalog",
           result: result(of: rightInspection, for: rightRequest),
           hasSelection: rightRequest != nil,
-          raColumn: $rightRAColumn,
-          decColumn: $rightDecColumn
+          mapping: $rightMapping
         )
       }
 
-      HStack(spacing: 12) {
-        TextField("Radius (arcsec)", value: $radiusArcseconds, format: .number)
-          .textFieldStyle(.roundedBorder)
-          .frame(maxWidth: 220)
-        Toggle(
-          "I reviewed the mapping and confirm all four coordinate columns are decimal degrees.",
-          isOn: $coordinateUnitsConfirmed
-        )
-        .toggleStyle(.checkbox)
-        .disabled(leftReview == nil || rightReview == nil)
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .top, spacing: 12) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Search radius (arcsec)").font(.caption)
+            TextField("Search radius (arcsec)", text: $radiusText)
+              .labelsHidden()
+          }
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Common coordinate epoch (Julian year)").font(.caption)
+            TextField("Common coordinate epoch (Julian year)", text: $coordinateEpochText, prompt: Text("2016.0"))
+              .labelsHidden()
+          }
+        }
+        .textFieldStyle(.roundedBorder)
+        .frame(maxWidth: 460, alignment: .leading)
+        Toggle("Both catalogs use ICRS at the coordinate epoch entered above.", isOn: $sharedICRSConfirmed)
+          .toggleStyle(.checkbox)
+          .disabled(leftReview == nil || rightReview == nil)
+        Text("Use the epoch of the supplied positions. Convert frames and propagate positions to a common epoch before attaching catalogs if needed.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
 
       validationPanel
@@ -121,9 +129,8 @@ struct CatalogCrossmatchView: View {
     .task(id: leftRequest) {
       guard !Task.isCancelled, leftRequest == request(for: leftPath) else { return }
       leftInspection = nil
-      leftRAColumn = nil
-      leftDecColumn = nil
-      coordinateUnitsConfirmed = false
+      leftMapping = CatalogCrossmatchMapping()
+      resetSharedConvention()
       guard let leftRequest, let result = await inspect(leftRequest),
             leftRequest == request(for: leftPath) else { return }
       leftInspection = (leftRequest, result)
@@ -131,9 +138,8 @@ struct CatalogCrossmatchView: View {
     .task(id: rightRequest) {
       guard !Task.isCancelled, rightRequest == request(for: rightPath) else { return }
       rightInspection = nil
-      rightRAColumn = nil
-      rightDecColumn = nil
-      coordinateUnitsConfirmed = false
+      rightMapping = CatalogCrossmatchMapping()
+      resetSharedConvention()
       guard let rightRequest, let result = await inspect(rightRequest),
             rightRequest == request(for: rightPath) else { return }
       rightInspection = (rightRequest, result)
@@ -166,13 +172,18 @@ struct CatalogCrossmatchView: View {
 
   private var selection: CatalogCrossmatchSelection {
     CatalogCrossmatchSelection(
-      leftRAColumn: leftRAColumn,
-      leftDecColumn: leftDecColumn,
-      rightRAColumn: rightRAColumn,
-      rightDecColumn: rightDecColumn,
-      radiusArcseconds: radiusArcseconds,
-      coordinateUnitsConfirmed: coordinateUnitsConfirmed
+      left: leftMapping,
+      right: rightMapping,
+      radiusArcseconds: decimalNumber(radiusText),
+      sharedICRSConfirmed: sharedICRSConfirmed,
+      coordinateEpochJulianYear: decimalNumber(coordinateEpochText)
     )
+  }
+
+  private func decimalNumber(_ text: String) -> Double? {
+    let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    let separator = Locale.current.decimalSeparator ?? "."
+    return Double(value.replacingOccurrences(of: separator, with: "."))
   }
 
   private var validation: CatalogCrossmatchValidation? {
@@ -188,8 +199,7 @@ struct CatalogCrossmatchView: View {
     title: String,
     result: Result<CatalogCrossmatchTableReview, any Error>?,
     hasSelection: Bool,
-    raColumn: Binding<Int?>,
-    decColumn: Binding<Int?>
+    mapping: Binding<CatalogCrossmatchMapping>
   ) -> some View {
     VStack(alignment: .leading, spacing: 8) {
       Text(title)
@@ -203,19 +213,22 @@ struct CatalogCrossmatchView: View {
         Text("\(review.sampledRowCount) sampled row(s) · \(review.formatLabel) separated")
           .font(.caption)
           .foregroundStyle(.secondary)
-        Picker("RA column", selection: raColumn) {
+        Picker("RA column", selection: mapping.raColumn) {
           Text("Select").tag(Int?.none)
           ForEach(review.columns) { column in
             Text(columnLabel(column)).tag(Optional(column.index))
           }
         }
-        Picker("Dec column", selection: decColumn) {
+        .accessibilityLabel("\(title) RA column")
+        unitPicker("RA unit", catalog: title, selection: mapping.raUnit, allowHours: true)
+        Picker("Dec column", selection: mapping.decColumn) {
           Text("Select").tag(Int?.none)
           ForEach(review.columns) { column in
             Text(columnLabel(column)).tag(Optional(column.index))
           }
         }
-        .pickerStyle(.menu)
+        .accessibilityLabel("\(title) Dec column")
+        unitPicker("Dec unit", catalog: title, selection: mapping.decUnit)
       } else if hasSelection {
         ProgressView("Inspecting catalog…")
           .controlSize(.small)
@@ -225,7 +238,31 @@ struct CatalogCrossmatchView: View {
           .foregroundStyle(.secondary)
       }
     }
+    .pickerStyle(.menu)
     .frame(maxWidth: .infinity, alignment: .leading)
+    .onChange(of: mapping.wrappedValue.raColumn) { _, _ in
+      mapping.raUnit.wrappedValue = nil
+      sharedICRSConfirmed = false
+    }
+    .onChange(of: mapping.wrappedValue.decColumn) { _, _ in
+      mapping.decUnit.wrappedValue = nil
+      sharedICRSConfirmed = false
+    }
+  }
+
+  private func unitPicker(
+    _ label: String,
+    catalog: String,
+    selection: Binding<CatalogCrossmatchCoordinateUnit?>,
+    allowHours: Bool = false
+  ) -> some View {
+    Picker(label, selection: selection) {
+      Text("Select").tag(CatalogCrossmatchCoordinateUnit?.none)
+      ForEach(CatalogCrossmatchCoordinateUnit.allCases.filter { allowHours || $0 != .hours }, id: \.self) { unit in
+        Text(unit.label).tag(Optional(unit))
+      }
+    }
+    .accessibilityLabel("\(catalog) \(label)")
   }
 
   @ViewBuilder
@@ -262,9 +299,14 @@ struct CatalogCrossmatchView: View {
     if !candidates.contains(rightPath) || rightPath == leftPath {
       rightPath = candidates.first(where: { $0 != leftPath }) ?? ""
     }
-    coordinateUnitsConfirmed = false
+    resetSharedConvention()
     runError = nil
     inspectedAttachments = (attachments, candidates)
+  }
+
+  private func resetSharedConvention() {
+    sharedICRSConfirmed = false
+    coordinateEpochText = ""
   }
 
   private func inspect(_ request: ReviewRequest) async -> Result<CatalogCrossmatchTableReview, any Error>? {
@@ -301,7 +343,8 @@ struct CatalogCrossmatchView: View {
       )
       await store.runGuided(
         capability: capability,
-        inputPathsOverride: [prepared.leftPath, prepared.rightPath]
+        inputPathsOverride: [prepared.leftPath, prepared.rightPath],
+        appliedApproval: .capabilityAccess
       ) { runURL in
         prepared.arguments(runURL: runURL)
       }

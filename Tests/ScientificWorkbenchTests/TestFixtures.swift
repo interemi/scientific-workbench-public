@@ -71,7 +71,7 @@ extension ScientificWorkbenchTests {
     )
   }
 
-  func expertFITSCapability() -> CapabilityEntry {
+  func expertFITSCapability(boundedPreview: Bool = false, pixelLookup: Bool = false) -> CapabilityEntry {
     CapabilityEntry(
       id: "inspect_fits",
       label: "inspect_fits.py",
@@ -83,7 +83,9 @@ extension ScientificWorkbenchTests {
       requiresDatanalysis: false,
       preflightMode: "none",
       smokeTier: "core",
-      shortDescription: "Inspect FITS data."
+      shortDescription: "Inspect FITS data.",
+      supportsBoundedFITSPreview: boundedPreview,
+      supportsFITSPixelLookup: pixelLookup
     )
   }
 

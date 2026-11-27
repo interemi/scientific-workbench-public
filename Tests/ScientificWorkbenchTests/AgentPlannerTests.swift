@@ -299,7 +299,7 @@ extension ScientificWorkbenchTests {
       )
     ]
 
-    let plan = try await planner.plan(
+    let planningReply = try await planner.plan(
       prompt: "Profile this CSV",
       inputPaths: ["/tmp/data.csv"],
       capabilities: capabilities,
@@ -307,6 +307,7 @@ extension ScientificWorkbenchTests {
       apiKey: "sk-test",
       model: "gpt-test"
     )
+    let plan = planningReply.plan
 
     #expect(plan.title == "Mocked AI plan")
     #expect(plan.source == AgentPlanSource.openAI)
@@ -354,7 +355,7 @@ extension ScientificWorkbenchTests {
       sampleCapability()
     ]
 
-    let plan = await planner.plan(
+    let outcome = await planner.plan(
       prompt: "Profile this CSV table safely.",
       inputPaths: ["/tmp/synthetic-table.csv"],
       capabilities: capabilities,
@@ -364,6 +365,9 @@ extension ScientificWorkbenchTests {
       skillRoot: skillRoot.path
     )
 
+    let plan = outcome.plan
+    #expect(outcome.modelAttempt?.provider == .openAI)
+    #expect(outcome.modelAttempt?.outcome == .fellBack)
     #expect(plan.source == .skillRouter)
     #expect(plan.rationale.contains("OpenAI planning failed"))
     #expect(plan.rationale.contains("simulated provider outage"))
@@ -387,7 +391,7 @@ extension ScientificWorkbenchTests {
       })
     )
 
-    let plan = await planner.plan(
+    let outcome = await planner.plan(
       prompt: "Inspect this FITS image safely.",
       inputPaths: ["/tmp/synthetic-image.fits"],
       capabilities: [environmentCapability(), expertFITSCapability()],
@@ -397,6 +401,8 @@ extension ScientificWorkbenchTests {
       skillRoot: skillRoot.path
     )
 
+    let plan = outcome.plan
+    #expect(outcome.modelAttempt?.outcome == .fellBack)
     let fitsStep = try #require(plan.steps.first { $0.capabilityID == "inspect_fits" })
     #expect(!fitsStep.isEnabled)
     #expect(fitsStep.summary.contains("enable it explicitly"))
@@ -432,7 +438,7 @@ extension ScientificWorkbenchTests {
       })
     )
 
-    let plan = await planner.plan(
+    let outcome = await planner.plan(
       prompt: "Inspect this FITS image.",
       inputPaths: ["/tmp/synthetic-image.fits"],
       capabilities: [environmentCapability(), expertFITSCapability()],
@@ -442,6 +448,8 @@ extension ScientificWorkbenchTests {
       skillRoot: skillRoot.path
     )
 
+    let plan = outcome.plan
+    #expect(outcome.modelAttempt == nil)
     #expect(plan.source == .skillRouter)
     #expect(plan.steps.isEmpty)
     #expect(plan.title == "Skill router blocked plan")

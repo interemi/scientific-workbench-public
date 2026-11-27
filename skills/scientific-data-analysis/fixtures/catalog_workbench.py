@@ -13,6 +13,9 @@ from _internal.provenance_utils import public_path, sanitize_payload, write_mani
 from _internal.tabular_io import read_table_any, write_table_any
 
 
+CROSSMATCH_DELIMITERS = {"comma": ",", "semicolon": ";", "tab": "\t", "whitespace": r"\s"}
+
+
 def load_dependencies():
     import numpy as np
     import astropy.units as u
@@ -30,24 +33,73 @@ def write_table(table, path):
     write_table_any(table, path)
 
 
-def numeric_degree_column(np, table, name, *, role):
+def read_crossmatch_table(Table, path, table_format):
+    if table_format is None:
+        return read_table(Table, path)
+    if table_format == "ecsv":
+        return Table.read(path, format="ascii.ecsv")
+    return Table.read(path, format="ascii.basic", delimiter=CROSSMATCH_DELIMITERS[table_format], guess=False)
+
+
+def numeric_degree_column(np, u, table, name, unit, *, role):
     if name not in table.colnames:
         available = ", ".join(str(item) for item in table.colnames[:12])
         if len(table.colnames) > 12:
             available += ", ..."
         raise ValueError(f"{role} coordinate column '{name}' was not found. Available columns: {available or '(none)'}.")
     column = table[name]
-    if hasattr(column, "filled"):
-        column = column.filled(np.nan)
+    expected_unit = u.Unit(unit)
+    declared_unit = getattr(column, "unit", None)
+    if declared_unit is not None and declared_unit != expected_unit:
+        raise ValueError(
+            f"{role} column '{name}' declares unit {declared_unit}, but {expected_unit} was selected."
+        )
     try:
-        values = np.asarray(column, dtype=float)
+        values = np.ma.asarray(column, dtype=float).filled(np.nan)
     except Exception as exc:
-        raise ValueError(f"{role} coordinate column '{name}' could not be coerced to numeric degree values.") from exc
+        raise ValueError(f"{role} coordinate column '{name}' needs numeric values in {expected_unit}.") from exc
     if values.ndim != 1:
-        values = values.reshape(-1)
+        raise ValueError(f"{role} coordinate column '{name}' needs one scalar per row.")
     if not np.all(np.isfinite(values)):
         raise ValueError(f"{role} coordinate column '{name}' contains non-finite values and cannot be used as sky coordinates.")
-    return values
+    return expected_unit.to(u.deg, values)
+
+
+def check_coordinate_metadata(table, args, *, role):
+    declared_frame = table.meta.get("coordinate_frame")
+    if declared_frame is not None and str(declared_frame).strip().lower() != args.coordinate_frame:
+        raise ValueError(f"{role} catalog declares frame {declared_frame!r}. Supply ICRS coordinates.")
+    declared_epoch = table.meta.get("coordinate_epoch_jyear")
+    if declared_epoch is not None:
+        try:
+            epoch = float(declared_epoch)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{role} catalog has an invalid Julian coordinate epoch.") from exc
+        if epoch != args.coordinate_epoch_jyear:
+            raise ValueError(
+                f"{role} catalog declares coordinate epoch {declared_epoch!r}. "
+                "Both catalogs must already have positions at the selected Julian epoch."
+            )
+
+
+def crossmatch_parameters(args, radius_arcsec):
+    return {
+        "operation": "crossmatch-sky",
+        "radius_arcsec": radius_arcsec,
+        "left_ra": args.left_ra,
+        "left_dec": args.left_dec,
+        "right_ra": args.right_ra,
+        "right_dec": args.right_dec,
+        "left_format": args.left_format,
+        "right_format": args.right_format,
+        "left_ra_unit": args.left_ra_unit,
+        "left_dec_unit": args.left_dec_unit,
+        "right_ra_unit": args.right_ra_unit,
+        "right_dec_unit": args.right_dec_unit,
+        "coordinate_frame": args.coordinate_frame,
+        "coordinate_epoch_jyear": args.coordinate_epoch_jyear,
+        "proper_motion_applied": False,
+    }
 
 
 def validate_coordinate_ranges(np, ra_values, dec_values, *, role):
@@ -201,8 +253,13 @@ def cmd_crossmatch_sky(args):
         radius_arcsec = float(args.radius_arcsec)
     except (TypeError, ValueError):
         return block_crossmatch(args, f"Search radius must be a numeric arcsec value, got {args.radius_arcsec!r}.")
-    if not math.isfinite(radius_arcsec) or radius_arcsec <= 0:
-        return block_crossmatch(args, f"Search radius must be finite and positive, got {args.radius_arcsec!r}.")
+    if not math.isfinite(radius_arcsec) or not 0 < radius_arcsec <= 180 * 3600:
+        return block_crossmatch(args, "Search radius must be finite, positive, and at most 648000 arcseconds (180 degrees).")
+    epoch = args.coordinate_epoch_jyear
+    if epoch is not None and (not math.isfinite(epoch) or epoch <= 0):
+        return block_crossmatch(args, "Coordinate epoch must be a finite, positive Julian year.")
+    if args.left_ra == args.left_dec or args.right_ra == args.right_dec:
+        return block_crossmatch(args, "RA and Dec must use different columns in each catalog.")
 
     try:
         np, u, SkyCoord, Table, _ = load_dependencies()
@@ -210,18 +267,20 @@ def cmd_crossmatch_sky(args):
         return block_crossmatch(args, f"Required astronomy dependencies are unavailable: {exc}")
 
     try:
-        left = read_table(Table, args.left)
-        right = read_table(Table, args.right)
+        left = read_crossmatch_table(Table, args.left, args.left_format)
+        right = read_crossmatch_table(Table, args.right, args.right_format)
     except Exception as exc:
         return block_crossmatch(args, f"Could not read input tables: {exc}")
     if len(left) == 0 or len(right) == 0:
         return block_crossmatch(args, f"Both input tables need at least one row; got left={len(left)}, right={len(right)}.")
 
     try:
-        left_ra = numeric_degree_column(np, left, args.left_ra, role="left RA")
-        left_dec = numeric_degree_column(np, left, args.left_dec, role="left Dec")
-        right_ra = numeric_degree_column(np, right, args.right_ra, role="right RA")
-        right_dec = numeric_degree_column(np, right, args.right_dec, role="right Dec")
+        check_coordinate_metadata(left, args, role="Left")
+        check_coordinate_metadata(right, args, role="Right")
+        left_ra = numeric_degree_column(np, u, left, args.left_ra, args.left_ra_unit, role="left RA")
+        left_dec = numeric_degree_column(np, u, left, args.left_dec, args.left_dec_unit, role="left Dec")
+        right_ra = numeric_degree_column(np, u, right, args.right_ra, args.right_ra_unit, role="right RA")
+        right_dec = numeric_degree_column(np, u, right, args.right_dec, args.right_dec_unit, role="right Dec")
         validate_coordinate_ranges(np, left_ra, left_dec, role="left")
         validate_coordinate_ranges(np, right_ra, right_dec, role="right")
     except ValueError as exc:
@@ -231,8 +290,8 @@ def cmd_crossmatch_sky(args):
             metrics={"left_rows": int(len(left)), "right_rows": int(len(right))},
         )
 
-    c1 = SkyCoord(ra=left_ra * u.deg, dec=left_dec * u.deg)
-    c2 = SkyCoord(ra=right_ra * u.deg, dec=right_dec * u.deg)
+    c1 = SkyCoord(ra=left_ra * u.deg, dec=left_dec * u.deg, frame=args.coordinate_frame)
+    c2 = SkyCoord(ra=right_ra * u.deg, dec=right_dec * u.deg, frame=args.coordinate_frame)
     idx, sep2d, _ = c1.match_to_catalog_sky(c2)
     mask = sep2d <= radius_arcsec * u.arcsec
     matched_left = left[mask]
@@ -242,6 +301,7 @@ def cmd_crossmatch_sky(args):
         new_name = name if name not in matched.colnames else f"right_{name}"
         matched[new_name] = matched_right[name]
     matched["match_sep_arcsec"] = sep2d[mask].to_value(u.arcsec)
+    matched["match_sep_arcsec"].unit = u.arcsec
     print(f"Matched rows: {len(matched)}")
     try:
         write_table(matched, args.output)
@@ -260,8 +320,9 @@ def cmd_crossmatch_sky(args):
         if len(set(int(item) for item in right_indices)) < matched_rows:
             warning_findings.append("Multiple left rows matched the same nearest right-row candidate.")
     status = "warning" if warning_findings else "ok"
+    parameters = crossmatch_parameters(args, radius_arcsec)
     summary = {
-        "operation": "crossmatch-sky",
+        **parameters,
         "left": public_path(args.left),
         "right": public_path(args.right),
         "output": public_path(args.output),
@@ -269,11 +330,6 @@ def cmd_crossmatch_sky(args):
         "right_rows": int(len(right)),
         "matched_rows": matched_rows,
         "unmatched_left_rows": int(len(left) - matched_rows),
-        "radius_arcsec": radius_arcsec,
-        "left_ra": args.left_ra,
-        "left_dec": args.left_dec,
-        "right_ra": args.right_ra,
-        "right_dec": args.right_dec,
     }
     metrics = {
         "left_rows": int(len(left)),
@@ -287,14 +343,23 @@ def cmd_crossmatch_sky(args):
     emit_crossmatch_payload(
         args,
         status=status,
-        notes=["This cross-match uses nearest-neighbour sky matching with a single radius cut, similar to a compact TOPCAT-style pass."],
+        notes=[
+            "This cross-match uses nearest-neighbour sky matching with a single radius cut.",
+            "Input positions are used as supplied. No proper motion or epoch propagation is applied.",
+        ],
         results=summary,
         findings=warning_findings,
         metrics=metrics,
         output_written=True,
     )
     if args.manifest_json:
-        write_manifest(args.manifest_json, inputs=[args.left, args.right], outputs=[args.output, args.summary_json] if args.summary_json else [args.output], parameters={"operation": "crossmatch-sky", "radius_arcsec": radius_arcsec}, command="catalog_workbench.py crossmatch-sky")
+        write_manifest(
+            args.manifest_json,
+            inputs=[args.left, args.right],
+            outputs=[args.output, args.summary_json] if args.summary_json else [args.output],
+            parameters=parameters,
+            command="catalog_workbench.py crossmatch-sky",
+        )
     print(f"Saved sky cross-match: {Path(args.output).resolve()}")
     return 0
 
@@ -329,6 +394,12 @@ def build_parser():
     p_cross.add_argument("--left-dec", required=True)
     p_cross.add_argument("--right-ra", required=True)
     p_cross.add_argument("--right-dec", required=True)
+    for side in ("left", "right"):
+        p_cross.add_argument(f"--{side}-format", choices=[*CROSSMATCH_DELIMITERS, "ecsv"])
+        p_cross.add_argument(f"--{side}-ra-unit", choices=["deg", "rad", "hourangle"], default="deg")
+        p_cross.add_argument(f"--{side}-dec-unit", choices=["deg", "rad"], default="deg")
+    p_cross.add_argument("--coordinate-frame", choices=["icrs"], default="icrs")
+    p_cross.add_argument("--coordinate-epoch-jyear", type=float, help="Common epoch of the supplied positions, as a Julian year.")
     p_cross.add_argument("--radius-arcsec", type=float, default=1.0)
     p_cross.set_defaults(func=cmd_crossmatch_sky)
 

@@ -94,7 +94,7 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
-  func onlyTheKnownSyntheticFITSRequestsAVisualWCSPreview() throws {
+  func legacyFITSRegistryKeepsTheSyntheticQuicklook() throws {
     let root = try makeScenarioFixture(
       name: "synthetic-fits-preview",
       files: ["scripts/datanalysis_env.py": "# test wrapper\n"]
@@ -121,6 +121,7 @@ extension ScientificWorkbenchTests {
     #expect(command.arguments.contains(run.appendingPathComponent("previews/synthetic_wcs.png").path))
     #expect(command.arguments.contains("CUNIT1"))
     #expect(command.arguments.contains("CDELT2"))
+    #expect(!command.arguments.contains("--preview-if-available"))
 
     var changed = try Data(contentsOf: URL(fileURLWithPath: input))
     changed[2880] = 0x01
@@ -139,6 +140,44 @@ extension ScientificWorkbenchTests {
     #expect(!ordinaryCommand.arguments.contains("--preview"))
     #expect(!ordinaryCommand.arguments.contains("--header-key"))
     #expect(try Data(contentsOf: URL(fileURLWithPath: input)) != changed)
+  }
+
+  @Test
+  func declaredBoundedFITSPreviewRunsThroughTheNormalBuilder() throws {
+    let root = try makeScenarioFixture(
+      name: "bounded-fits-preview",
+      files: ["scripts/datanalysis_env.py": "# test wrapper\n", "science.fits": "FITS fixture"]
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+    let capabilities = try CapabilityRegistryLoader().parse("""
+    entries:
+      - id: inspect_fits
+        label: inspect_fits.py
+        script: scripts/inspect_fits.py
+        visible_block: astronomy observational
+        kind: golden_path
+        support_level: stable
+        platform: portable
+        requires_datanalysis: false
+        preflight_mode: none
+        smoke_tier: core
+        supports_bounded_fits_preview: true
+        short_description: Inspect FITS data.
+    """)
+    let capability = try #require(capabilities.first)
+    #expect(capability.supportsBoundedFITSPreview)
+    let run = root.appendingPathComponent("run", isDirectory: true)
+    let input = root.appendingPathComponent("science.fits").path
+    let command = try CapabilityCommandBuilder(pythonExecutable: "/usr/bin/python3").build(
+      capability: capability,
+      request: RunRequest(
+        capabilityID: capability.id, inputPaths: [input], outputDirectory: run.path, rawArguments: ""
+      ),
+      skillRoot: root.path
+    )
+    #expect(command.arguments.contains(input))
+    #expect(command.arguments.contains("--preview-if-available"))
+    #expect(command.arguments.contains(run.appendingPathComponent("previews/fits_quicklook.png").path))
   }
 
   @Test

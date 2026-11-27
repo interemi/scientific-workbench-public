@@ -114,7 +114,9 @@ jobs:
         env:
           # Shared Intel runners have delayed independent test tasks beyond fixture deadlines.
           SCIENTIFIC_WORKBENCH_SWIFT_TEST_SERIAL: ${{ matrix.architecture == 'x86_64' && '1' || '0' }}
-        run: ./script/run_swift_tests.sh 2>&1 | tee "$CI_EVIDENCE_DIR/swift-tests.log"
+        run: |
+          SCIENTIFIC_WORKBENCH_GUIDED_CLI_EVIDENCE_DIR="$CI_EVIDENCE_DIR" \
+            ./script/run_swift_tests.sh 2>&1 | tee "$CI_EVIDENCE_DIR/swift-tests.log"
       - name: Install core in a new isolated environment
         run: |
           lock_options=()
@@ -144,6 +146,14 @@ jobs:
               or not (status.get("selected_env_root") or "").endswith("/scientific-workbench/datanalysis")):
               raise SystemExit("Installed core environment discovery did not report ok")
           PY
+      - name: Export CLI contracts and verify guided arguments
+        run: |
+          "$RUNNER_TEMP/scientific-workbench/datanalysis/bin/python" \
+            script/render_cli_contracts.py --require-guided-coverage \
+            --guided-arguments "$CI_EVIDENCE_DIR/guided-defaults.json" \
+            --guided-arguments "$CI_EVIDENCE_DIR/guided-forms.json" \
+            --guided-arguments "$CI_EVIDENCE_DIR/guided-docx.json" \
+            > "$CI_EVIDENCE_DIR/cli-contracts.json"
       - name: Validate synthetic workflows and snapshot integrity
         run: |
           "$RUNNER_TEMP/scientific-workbench/datanalysis/bin/python" \
@@ -195,6 +205,7 @@ jobs:
             ${{ runner.temp }}/portable-core/smoke-summary.json
             ${{ runner.temp }}/portable-core/smoke-manifest.json
             ${{ runner.temp }}/portable-core/known-answer/verification.json
+            ${{ runner.temp }}/portable-core/known-answer/example-report/
             ${{ runner.temp }}/portable-core/step-*.log
             ${{ runner.temp }}/scientific-workbench/datanalysis/scientific-workbench-setup/installed-packages.txt
 
@@ -254,7 +265,7 @@ jobs:
         run: |
           set -o pipefail
           "$RUNNER_TEMP/scientific-workbench-full/datanalysis/bin/python" \
-            script/run_portable_core.py --profile core \
+            script/run_portable_core.py --profile core --full-io-contracts \
             --output-dir "$RUNNER_TEMP/portable-full-core" \
             2>&1 | tee "$CI_FULL_EVIDENCE_DIR/portable-full-core.log"
           "$RUNNER_TEMP/scientific-workbench-full/datanalysis/bin/python" \
@@ -299,6 +310,8 @@ jobs:
             ${{ runner.temp }}/scientific-workbench-full-ci/*.log
             ${{ runner.temp }}/scientific-workbench-full-ci/*.json
             ${{ runner.temp }}/portable-full-core/verification.json
+            ${{ runner.temp }}/portable-full-core/known-answer/verification.json
+            ${{ runner.temp }}/portable-full-core/known-answer/example-report/
             ${{ runner.temp }}/portable-full-core/env-doctor.json
             ${{ runner.temp }}/portable-full-core/smoke-summary.json
             ${{ runner.temp }}/portable-full-core/smoke-manifest.json

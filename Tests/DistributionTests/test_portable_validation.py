@@ -42,6 +42,15 @@ class PortableCoreTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate_summary({**valid, **replacement})
 
+    def test_output_normalizes_parent_segments_for_manifest_comparisons(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            checkout = root / "checkout"
+            checkout.mkdir()
+            output = checkout / ".." / "new"
+            self.assertEqual(validate_output(output, checkout), root / "new")
+            self.assertFalse(output.exists())
+
     def test_child_failure_preserves_logs_and_failure_evidence(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "new"

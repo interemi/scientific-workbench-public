@@ -5,6 +5,7 @@ struct AgentStateSnapshot: Sendable {
   var stepExecutions: [AgentPlanStepExecution]
   var lastWorkflowSummaryPath: String?
   var agentStatusMessage: String
+  var planningEvidence: WorkflowPlanningEvidence? = nil
 }
 
 struct AgentStateLoadResult: Sendable {
@@ -13,7 +14,7 @@ struct AgentStateLoadResult: Sendable {
 }
 
 struct AgentStateStore {
-  static let currentVersion = 2
+  static let currentVersion = 3
 
   func load(from url: URL) throws -> AgentStateSnapshot? {
     try loadRecovering(from: url)?.snapshot
@@ -48,6 +49,20 @@ struct AgentStateStore {
       } catch {
         diagnostics.discardedItemCount += 1
         diagnostics.messages.append("The active agent plan could not be decoded.")
+      }
+    }
+
+    // Schema 1 and 2 have no planning receipt. Preserve their plan and steps
+    // without inferring the model or approval from current preferences.
+    var planningEvidence: WorkflowPlanningEvidence?
+    if version >= 3, let rawEvidence = object["planningEvidence"], !(rawEvidence is NSNull) {
+      if let plan,
+         let evidence = try? PersistenceFileAccess.decode(WorkflowPlanningEvidence.self, from: rawEvidence),
+         evidence.applies(to: plan) {
+        planningEvidence = evidence.sanitized(secrets: [])
+      } else {
+        diagnostics.discardedItemCount += 1
+        diagnostics.messages.append("A planning receipt could not be matched to the active plan.")
       }
     }
 
@@ -87,7 +102,8 @@ struct AgentStateStore {
         agentPlan: plan,
         stepExecutions: executionRecovery.executions,
         lastWorkflowSummaryPath: lastWorkflowSummaryPath,
-        agentStatusMessage: agentStatusMessage
+        agentStatusMessage: agentStatusMessage,
+        planningEvidence: planningEvidence
       ),
       diagnostics: diagnostics
     )
@@ -100,6 +116,9 @@ struct AgentStateStore {
       withIntermediateDirectories: true
     )
     let normalizedPlan = snapshot.agentPlan.map(Self.deduplicatedPlan)?.plan
+    let planningEvidence = normalizedPlan.flatMap { plan in
+      snapshot.planningEvidence.flatMap { $0.applies(to: plan) ? $0.sanitized(secrets: []) : nil }
+    }
     let normalizedExecutions = Self.deduplicatedExecutions(
       snapshot.stepExecutions,
       for: normalizedPlan,
@@ -111,7 +130,8 @@ struct AgentStateStore {
       agentPlan: normalizedPlan,
       stepExecutions: normalizedExecutions,
       lastWorkflowSummaryPath: snapshot.lastWorkflowSummaryPath,
-      agentStatusMessage: snapshot.agentStatusMessage
+      agentStatusMessage: snapshot.agentStatusMessage,
+      planningEvidence: planningEvidence
     )
     let data = try JSONEncoder.scientificWorkbench.encode(payload)
     try data.write(to: url, options: [.atomic])
@@ -237,4 +257,5 @@ private struct AgentStatePayload: Codable {
   var stepExecutions: [AgentPlanStepExecution]
   var lastWorkflowSummaryPath: String?
   var agentStatusMessage: String
+  var planningEvidence: WorkflowPlanningEvidence?
 }

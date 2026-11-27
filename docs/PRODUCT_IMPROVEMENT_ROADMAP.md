@@ -351,6 +351,10 @@ names its representative workload, reference machine, and tolerance.
 | P2.11 | Produce reproducible reports that distinguish generated text from measured evidence. |
 | P2.13 | Rebuild and document scientific examples with clear synthetic/reference/observed labels. |
 
+The [scientific example set](SCIENTIFIC_KNOWN_ANSWER_FIXTURES.md) documents how
+to rebuild four representative cases and compare their results with reference
+values. Portable validation retains the labeled evidence for the tested commit.
+
 Exit: every scientific conclusion points to its artifacts, method, QA, and
 limits, with replay status stated rather than assumed.
 

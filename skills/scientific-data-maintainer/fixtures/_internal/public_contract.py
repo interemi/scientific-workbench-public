@@ -52,9 +52,10 @@ def _write_text_atomically(path: str | Path, rendered: str) -> None:
             temporary_path.unlink(missing_ok=True)
 
 
-def emit_payload(payload: dict, summary_json: str | Path | None = None) -> str:
+def emit_payload(payload: dict, summary_json: str | Path | None = None, *, print_output: bool = True) -> str:
     rendered = json.dumps(sanitize_payload(payload), indent=2, ensure_ascii=True, allow_nan=False) + "\n"
-    print(rendered, end="")
+    if print_output:
+        print(rendered, end="")
     if summary_json:
         _write_text_atomically(summary_json, rendered)
     return rendered

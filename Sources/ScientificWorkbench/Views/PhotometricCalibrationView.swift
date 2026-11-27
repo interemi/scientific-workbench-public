@@ -32,6 +32,9 @@ struct PhotometricCalibrationView: View {
       } else if let review = store.photometricCalibrationReview {
         preview(review)
         selectors(review)
+        if store.photometricNeedsInputUnitConfirmation {
+          Toggle("Confirm input magnitudes and dimensionless airmass", isOn: $store.photometricInputUnitsConfirmed)
+        }
         rangeSummary
         findings
 
@@ -110,13 +113,45 @@ struct PhotometricCalibrationView: View {
           .onChange(of: store.photometricFilterColumn) {
             store.refreshPhotometricFilterValues()
           }
-        Picker("Filter value", selection: $store.photometricFilterValue) {
-          Text("All / one band").tag(String?.none)
-          ForEach(store.photometricFilterValues, id: \.self) { value in
-            Text(value).tag(Optional(value))
+        if store.photometricFilterColumn != nil {
+          Picker("Filter value", selection: $store.photometricFilterValue) {
+            Text("Select").tag(String?.none)
+            ForEach(store.photometricFilterValues, id: \.self) { value in
+              Text(value).tag(Optional(value))
+            }
+          }
+        } else {
+          LabeledContent("Single passband") {
+            TextField("e.g. Johnson V", text: $store.photometricSinglePassband)
+              .accessibilityLabel("Single passband")
           }
         }
-        .disabled(store.photometricFilterColumn == nil)
+      }
+      GridRow {
+        Picker("Catalog magnitude system", selection: $store.photometricMagnitudeSystem) {
+          Text("Select").tag(PhotometricMagnitudeSystem?.none)
+          ForEach(PhotometricMagnitudeSystem.allCases) { system in
+            Text(system.rawValue).tag(Optional(system))
+          }
+        }
+        if store.photometricUncertaintyColumn != nil {
+          Picker("Offset σ unit", selection: $store.photometricOffsetUncertaintyUnit) {
+            Text("Select").tag(PhotometricMagnitudeUnit?.none)
+            ForEach(PhotometricMagnitudeUnit.allCases) { unit in
+              Text(unit.rawValue).tag(Optional(unit))
+            }
+          }
+          .help("Standard deviation of catalog magnitude minus instrumental magnitude")
+          .accessibilityLabel("Unit of the catalog minus instrumental magnitude uncertainty")
+        }
+      }
+      if store.photometricMagnitudeSystem == .other {
+        GridRow {
+          LabeledContent("Catalog system name") {
+            TextField("Documented system", text: $store.photometricCustomMagnitudeSystem)
+              .accessibilityLabel("Catalog system name")
+          }
+        }
       }
       GridRow {
         columnPicker("Color index", selection: $store.photometricColorColumn, review: review, allowNone: true)
@@ -163,11 +198,12 @@ struct PhotometricCalibrationView: View {
             .font(.caption)
             .foregroundStyle(validation.status == .blocked ? Color.red : Color.orange)
         }
-        if !validation.nextActions.isEmpty {
+        let additionalActions = validation.nextActions.filter { !validation.findings.contains($0) }
+        if !additionalActions.isEmpty {
           Text("Next actions")
             .font(.caption)
             .fontWeight(.semibold)
-          ForEach(validation.nextActions, id: \.self) { action in
+          ForEach(additionalActions, id: \.self) { action in
             Label(action, systemImage: "arrow.right")
               .font(.caption)
               .foregroundStyle(.secondary)

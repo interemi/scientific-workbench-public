@@ -98,6 +98,14 @@ Afterwards, validation requires the full profile, core/full
 tier coverage, no failed cases, and intact snapshots before and after. A core
 summary cannot satisfy full validation. Setup applies the same readiness check.
 
+For an installed Full environment without an external TeX engine, run
+`run_portable_core.py --profile core --full-io-contracts`. This combination
+requires Full Python readiness and checks presentation inspection, style audit,
+the DuckDB result, trusted notebook copy, and a maintainer matrix with one
+synthetic probe. Both profiles check documentation drift and reject output
+paths that overlap protected inputs. The separate Full smoke command includes
+additional backend checks.
+
 The 2026-09-15 run passed 38/38 cases: 36 successful operations and two expected
 rejections of unsafe notebooks. These two cases retain their observed exit code
 (2). They pass only when the summary satisfies the contract, explains the
@@ -105,10 +113,12 @@ expected block, and confirms intact originals. Synthetic-input hashes are
 compared as well. Unexpected failures remain failures.
 
 Positive notebook cases use copied data through `--stage-extra`. LaTeX
-compilation preserves its source and requires a PDF and manifest. It needs an
-external LaTeX engine in addition to Python dependencies; the smoke installs
-no applications. This does not establish support for every optional backend,
-OS-level isolation, or methodological correctness of all analyses.
+compilation preserves its source and records the PDF and structured summary in
+the manifest. The Full smoke checks a failed build with an older source PDF,
+an unavailable compiler and rejected output destinations. It needs a local TeX
+engine in addition to Python dependencies. This does not establish support for
+every optional backend, OS-level isolation, or methodological correctness of
+all analyses.
 
 The [first full validation](PUBLIC_FULL_VALIDATION_2026-09-15.en.md) used unpinned
 versions and found that PIMS 0.7 had no published wheel. The subsequent run added

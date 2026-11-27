@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2] / "scientific-data-analysis"
 SCRIPTS = ROOT / "scripts"
 
 
@@ -172,7 +172,8 @@ def check_docx_marked_runs(tmp: Path) -> None:
 
 def check_reference_routes() -> None:
     formats = (ROOT / "references" / "formats-and-handoffs.md").read_text(encoding="utf-8")
-    presentation = (ROOT / "references" / "scientific-presentation-handoff.md").read_text(encoding="utf-8")
+    documents = ROOT.parent / "scientific-data-documents" / ".cache" / "archived_references"
+    presentation = (documents / "references" / "scientific-presentation-handoff.md").read_text(encoding="utf-8")
     required_formats = [
         "docx-style-inventory",
         "docx-styled-replace",

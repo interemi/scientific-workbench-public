@@ -105,32 +105,34 @@ struct ResultsView: View {
           }
         }
       }
-      .frame(minWidth: 340, idealWidth: 390)
+      .frame(minWidth: 320, idealWidth: 360, maxWidth: 420)
 
-      if let artifact = selectedArtifact {
+      Group {
         if let job = store.selectedJob {
-          ArtifactPreview(store: store, job: job, artifact: artifact)
-        }
-      } else if let job = store.selectedJob {
-        JobCaptureDetail(store: store, job: job) { detailed in
-          ResultsSummaryView(store: store, job: detailed)
-        }
-      } else if store.isRestoringJobHistory {
-        Text("Saved results will appear after job history is restored.")
-          .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-      } else {
-        ContentUnavailableView {
-          Label("Run a Capability", systemImage: "play")
-        } description: {
-          Text("Results remain linked to their job, run folder, logs, and provenance metadata.")
-        } actions: {
-          Button("Browse Capabilities") {
-            store.selectedSection = .capabilities
+          if let artifact = selectedArtifact {
+            ArtifactPreview(store: store, job: job, artifact: artifact)
+          } else {
+            JobCaptureDetail(store: store, job: job) { detailed in
+              ResultsSummaryView(store: store, job: detailed)
+            }
           }
-          .accessibilityIdentifier("results.empty.open-capabilities")
+        } else if store.isRestoringJobHistory {
+          Text("Saved results will appear after job history is restored.")
+            .foregroundStyle(.secondary)
+        } else {
+          ContentUnavailableView {
+            Label("Run a Capability", systemImage: "play")
+          } description: {
+            Text("Results remain linked to their job, run folder, logs, and provenance metadata.")
+          } actions: {
+            Button("Browse Capabilities") {
+              store.selectedSection = .capabilities
+            }
+            .accessibilityIdentifier("results.empty.open-capabilities")
+          }
         }
       }
+      .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
     }
     .navigationTitle("Results")
     .onAppear {
@@ -334,8 +336,12 @@ struct ArtifactPreview: View {
   @ObservedObject var store: WorkbenchStore
   let job: JobRecord
   let artifact: Artifact
+  var allowsMeasurementSynthesis = true
   @State private var loadedPreview: (id: RequestID, snapshot: ArtifactPreviewSnapshot)?
   @State private var showTableText = false
+  @State private var showFITSJSON = false
+  @State private var showMeasurementJSON = false
+  @State private var showMeasurementSynthesis = false
   private var isTable: Bool { TablePreviewService.supports(artifact) }
   private var requestID: RequestID {
     RequestID(job: job.id, runDirectory: job.runDirectory, artifact: artifact,
@@ -361,6 +367,19 @@ struct ArtifactPreview: View {
             .textSelection(.enabled)
         }
         Spacer()
+        if allowsMeasurementSynthesis, ScientificMeasurementSummary.supports(job.capabilityID),
+           RunMeasurementEvidenceService.isSummary(artifact) {
+          Button("Summarize evidence") { showMeasurementSynthesis = true }
+            .accessibilityIdentifier("results.measurements.synthesize")
+        }
+        if ScientificMeasurementSummary.supports(job.capabilityID),
+           let summary = job.artifacts.first(where: { $0.relativePath == "summary.json" }),
+           summary.id != artifact.id {
+          Button("Open run summary") {
+            store.selectResultArtifact(summary.id, for: job)
+          }
+          .accessibilityIdentifier("results.measurements.open-summary")
+        }
         Button {
           Task { await store.revealArtifact(artifact) }
         } label: {
@@ -380,17 +399,52 @@ struct ArtifactPreview: View {
           .accessibilityIdentifier("results.table.text-sample")
       }
       if isTable && !showTableText {
-        TableArtifactPreview(store: store, job: job, artifact: artifact)
+        TableArtifactPreview(store: store, job: job, artifact: artifact,
+                             allowsSynthesis: allowsMeasurementSynthesis)
           .id(requestID)
+      } else if let fits = snapshot?.fitsInspection {
+        Toggle("Raw JSON", isOn: $showFITSJSON)
+          .controlSize(.small)
+          .accessibilityIdentifier("results.fits.raw-json")
+        if showFITSJSON {
+          preview(snapshot)
+        } else {
+          let capability = store.fitsFollowUpCapability(for: job)
+          let source = capability == nil ? nil : fits.attachedSource(in: job)
+          FITSInspectionView(
+            summary: fits, redact: store.redactedPreviewText,
+            canLookup: source != nil && capability?.supportsFITSPixelLookup == true,
+            canCrop: source != nil && capability?.supportsBoundedFITSPreview == true,
+            busy: store.hasActiveOperation
+          ) { hdu, action in
+            Task { await runFITSFollowUp(fits, hdu: hdu, action: action) }
+          }
+          .id(requestID)
+        }
+      } else if let measurements = snapshot?.measurementSummary {
+        Toggle("Raw JSON", isOn: $showMeasurementJSON)
+          .controlSize(.small)
+          .accessibilityIdentifier("results.measurements.raw-json")
+        if showMeasurementJSON {
+          preview(snapshot)
+        } else {
+          ScientificMeasurementSummaryView(summary: measurements, redact: store.redactedPreviewText)
+        }
       } else {
         preview(snapshot)
       }
     }
     .padding(24)
+    .sheet(isPresented: $showMeasurementSynthesis) {
+      MeasurementSynthesisSheet(store: store, jobID: job.id, artifact: artifact)
+    }
     .task(id: requestID) {
       guard !Task.isCancelled else { return }
       let id = requestID
       loadedPreview = nil
+      showFITSJSON = false
+      showMeasurementJSON = false
+      showMeasurementSynthesis = false
       guard var result = await ArtifactPreviewLoader.shared.load(
         artifact, in: job, includePreview: !isTable || id.showTableText, redact: store.previewRedactor()
       ), !Task.isCancelled else { return }
@@ -440,6 +494,12 @@ struct ArtifactPreview: View {
           Text("Display-scaled quicklook only. Check summary.json for WCS and units when present; this image does not establish astrometric calibration.")
             .font(.caption)
             .foregroundStyle(.secondary)
+          if let summary = job.artifacts.first(where: { $0.relativePath == "summary.json" }) {
+            Button("Inspect FITS summary") {
+              store.selectResultArtifact(summary.id, for: job)
+            }
+            .accessibilityIdentifier("results.fits.open-summary")
+          }
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -455,5 +515,12 @@ struct ArtifactPreview: View {
     case .raster(let image), .pdfThumbnail(let image): NSImage(cgImage: image, size: .zero)
     case nil: nil
     }
+  }
+
+  private func runFITSFollowUp(_ fits: FITSInspectionSummary, hdu: Int, action: FITSInspectionAction) async {
+    let outcome = await store.runFITSFollowUp(from: job, summary: fits, hdu: hdu, action: action)
+    guard action.isPixelLookup, let outcome, store.selectedJobID == outcome.id,
+          let summary = outcome.artifacts.first(where: { $0.relativePath == "summary.json" }) else { return }
+    store.selectResultArtifact(summary.id, for: outcome)
   }
 }

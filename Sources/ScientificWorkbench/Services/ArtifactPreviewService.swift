@@ -250,6 +250,8 @@ struct ArtifactPreviewSnapshot: Sendable {
   let inspection: ArtifactInspection
   var payload: ArtifactPreviewPayload?
   let isGeneratedFITS: Bool
+  let fitsInspection: FITSInspectionSummary?
+  let measurementSummary: ScientificMeasurementSummary?
 }
 
 actor ArtifactPreviewLoader {
@@ -284,7 +286,12 @@ actor ArtifactPreviewLoader {
     guard !Task.isCancelled else { return nil }
     let generated = artifact.artifactType == "preview_png" && job.capabilityID == "inspect_fits"
       && (job.requestInputPaths.first.map(FirstRunExampleService.isGeneratedFITS(at:)) ?? false)
-    return ArtifactPreviewSnapshot(inspection: metadata, payload: payload, isGeneratedFITS: generated)
+    let fitsInspection = includePreview && job.capabilityID == "inspect_fits" && artifact.relativePath == "summary.json"
+      ? metadata.resolvedPreviewURL.flatMap { FITSInspectionSummary.load(from: $0) } : nil
+    let measurementSummary = includePreview && (artifact.artifactType == "summary_json" || artifact.relativePath == "summary.json")
+      ? metadata.resolvedPreviewURL.flatMap { ScientificMeasurementSummary.load(from: $0, capabilityID: job.capabilityID) } : nil
+    return ArtifactPreviewSnapshot(inspection: metadata, payload: payload, isGeneratedFITS: generated,
+                                   fitsInspection: fitsInspection, measurementSummary: measurementSummary)
   }
 
   func comparison(

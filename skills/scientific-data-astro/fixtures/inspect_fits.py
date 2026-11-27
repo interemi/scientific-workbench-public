@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import math
 import os
 import struct
 import sys
@@ -17,6 +18,9 @@ from _internal.runtime_common import configure_runtime
 
 
 FITS_EXTENSIONS = {".fits", ".fit", ".fts", ".fz"}
+MAX_PREVIEW_SIDE = 1024
+MAX_SUMMARY_SECTIONS = 64
+MAX_TILE_PIXELS = MAX_PREVIEW_SIDE ** 2
 DEFAULT_HEADER_KEYS = [
     "OBJECT",
     "DATE-OBS",
@@ -24,6 +28,9 @@ DEFAULT_HEADER_KEYS = [
     "EXPTIME",
     "FILTER",
     "BUNIT",
+    "BSCALE",
+    "BZERO",
+    "BLANK",
     "CTYPE1",
     "CTYPE2",
     "CRVAL1",
@@ -48,15 +55,24 @@ def parse_args():
     parser.add_argument("path", help="Path to a FITS file.")
     parser.add_argument(
         "--extension",
-        help="Extension index or EXTNAME to use for preview output. Default: first image HDU.",
+        help="Extension index or EXTNAME for the quicklook or pixel lookup. Default: first image HDU.",
     )
     parser.add_argument(
         "--preview",
         help="Optional output PNG path for a quicklook preview of an image extension.",
     )
     parser.add_argument(
+        "--preview-if-available",
+        action="store_true",
+        help="With --preview, render a bounded quicklook when possible and keep the summary otherwise.",
+    )
+    parser.add_argument(
         "--crop",
         help="Optional preview crop as x0,y0,width,height in pixel coordinates.",
+    )
+    parser.add_argument(
+        "--pixel",
+        help="Read x,y in zero-based coordinates of the original image, using the first plane of a cube.",
     )
     parser.add_argument(
         "--force-simple-fallback",
@@ -119,6 +135,18 @@ def apply_crop(np, image, crop):
     return array[y0:y1, x0:x1]
 
 
+def parse_pixel(value):
+    if value is None:
+        return None
+    try:
+        x, y = (int(part.strip()) for part in value.split(","))
+    except ValueError as error:
+        raise ValueError("--pixel must contain two integers: x,y") from error
+    if x < 0 or y < 0:
+        raise ValueError("--pixel uses nonnegative, zero-based image coordinates")
+    return x, y
+
+
 def safe_scalar(value):
     try:
         if hasattr(value, "item"):
@@ -139,20 +167,14 @@ def sampled_finite_values(np, data, sample_size):
     return finite.astype(float, copy=False)
 
 
-def summarize_image(np, data, sample_size):
-    flat = np.asarray(data).reshape(-1)
-    total_pixels = int(flat.size)
-    if flat.size and flat.size > sample_size:
-        step = max(1, flat.size // sample_size)
-        sampled = flat[::step]
-    else:
-        sampled = flat
+def summarize_pixels(np, sampled, shape, sampling):
     finite = sampled[np.isfinite(sampled)].astype(float, copy=False)
     sampled_pixels = int(sampled.size)
     summary = {
-        "shape": list(np.asarray(data).shape),
-        "dtype": str(np.asarray(data).dtype),
-        "total_pixels": total_pixels,
+        "shape": list(shape),
+        "dtype": str(sampled.dtype),
+        "total_pixels": math.prod(shape),
+        "sampling": sampling,
         "sampled_pixels": sampled_pixels,
         "finite_pixels": int(finite.size),
         "nonfinite_sampled_pixels": int(max(0, sampled_pixels - finite.size)),
@@ -177,10 +199,56 @@ def summarize_image(np, data, sample_size):
     return summary
 
 
-def summarize_table_data(data, max_columns):
-    names = list(getattr(data, "names", []) or [])
+def summarize_image(np, data, sample_size):
+    array = np.asarray(data)
+    flat = array.reshape(-1)
+    step = max(1, math.ceil(flat.size / sample_size))
+    sampling = "full_image" if step == 1 else "flat_stride"
+    return summarize_pixels(np, flat[::step], array.shape, sampling)
+
+
+def image_shape(hdu):
+    shape = getattr(hdu, "shape", ())
+    return shape if getattr(hdu, "is_image", False) and all(shape) else ()
+
+
+def oversized_tile(hdu):
+    return math.prod(getattr(hdu, "tile_shape", ())) > MAX_TILE_PIXELS
+
+
+def summarize_image_sections(np, hdu, shape, sample_size):
+    if oversized_tile(hdu):
+        return {
+            "shape": list(shape),
+            "total_pixels": math.prod(shape),
+            "sampling": "unavailable",
+            "sampling_reason": f"A compression tile exceeds {MAX_TILE_PIXELS:,} pixels.",
+        }
+
+    total = math.prod(shape)
+    if total <= sample_size:
+        return summarize_pixels(np, hdu.section[:].reshape(-1), shape, "full_image")
+
+    width = shape[-1]
+    span = min(width, max(1, sample_size // MAX_SUMMARY_SECTIONS))
+    spans_per_row = (width + span - 1) // span
+    spans = math.prod(shape[:-1]) * spans_per_row
+    count = min(MAX_SUMMARY_SECTIONS, sample_size // span, spans)
+    section = hdu.section
+    samples = []
+    for index in range(count):
+        position = index * (spans - 1) // (count - 1) if count > 1 else spans // 2
+        row, column = divmod(position, spans_per_row)
+        offset = column * span
+        leading = np.unravel_index(row, shape[:-1])
+        samples.append(section[(*leading, slice(offset, min(width, offset + span)))])
+    sampled = np.concatenate(samples, dtype=samples[0].dtype)
+    return summarize_pixels(np, sampled, shape, "distributed_sections")
+
+
+def summarize_table(rows, names, max_columns):
     return {
-        "rows": int(len(data)),
+        "rows": int(rows),
         "columns": len(names),
         "column_names": names[:max_columns],
     }
@@ -200,13 +268,28 @@ def wcs_summary(WCS, header):
         return None
     try:
         wcs = WCS(header)
-        return {
-            "ctype": [str(item) for item in getattr(wcs.wcs, "ctype", []) if item],
-            "crval": [float(item) for item in getattr(wcs.wcs, "crval", [])[:2]],
-            "crpix": [float(item) for item in getattr(wcs.wcs, "crpix", [])[:2]],
-        }
     except Exception:
         return {"status": "present but could not parse"}
+
+    summary = {
+        "ctype": [str(item) for item in wcs.wcs.ctype if item],
+        "crval": [float(item) for item in wcs.wcs.crval],
+        "crpix": [float(item) for item in wcs.wcs.crpix],
+        "axis_units": list(wcs.world_axis_units),
+    }
+    if wcs.wcs.radesys:
+        summary["reference_frame"] = wcs.wcs.radesys
+    if wcs.has_celestial:
+        try:
+            from astropy.units import arcsec
+
+            scales = [float(scale.to_value(arcsec)) for scale in wcs.celestial.proj_plane_pixel_scales()]
+            if all(math.isfinite(scale) and scale > 0 for scale in scales):
+                summary["projection_plane_scale_arcsec"] = scales
+        except ValueError:
+            # Coupled celestial and noncelestial axes do not define a separate celestial scale.
+            pass
+    return summary
 
 
 def choose_preview_hdu(hdus, extension):
@@ -218,10 +301,56 @@ def choose_preview_hdu(hdus, extension):
                 return index
         raise SystemExit(f"Could not find extension named '{extension}'.")
     for index, hdu in enumerate(hdus):
-        data = getattr(hdu, "data", None)
-        if data is not None and getattr(data, "ndim", 0) >= 2:
+        if len(image_shape(hdu)) >= 2:
             return index
     raise SystemExit("No image-like HDU available for preview.")
+
+
+def read_pixel(np, WCS, hdus, extension, pixel):
+    index = choose_preview_hdu(hdus, extension)
+    hdu = hdus[index]
+    shape = image_shape(hdu)
+    if len(shape) < 2:
+        raise ValueError("Selected HDU does not contain a 2D image.")
+    if oversized_tile(hdu):
+        raise ValueError(f"A compression tile exceeds {MAX_TILE_PIXELS:,} pixels.")
+    x, y = pixel
+    if x >= shape[-1] or y >= shape[-2]:
+        raise ValueError("--pixel is outside the selected image bounds.")
+    plane = (0,) * (len(shape) - 2)
+    value = safe_scalar(hdu.section[(*plane, y, x)])
+    finite = math.isfinite(value)
+    result = {
+        "hdu_index": index,
+        "image_xy": [x, y],
+        "plane_indices": list(plane),
+        "pixel_value": value if finite else None,
+        "pixel_unit": str(hdu.header["BUNIT"]) if hdu.header.get("BUNIT") else None,
+        "pixel_status": "finite" if finite else "nonfinite",
+        "world_axes": [],
+    }
+    if not any(f"CTYPE{axis}" in hdu.header for axis in range(1, len(shape) + 1)):
+        result["world_reason"] = "No WCS axes are declared in this HDU."
+        return result
+    try:
+        wcs = WCS(hdu.header, fobj=hdus)
+        if wcs.pixel_n_dim != len(shape):
+            result["world_reason"] = "The WCS pixel axes do not match this image."
+            return result
+        coordinates = [x, y, *reversed(plane)]
+        world = wcs.all_pix2world(np.asarray([coordinates]), 0)[0]
+        if not all(math.isfinite(axis) for axis in world):
+            result["world_reason"] = "The WCS returned nonfinite coordinates at this pixel."
+            return result
+        result["world_axes"] = [
+            {"name": str(axis), "value": float(value), "unit": unit}
+            for axis, value, unit in zip(wcs.wcs.ctype, world, wcs.world_axis_units, strict=True)
+        ]
+        if wcs.wcs.radesys:
+            result["reference_frame"] = wcs.wcs.radesys
+    except Exception:
+        result["world_reason"] = "Astropy could not transform this pixel with the recorded WCS."
+    return result
 
 
 def first_2d_plane(np, data):
@@ -233,7 +362,28 @@ def first_2d_plane(np, data):
     return array
 
 
-def save_preview(np, WCS, hdus, extension, output_path, crop=None):
+def preview_region(hdu, crop, bounded):
+    shape = image_shape(hdu)
+    if len(shape) < 2:
+        raise ValueError("Selected HDU does not contain a 2D image.")
+    height, width = shape[-2:]
+    if bounded and oversized_tile(hdu):
+        raise ValueError(f"A compression tile exceeds {MAX_TILE_PIXELS:,} pixels.")
+    if crop is None:
+        region_width = min(width, MAX_PREVIEW_SIDE) if bounded else width
+        region_height = min(height, MAX_PREVIEW_SIDE) if bounded else height
+        return (width - region_width) // 2, (height - region_height) // 2, region_width, region_height
+    x0, y0, requested_width, requested_height = crop
+    if not (0 <= x0 < width and 0 <= y0 < height):
+        raise ValueError("--crop is outside the selected image bounds")
+    region_width = min(requested_width, width - x0)
+    region_height = min(requested_height, height - y0)
+    if bounded and max(region_width, region_height) > MAX_PREVIEW_SIDE:
+        raise ValueError(f"Quicklook crop exceeds {MAX_PREVIEW_SIDE} pixels per side.")
+    return x0, y0, region_width, region_height
+
+
+def save_preview(np, WCS, hdus, extension, output_path, crop=None, bounded=False):
     configure_runtime("inspect_fits")
     import matplotlib
 
@@ -242,8 +392,11 @@ def save_preview(np, WCS, hdus, extension, output_path, crop=None):
 
     preview_index = choose_preview_hdu(hdus, extension)
     hdu = hdus[preview_index]
-    image = first_2d_plane(np, hdu.data)
-    image = apply_crop(np, image, crop)
+    x0, y0, width, height = preview_region(hdu, crop, bounded)
+    plane = (0,) * (len(image_shape(hdu)) - 2)
+    rows = slice(y0, y0 + height)
+    columns = slice(x0, x0 + width)
+    image = hdu.section[(*plane, rows, columns)]
     finite = sampled_finite_values(np, image, 200000)
     if finite.size == 0:
         raise SystemExit("Cannot render preview because the selected image has no finite pixels.")
@@ -252,33 +405,48 @@ def save_preview(np, WCS, hdus, extension, output_path, crop=None):
     if vmin == vmax:
         vmax = vmin + 1.0
 
-    figure = None
+    figure = plt.figure(figsize=(7, 6))
+    coordinates = "pixel"
     try:
         header = hdu.header
         if "CTYPE1" in header or "CTYPE2" in header:
             try:
                 projection = WCS(header)
-                figure = plt.figure(figsize=(7, 6))
+                if projection.pixel_n_dim != 2:
+                    raise ValueError("Preview WCS does not describe two pixel axes.")
+                if x0 or y0:
+                    projection = projection.slice((rows, columns))
                 axis = figure.add_subplot(111, projection=projection)
+            except Exception:
+                axis = figure.add_subplot(111)
+            else:
+                coordinates = "wcs"
                 axis.set_xlabel("World axis 1")
                 axis.set_ylabel("World axis 2")
-            except Exception:
-                figure = plt.figure(figsize=(7, 6))
-                axis = figure.add_subplot(111)
         else:
-            figure = plt.figure(figsize=(7, 6))
             axis = figure.add_subplot(111)
 
-        image_artist = axis.imshow(image, origin="lower", cmap="gray", vmin=vmin, vmax=vmax)
+        extent = None
+        if coordinates == "pixel":
+            extent = (x0 - 0.5, x0 + width - 0.5, y0 - 0.5, y0 + height - 0.5)
+            axis.set_xlabel("Image x (zero-based pixel)")
+            axis.set_ylabel("Image y (zero-based pixel)")
+        image_artist = axis.imshow(image, origin="lower", cmap="gray", vmin=vmin, vmax=vmax, extent=extent)
         axis.set_title(f"HDU {preview_index}: {hdu.name}")
         figure.colorbar(image_artist, ax=axis, fraction=0.046, pad=0.04)
         figure.tight_layout()
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         figure.savefig(output_path, dpi=160)
     finally:
-        if figure is not None:
-            plt.close(figure)
-    return preview_index
+        plt.close(figure)
+    return {
+        "status": "rendered",
+        "hdu_index": preview_index,
+        "region_xywh": [x0, y0, width, height],
+        "plane_indices": list(plane),
+        "coordinates": coordinates,
+        "display_only": True,
+    }
 
 
 def parse_fits_card_value(raw_value):
@@ -331,7 +499,7 @@ def simple_fits_dtype(bitpix):
     return mapping[bitpix]
 
 
-def read_simple_primary_image(path):
+def read_simple_primary_image(path, *, max_pixels=None):
     import numpy as np
 
     with Path(path).open("rb") as handle:
@@ -345,9 +513,9 @@ def read_simple_primary_image(path):
         if any(axis <= 0 for axis in axes):
             raise ValueError("Invalid NAXIS dimensions for simple FITS image")
         dtype = simple_fits_dtype(int(header.get("BITPIX")))
-        count = 1
-        for axis in axes:
-            count *= axis
+        count = math.prod(axes)
+        if max_pixels is not None and count > max_pixels:
+            raise ValueError("Image exceeds the simple FITS reader limit; use the Astropy environment.")
         raw = handle.read(count * dtype.itemsize)
         if len(raw) < count * dtype.itemsize:
             raise ValueError("FITS data block is truncated")
@@ -385,8 +553,8 @@ def write_grayscale_png(np, image, output_path, vmin, vmax):
     Path(output_path).write_bytes(png)
 
 
-def build_simple_summary(np, path, extra_keys, sample_size):
-    header, data = read_simple_primary_image(path)
+def build_simple_summary(np, path, extra_keys, sample_size, *, max_pixels=None):
+    header, data = read_simple_primary_image(path, max_pixels=max_pixels)
     image = first_2d_plane(np, data)
     summary = {
         "path": str(Path(path).resolve()),
@@ -449,21 +617,24 @@ def build_summary(np, fits, WCS, path, extra_keys, max_columns, sample_size):
     }
     with fits.open(path, memmap=False) as hdus:
         for index, hdu in enumerate(hdus):
+            shape = image_shape(hdu)
+            is_table = isinstance(hdu, (fits.TableHDU, fits.BinTableHDU, fits.GroupsHDU))
             entry = {
                 "index": index,
                 "name": str(hdu.name),
                 "type": hdu.__class__.__name__,
-                "has_data": hdu.data is not None,
+                "has_data": bool(shape or is_table),
                 "header": extract_header_subset(hdu.header, extra_keys),
             }
             entry["wcs"] = wcs_summary(WCS, hdu.header)
-            if hdu.data is not None:
-                if getattr(hdu.data, "names", None):
-                    entry["data_summary"] = summarize_table_data(hdu.data, max_columns)
-                    entry["data_kind"] = "table"
-                else:
-                    entry["data_summary"] = summarize_image(np, hdu.data, sample_size)
-                    entry["data_kind"] = "image"
+            if is_table:
+                rows_key = "GCOUNT" if isinstance(hdu, fits.GroupsHDU) else "NAXIS2"
+                names = list(hdu.columns.names or [])
+                entry["data_summary"] = summarize_table(hdu.header[rows_key], names, max_columns)
+                entry["data_kind"] = "table"
+            elif shape:
+                entry["data_summary"] = summarize_image_sections(np, hdu, shape, sample_size)
+                entry["data_kind"] = "image"
             summary["hdus"].append(entry)
     return summary
 
@@ -488,7 +659,7 @@ def print_summary(summary):
             image_summary = hdu["data_summary"]
             print(
                 "  image: "
-                f"shape={tuple(image_summary['shape'])}, dtype={image_summary['dtype']}"
+                f"shape={tuple(image_summary['shape'])}, dtype={image_summary.get('dtype', 'unavailable')}"
             )
             if "median" in image_summary:
                 print(
@@ -498,6 +669,8 @@ def print_summary(summary):
                     f"max={image_summary['max']:.6g}, "
                     f"std={image_summary['std']:.6g}"
                 )
+            elif "sampling_reason" in image_summary:
+                print(f"  stats: {image_summary['sampling_reason']}")
             elif image_summary.get("finite_pixels") == 0:
                 print("  stats: no finite pixels detected in the sampled data")
         if hdu["header"]:
@@ -552,6 +725,10 @@ def main():
             return emit_blocked(f"manifest-json parent is not a directory: {manifest_parent}", status="fail")
     if not path.exists():
         return emit_blocked(f"File not found: {path}")
+    if args.sample_size < 1:
+        return emit_blocked("--sample-size must be positive")
+    if args.preview_if_available and not args.preview:
+        return emit_blocked("--preview-if-available requires --preview")
     if path.suffix.lower() not in FITS_EXTENSIONS:
         print(
             "Warning: file extension is not a common FITS suffix. Proceeding anyway.",
@@ -560,8 +737,9 @@ def main():
 
     try:
         crop = parse_crop(args.crop)
-    except SystemExit as exc:
-        return emit_blocked(str(exc) or "Invalid crop argument")
+        pixel = parse_pixel(args.pixel)
+    except (SystemExit, ValueError) as exc:
+        return emit_blocked(str(exc) or "Invalid FITS coordinates")
     force_simple = args.force_simple_fallback or os.environ.get("SDA_INSPECT_FITS_FORCE_SIMPLE") == "1"
     used_simple_fallback = False
     fallback_reason = None
@@ -595,6 +773,7 @@ def main():
                 path=path,
                 extra_keys=args.header_key,
                 sample_size=args.sample_size,
+                max_pixels=MAX_TILE_PIXELS if args.preview_if_available else None,
             )
         except Exception as fallback_exc:
             return emit_blocked(f"Could not inspect FITS with simple fallback: {fallback_exc}")
@@ -602,20 +781,43 @@ def main():
         return emit_blocked(f"Could not inspect FITS input: {exc.__class__.__name__}: {exc}")
     print_summary(summary)
 
+    if pixel is not None:
+        if used_simple_fallback:
+            return emit_blocked("The pixel lookup requires Astropy.")
+        try:
+            with fits.open(path, memmap=False) as hdus:
+                summary["pixel_lookup"] = read_pixel(np, WCS, hdus, args.extension, pixel)
+        except (SystemExit, IndexError, ValueError) as exc:
+            return emit_blocked(str(exc) or "Could not read the requested FITS pixel")
+        print("Pixel lookup: " + json.dumps(summary["pixel_lookup"], ensure_ascii=True))
+
+    preview_path = None
+    preview_warning = None
     if args.preview:
         try:
             if used_simple_fallback:
+                if args.preview_if_available:
+                    raise ValueError("The automatic quicklook requires Astropy.")
                 if args.extension not in {None, "0", "PRIMARY", "primary"}:
                     raise ValueError("Simple FITS fallback only supports preview of the primary image.")
                 preview_index = save_simple_preview(np, path, args.preview, crop=crop)
             else:
                 with fits.open(path, memmap=False) as hdus:
-                    preview_index = save_preview(np, WCS, hdus, args.extension, args.preview, crop=crop)
+                    details = save_preview(np, WCS, hdus, args.extension, args.preview,
+                                           crop=crop, bounded=args.preview_if_available)
+                summary["preview"] = details
+                preview_index = details["hdu_index"]
         except (SystemExit, Exception) as exc:
-            return emit_blocked(str(exc) or "Could not render FITS preview")
-        summary["preview_extension"] = preview_index
-        print("")
-        print(f"Saved preview: {args.preview} (HDU {preview_index})")
+            reason = str(exc) or "Could not render FITS preview"
+            if not args.preview_if_available:
+                return emit_blocked(reason)
+            preview_warning = f"Quicklook unavailable. {reason}"
+            summary["preview"] = {"status": "unavailable", "reason": reason, "display_only": True}
+        else:
+            preview_path = args.preview
+            summary["preview_extension"] = preview_index
+            print("")
+            print(f"Saved preview: {preview_path} (HDU {preview_index})")
 
     image_hdus = sum(1 for hdu in summary["hdus"] if hdu.get("data_kind") == "image")
     table_hdus = sum(1 for hdu in summary["hdus"] if hdu.get("data_kind") == "table")
@@ -627,15 +829,18 @@ def main():
             "Simple primary-image FITS fallback was used; install astropy for full HDU, table, and WCS inspection."
         )
         summary["fallback_reason"] = fallback_reason
-    if args.preview:
+    if preview_path:
         notes.append("A quicklook preview was rendered for the selected image-like HDU.")
-    qa_findings = []
+    qa_findings = [preview_warning] if preview_warning else []
     if (image_hdus + table_hdus) == 0:
         qa_findings.append("No image or table HDUs were detected with readable data.")
     for hdu in summary["hdus"]:
         if hdu.get("data_kind") != "image":
             continue
         data_summary = hdu.get("data_summary") or {}
+        if "sampling_reason" in data_summary:
+            qa_findings.append(f"HDU {hdu['index']} statistics unavailable. {data_summary['sampling_reason']}")
+            continue
         finite_pixels = int(data_summary.get("finite_pixels") or 0)
         finite_fraction = float(data_summary.get("finite_fraction_sampled") or 0.0)
         if finite_pixels == 0:
@@ -647,7 +852,7 @@ def main():
         "inspect_fits",
         status=qa_status,
         notes=notes,
-        artifacts={"summary_json": args.summary_json, "preview_png": args.preview},
+        artifacts={"summary_json": args.summary_json, "preview_png": preview_path},
         results=summary,
         qa={
             "status": qa_status,
@@ -666,13 +871,15 @@ def main():
         print(f"Saved JSON summary: {public_path(args.summary_json)}")
     if getattr(args, "manifest_json", None):
         outputs = [args.summary_json] if args.summary_json else []
-        if args.preview:
-            outputs.append(args.preview)
+        if preview_path:
+            outputs.append(preview_path)
         write_manifest(
             args.manifest_json,
             inputs=[path],
             outputs=outputs,
-            parameters={"extension": args.extension, "sample_size": args.sample_size, "crop": args.crop, "simple_fallback": used_simple_fallback},
+            parameters={"extension": args.extension, "sample_size": args.sample_size, "crop": args.crop,
+                        "pixel": args.pixel,
+                        "simple_fallback": used_simple_fallback, "preview_if_available": args.preview_if_available},
             command="inspect_fits.py",
             notes=notes,
         )

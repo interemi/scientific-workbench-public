@@ -158,10 +158,14 @@ struct CapabilityEntry: Identifiable, Hashable, Sendable {
   let smokeTier: String
   let shortDescription: String
   let allowedEnvironmentKeys: Set<String>
+  let supportsBoundedFITSPreview: Bool
+  let supportsFITSPixelLookup: Bool
   let owningSkillRoot: String?
   let owningSkillRole: String?
   let registrySourcePath: String?
   let registryFingerprint: String?
+  let registryDeclaredRelease: String?
+  let ioContract: CapabilityIOContract?
 
   init(
     id: String,
@@ -176,10 +180,14 @@ struct CapabilityEntry: Identifiable, Hashable, Sendable {
     smokeTier: String,
     shortDescription: String,
     allowedEnvironmentKeys: Set<String> = [],
+    supportsBoundedFITSPreview: Bool = false,
+    supportsFITSPixelLookup: Bool = false,
     owningSkillRoot: String? = nil,
     owningSkillRole: String? = nil,
     registrySourcePath: String? = nil,
-    registryFingerprint: String? = nil
+    registryFingerprint: String? = nil,
+    registryDeclaredRelease: String? = nil,
+    ioContract: CapabilityIOContract? = nil
   ) {
     self.id = id
     self.label = label
@@ -193,10 +201,14 @@ struct CapabilityEntry: Identifiable, Hashable, Sendable {
     self.smokeTier = smokeTier
     self.shortDescription = shortDescription
     self.allowedEnvironmentKeys = allowedEnvironmentKeys
+    self.supportsBoundedFITSPreview = supportsBoundedFITSPreview
+    self.supportsFITSPixelLookup = supportsFITSPixelLookup
     self.owningSkillRoot = owningSkillRoot
     self.owningSkillRole = owningSkillRole
     self.registrySourcePath = registrySourcePath
     self.registryFingerprint = registryFingerprint
+    self.registryDeclaredRelease = registryDeclaredRelease
+    self.ioContract = ioContract
   }
 
   var isMaintainerOnly: Bool {

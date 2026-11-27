@@ -14,7 +14,7 @@ from pathlib import Path
 from _internal.datanalysis_bootstrap import ensure_datanalysis_runtime
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2] / "scientific-data-analysis"
 SCRIPTS = ROOT / "scripts"
 
 
@@ -352,6 +352,31 @@ def check_missing_apt_pref_blocks(tmp: Path, apt: Path) -> None:
     require(read_json(summary)["status"] == "blocked", "missing APT preferences should emit blocked JSON")
 
 
+def check_stale_apt_output_fails(tmp: Path, prefs: Path) -> None:
+    directory = tmp / "stale-apt"
+    directory.mkdir()
+    idle_backend = make_executable(directory / "idle_backend.py", "#!/usr/bin/env python3\nraise SystemExit(0)\n")
+    image, source_list = directory / "image.fits", directory / "sources.lst"
+    image.write_text("Synthetic input used by the stub.\n", encoding="utf-8")
+    source_list.write_text("10 20\n", encoding="ascii")
+    table = directory / "prior.tbl"
+    previous = b"Earlier APT result.\n"
+    table.write_bytes(previous)
+    summary, manifest = directory / "summary.json", directory / "manifest.json"
+    result = run([
+        sys.executable, str(SCRIPTS / "apt_workbench.py"), "run-batch",
+        "--apt-command", str(idle_backend), "--apt-preferences", str(prefs),
+        "--image", str(image), "--source-list", str(source_list), "--output-table", str(table),
+        "--summary-json", str(summary), "--manifest-json", str(manifest),
+    ])
+    payload = read_json(summary)
+    require(result["returncode"] == 1 and payload["app_status"] == "FAIL", "stale table should yield FAIL")
+    require(payload["results"]["output_table"]["updated"] is False, "stale output should be identified")
+    require(table.read_bytes() == previous, "earlier output must be preserved")
+    outputs = read_json(manifest)["outputs"]
+    require(all(Path(item["path"]).expanduser() != table for item in outputs), "stale table must be excluded from outputs")
+
+
 def check_local_validation_harness(tmp: Path, java: Path, stilts: Path, apt: Path, prefs: Path) -> None:
     summary = tmp / "local_validation.json"
     result = run(
@@ -396,6 +421,7 @@ def main() -> None:
             lambda: check_stilts_crossmatch_and_votlint(tmp, stilts),
             lambda: check_apt_prepare_run_parse(tmp, apt, prefs),
             lambda: check_missing_apt_pref_blocks(tmp, apt),
+            lambda: check_stale_apt_output_fails(tmp, prefs),
             lambda: check_local_validation_harness(tmp, java, stilts, apt, prefs),
         ]
         for check in checks:

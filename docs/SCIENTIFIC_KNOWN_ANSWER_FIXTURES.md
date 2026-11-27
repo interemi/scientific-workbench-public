@@ -3,9 +3,8 @@
 This page describes the small, synthetic astronomy cases checked by
 [`script/check_scientific_known_answers.py`](../script/check_scientific_known_answers.py).
 They test the bundled backend and its artifacts against values calculated
-independently of the backend. They are regression checks, not calibrated
-reference observations or evidence that a scientific result is correct for
-real data.
+independently of the backend. Use them as regression checks. Scientific
+validation of observed data requires separate evidence.
 
 ## Reproduce the checks
 
@@ -25,7 +24,33 @@ artifacts, and `verification.json`, including a source-commit identifier and
 whether the working tree was clean. A `PASS` from a dirty tree is local
 engineering evidence until the exact committed tree passes hosted CI.
 `script/run_portable_core.py` also runs these cases after its environment and
-portable smoke checks; GitHub Actions retains the compact verification JSON.
+portable smoke checks. GitHub Actions retains the compact verification JSON
+and the generated example report.
+
+## Rebuild and compare the example set
+
+The command above generates an `example-report/` directory, with a CSV
+comparison and two labeled figures. The verification JSON lists their
+relative paths, byte counts and SHA-256 values. The reported deviations
+must meet the stated tolerance for each metric. The figures preserve the
+PNG bytes emitted by the run, with origin labels in the filenames and
+captions. The complete input and output manifests are in the surrounding
+known-answer evidence directory.
+
+**Synthetic table with reference columns.** These cases use deterministic,
+project-authored inputs. **Reference** identifies fixture constants or
+independent calculations. **Observed** is reserved for measurements of real
+phenomena. This example set includes only synthetic data.
+
+| Synthetic case | Question and method | Reference and expected outputs |
+| --- | --- | --- |
+| FITS/WCS | Can the inspector preserve the image structure, finite pixel count and signed WCS axes? Inspect the 8 × 8 generated FITS with Astropy and the bundled tool. | 63 finite pixels, ICRS reference at (150°, −30°), signed axes of −1 and +1 arcsec/pixel. Summary, manifest and a display-only PNG. |
+| Sky crossmatch | Which synthetic catalog pairs are inside the 1 arcsec radius? Compare Astropy's result with a standard-library haversine calculation. | One pair, L1–R1, at approximately 0.36 arcsec, with tolerance `1e-6` arcsec. ECSV, summary and manifest. |
+| Photometric calibration | Can a weighted fit recover injected magnitude, airmass and color terms? Fit the three standards using their explicit magnitude uncertainties. | Coefficients of 1.2 mag, −0.2 mag per unit airmass and 0.2 mag per mag of color, with tolerance `1e-12` in each unit. Coefficient CSV, summary, manifest and a residual plot. The fit has zero residual degrees of freedom. |
+| Li I equivalent width | Does the backend integrate a synthetic absorption line over the intended wavelength interval? Compare with the trapezoid sum over the known samples. | 90 mÅ, with tolerance `1e-7` mÅ. Measurement CSV, summary, manifest and a figure showing the selected windows. |
+
+Use the [capability requirements](WORKFLOW_REQUIREMENTS.md) to review tool
+inputs, assumptions and limits before substituting a real dataset.
 
 ## FITS image and WCS
 
@@ -37,9 +62,61 @@ pixel unit, ICRS TAN WCS with degree axes, and a reference sky coordinate
 of `(150°, −30°)` at pixel `(4.5, 4.5)` in FITS convention. Its signed axes
 are −1 and +1 arcsec/pixel. Astropy reads the generated header and checks
 these known values; the bundled `inspect_fits` command must then report the
-same structure and produce a display-only WCS PNG plus a summary and manifest.
+same structure, signed increments and units and produce a display-only WCS PNG
+plus a summary and manifest. The verification checks the path, byte count and
+SHA-256 of every declared input and output against its retained file.
+The crop check compares preview pixel `(0, 0)` with full-image pixel `(2, 1)`
+in zero-based coordinates using the WCS applied to the rendered PNG.
 The input hash must remain unchanged. The PNG is a visual orientation aid,
 not a calibrated image or an astrometric accuracy measurement.
+
+A second FITS fixture contains a 1,030 × 1,028 scaled integer image and a
+binary table. The distributed image sample must preserve the physical value
+of 5.5 adu and count the sampled `BLANK` as nonfinite. The automatic quicklook
+must record the centered 1,024 × 1,024 region in zero-based coordinates. A
+table-only fixture must still expose its column and row counts, with the
+summary and provenance preserved when a PNG is unavailable. The checks
+verify the input and output hashes in both cases.
+
+The backend CLI requests this mode with `--preview <output.png>
+--preview-if-available`. A large image uses the centered region unless an
+explicit `--crop x0,y0,width,height` is supplied. The summary labels sampled
+statistics and records the preview HDU, region, plane indices, and axes.
+A display region does not change the statistics of the source HDU. Tiled
+images with a tile larger than the quicklook budget retain their metadata
+and report the sampling limit.
+
+In Scientific Workbench, **Results** opens the quicklook when a PNG was
+produced. Use **Inspect FITS summary** or select `summary.json` to switch
+among HDUs and read dimensions, selected header cards, the sampled
+nonfinite count, and WCS metadata. **Raw JSON** exposes the retained
+summary. The displayed angular scale is the projection-plane increment
+at the reference pixel. The app requests the bounded quicklook when the
+configured skill registry advertises it. Earlier registries keep the
+metadata-only route for ordinary inputs and the generated sample still
+requests its quicklook.
+
+The FITS inspector can render a new crop or look up a pixel in a selected
+image HDU when the configured registry advertises that operation. Enter X
+and Y as zero-based coordinates in the source image. A cube uses the first
+plane along its leading axes. A crop previews up to 1,024 pixels per side.
+Each action creates a separate run with its own provenance. Pixel lookup
+reports the recorded value and unit, plus world axes calculated using
+Astropy and the HDU WCS when available. A nonfinite value is flagged, and a
+data-quality mask is available through its own HDU. The synthetic check
+confirms that source pixel `(2, 1)` reports 10 adu and the same world
+coordinates with or without the display crop.
+
+On 2026-11-24, a local SwiftPM app walkthrough used a synthetic FITS with
+an empty primary HDU, the 8 × 8 image in `SCI`, and its nonfinite-pixel
+mask in `DQ`. Results showed the three HDUs, one nonfinite SCI pixel,
+`adu`, ICRS TAN axes, and a scale of 1 arcsec/pixel on each axis. A DQ
+lookup at `(1, 1)` returned `1 flag` with no WCS. A separate SCI crop at
+`(1, 1)` produced a 4 × 4 display-only quicklook with WCS. The SCI lookup
+at `(2, 1)` returned `10 adu` and ICRS coordinates of approximately
+`(150.000481129°, −30.000694444°)`. Manifest hashes matched the preserved
+input, summaries, and preview PNGs. The preview and inspector controls
+were checked at the minimum supported window width on the maintainer's Mac.
 
 ## Two-catalog sky crossmatch
 

@@ -12,9 +12,10 @@ import tempfile
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2] / "scientific-data-analysis"
 SCRIPTS = ROOT / "scripts"
-REFERENCES = ROOT / "references"
+DOCUMENTS = ROOT.parent / "scientific-data-documents"
+NOTEBOOK_REFERENCES = ROOT.parent / "scientific-data-notebooks" / ".cache" / "archived_references" / "references"
 
 
 def module_available(module: str) -> bool:
@@ -71,22 +72,27 @@ def load_json(path: Path) -> dict:
 
 
 def check_exact_visual_equivalent_references() -> None:
-    equivalent = (REFERENCES / "coursework-figure-equivalents.md").read_text(encoding="utf-8")
-    presentation = (REFERENCES / "scientific-presentation-handoff.md").read_text(encoding="utf-8")
-    comparison = (REFERENCES / "coursework-notebook-comparison.md").read_text(encoding="utf-8")
-    fidelity = (REFERENCES / "coursework-notebook-fidelity.md").read_text(encoding="utf-8")
+    reference = "coursework-figure-equivalents.md"
+    router = (ROOT / "references" / reference).read_text(encoding="utf-8")
+    if "scientific-data-documents" not in router or reference not in router:
+        raise AssertionError("The mother reference did not identify the owning figure guide.")
+    equivalent = (DOCUMENTS / "references" / reference).read_text(encoding="utf-8")
+    presentation = (DOCUMENTS / ".cache" / "archived_references" / "references"
+                    / "scientific-presentation-handoff.md").read_text(encoding="utf-8")
+    comparison = (NOTEBOOK_REFERENCES / "coursework-notebook-comparison.md").read_text(encoding="utf-8")
+    fidelity = (NOTEBOOK_REFERENCES / "coursework-notebook-fidelity.md").read_text(encoding="utf-8")
 
     required_equivalent = [
-        "exact visual equivalent",
-        "comparar_fits",
-        "detected_sources",
-        "sdss_calibrators",
-        "final_rgb",
-        "diagnostic_crop",
-        "viridis",
+        "source artifact",
+        "notebook cell or function",
+        "coordinate frame and units",
+        "intensity scale",
+        "crop",
+        "overlays",
+        "colour",
         "RGB",
-        "04_A",
-        "If The User Corrects The Figure",
+        "calibrated source",
+        "user corrects the choice",
     ]
     missing = [term for term in required_equivalent if term not in equivalent]
     if missing:

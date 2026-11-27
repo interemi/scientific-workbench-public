@@ -15,6 +15,14 @@ enum FirstRunExampleError: LocalizedError {
 struct FirstRunExampleService {
   var fileManager = FileManager.default
 
+  static func portableFixture(sha256 digest: String) -> (ext: String, data: Data)? {
+    let files = [
+      ("csv", Data(tableCSV.utf8)), ("csv", Data(spectrumCSV.utf8)),
+      ("fits", makeFITS()), ("pdf", makePDF()),
+    ]
+    return files.first { sha256($0.1) == digest }
+  }
+
   static func isGeneratedFITS(at path: String) -> Bool {
     guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
           attributes[.type] as? FileAttributeType == .typeRegular,

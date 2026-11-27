@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2] / "scientific-data-analysis"
 SCRIPTS = ROOT / "scripts"
 
 
@@ -197,6 +197,7 @@ def check_notebook_workbench_input_provider(tmp: Path) -> None:
             str(notebook),
             "--output-dir",
             str(output_dir),
+            "--trust-notebook-code",
             "--input-value",
             "42",
             "--summary-json",
@@ -210,8 +211,10 @@ def check_notebook_workbench_input_provider(tmp: Path) -> None:
     if "_codex_input_provider" in saved_source:
         raise AssertionError("Temporary input provider leaked into the saved notebook copy.")
     run_payload = load_json(summary)["results"]["run"]
-    if run_payload.get("input_values_used") != [{"index": 1, "value": "42"}]:
-        raise AssertionError(f"Input values were not documented: {run_payload.get('input_values_used')}")
+    if run_payload.get("input_values_used") != [{"index": 1, "supplied": True}]:
+        raise AssertionError("The audit must record that a value was supplied without exposing it.")
+    if "seen 42" not in json.dumps(saved["cells"][0]["outputs"]):
+        raise AssertionError("The copied notebook did not receive the synthetic input value.")
     if run_payload.get("ephemeral_input_provider_cells_removed_before_save") != 2:
         raise AssertionError(f"Provider cells were not removed: {run_payload}")
 

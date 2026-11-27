@@ -16,11 +16,13 @@ import zipfile
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2] / "scientific-data-analysis"
 SCRIPTS = ROOT / "scripts"
 
 
-def run_cmd(args: list[str], *, tmp: Path) -> subprocess.CompletedProcess:
+def run_cmd(
+    args: list[str], *, tmp: Path, expected_codes: tuple[int, ...] = (0,),
+) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["MPLCONFIGDIR"] = str(tmp / "mplconfig")
@@ -32,7 +34,7 @@ def run_cmd(args: list[str], *, tmp: Path) -> subprocess.CompletedProcess:
         stderr=subprocess.PIPE,
         env=env,
     )
-    if completed.returncode != 0:
+    if completed.returncode not in expected_codes:
         raise AssertionError(
             f"Command failed: {' '.join(args)}\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
         )
@@ -113,7 +115,10 @@ def check_contracts(tmp: Path) -> None:
         ],
         tmp=tmp,
     )
-    assert_envelope(aperture_json, "aperture_photometry")
+    aperture = assert_envelope(aperture_json, "aperture_photometry")
+    measured, = aperture["results"]["apertures"]
+    if (measured["x_input"], measured["y_input"]) != (40.0, 39.0):
+        raise AssertionError("Automatic aperture seed does not match the synthetic peak.")
 
     spectrum_path = tmp / "spectrum.dat"
     create_spectrum(spectrum_path)
@@ -181,16 +186,21 @@ def check_contracts(tmp: Path) -> None:
             str(iwork_path),
             "--output-dir",
             str(tmp / "iwork"),
-            "--output-json",
-            str(iwork_json),
         ],
         tmp=tmp,
     )
     assert_envelope(iwork_json, "iwork_workbench")
 
     tea_json = tmp / "teareduce_health.json"
-    run_cmd([sys.executable, str(SCRIPTS / "teareduce_healthcheck.py"), "--summary-json", str(tea_json)], tmp=tmp)
-    assert_envelope(tea_json, "teareduce_healthcheck")
+    tea_run = run_cmd(
+        [sys.executable, str(SCRIPTS / "teareduce_healthcheck.py"), "--summary-json", str(tea_json)],
+        tmp=tmp, expected_codes=(0, 1),
+    )
+    tea = assert_envelope(tea_json, "teareduce_healthcheck")
+    discovery = tea["results"]["teareduce"]
+    expected = (0, "WARNING") if discovery["installed"] else (1, "BLOCKED_CONTROLADO")
+    if (tea_run.returncode, tea["app_status"]) != expected or discovery["import_verified"] is not False:
+        raise AssertionError("TEAREDUCE discovery must report its metadata-only result.")
 
 
 def main() -> None:

@@ -164,7 +164,7 @@ extension ScientificWorkbenchTests {
     #expect(store.agentPlanStepExecutions.count == 1)
     #expect(store.agentPlanStepExecutions[duplicateStepID]?.status == .failed)
     #expect(store.agentStatusMessage == "Restore this workflow safely.")
-    #expect(store.persistenceRecoveryNotice?.contains("migrated schema 1 to 2") == true)
+    #expect(store.persistenceRecoveryNotice?.contains("migrated schema 1 to 3") == true)
     #expect(store.persistenceRecoveryNotice?.contains("discarded 1 invalid record") == true)
     #expect(store.persistenceRecoveryNotice?.contains("duplicate identifier") == true)
 
@@ -175,6 +175,40 @@ extension ScientificWorkbenchTests {
     )
     #expect(activeObject["version"] as? Int == AgentStateStore.currentVersion)
     #expect((activeObject["stepExecutions"] as? [Any])?.count == 1)
+    #expect(activeObject["planningEvidence"] == nil)
+  }
+
+  @Test
+  @MainActor
+  func schemaTwoWorkflowMigrationArchivesExactBytesAndKeepsUnknownModel() throws {
+    let root = try makeScenarioFixture(name: "workflow-schema-two-migration", files: [:])
+    defer { try? FileManager.default.removeItem(at: root) }
+    let domain = "Scientific-Workbench-Workflow-Schema-\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: domain))
+    defer { defaults.removePersistentDomain(forName: domain) }
+    defaults.set(root.path, forKey: "outputRootPath")
+    let stateURL = root.appendingPathComponent(".scientificworkbench/agent_state.json")
+    try FileManager.default.createDirectory(at: stateURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let step = AgentPlanStep(capabilityID: "profile_table", summary: "Profile", rawArguments: "",
+                             usesInputs: true, usesPreviousOutput: false)
+    let plan = AgentPlan(title: "Earlier workflow", rationale: "", steps: [step], source: .openAI)
+    let original = try JSONSerialization.data(
+      withJSONObject: [
+        "version": 2, "agentPlan": try persistenceJSONObject(plan), "stepExecutions": [],
+        "agentStatusMessage": "Earlier workflow",
+      ],
+      options: [.prettyPrinted, .sortedKeys]
+    )
+    try original.write(to: stateURL)
+
+    let store = WorkbenchStore(loadSecrets: false, defaults: defaults)
+    #expect(store.agentPlan?.id == plan.id)
+    #expect(store.persistenceRecoveryNotice?.contains("migrated schema 2 to 3") == true)
+    let archive = try #require(store.lastPersistenceRecoveryArchivePath)
+    #expect(try Data(contentsOf: URL(fileURLWithPath: archive)) == original)
+    let migrated = try #require(try AgentStateStore().load(from: stateURL))
+    #expect(migrated.agentPlan?.id == plan.id)
+    #expect(migrated.planningEvidence == nil)
   }
 
   @Test

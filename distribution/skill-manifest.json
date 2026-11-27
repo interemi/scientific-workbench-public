@@ -1487,8 +1487,8 @@
     "scientific-data-analysis/fixtures/_internal/fixture_script_dispatch.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "3921c545af00ac88dda5cf573ea8dadf896fa0279c5fe4b9647f48aba94f741e",
-      "size": 1646
+      "sha256": "2d2e5d815a1d61341fee3900fd59a3ea0a33b58bdc29e385399ae3417e5bdf6a",
+      "size": 5269
     },
     "scientific-data-analysis/fixtures/_internal/path_safety.py": {
       "executable": false,
@@ -1505,14 +1505,14 @@
     "scientific-data-analysis/fixtures/_internal/public_contract.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "4bc1dc21d8f1604311d1db058113783afe75093a4e8ffe3578590cdff9c7512e",
-      "size": 6790
+      "sha256": "98da132ab95fc33fa1c60be6e9b5e22d4372288ece1143125a6e7426ae164c1a",
+      "size": 6845
     },
     "scientific-data-analysis/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f80060424b1710062072e5377004d3266fb9273fa8a835b3d83d055550bacc81",
-      "size": 9241
+      "sha256": "3f60f41224621f4b9f5849a8060aa3c3c2aa731e99c27fbe51cd1391776d4338",
+      "size": 10635
     },
     "scientific-data-analysis/fixtures/_internal/run_bundle.py": {
       "executable": false,
@@ -2369,8 +2369,8 @@
     "scientific-data-analysis/fixtures/catalog_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "0d52142617abd3ad2c0bb94f5f05b8caa7179f9b3f95c15798e3a42a103bff8a",
-      "size": 15904
+      "sha256": "aa8927a938e36bad11a26f32c54e25ae4b749e8c7dfb7e27a63e8b285f0a102f",
+      "size": 19495
     },
     "scientific-data-analysis/fixtures/companion_route_check.py": {
       "executable": false,
@@ -4527,8 +4527,8 @@
     "scientific-data-astro/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "5321adbfc162143782237e9b6d9e44f98efda9abf3fa235b864331cffd4c1e87",
-      "size": 26356
+      "sha256": "37965a12d843ec22a43ef450d289b17219d815b3646473232786af25e7eaba8f",
+      "size": 26391
     },
     "scientific-data-astro/.cache/archived_references/references/astro-transferable-patterns.md": {
       "executable": false,
@@ -4755,8 +4755,8 @@
     "scientific-data-astro/fixtures/_internal/fixture_script_dispatch.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "3921c545af00ac88dda5cf573ea8dadf896fa0279c5fe4b9647f48aba94f741e",
-      "size": 1646
+      "sha256": "2d2e5d815a1d61341fee3900fd59a3ea0a33b58bdc29e385399ae3417e5bdf6a",
+      "size": 5269
     },
     "scientific-data-astro/fixtures/_internal/iwork_iwa.py": {
       "executable": false,
@@ -4791,14 +4791,14 @@
     "scientific-data-astro/fixtures/_internal/public_contract.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "4bc1dc21d8f1604311d1db058113783afe75093a4e8ffe3578590cdff9c7512e",
-      "size": 6790
+      "sha256": "98da132ab95fc33fa1c60be6e9b5e22d4372288ece1143125a6e7426ae164c1a",
+      "size": 6845
     },
     "scientific-data-astro/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f80060424b1710062072e5377004d3266fb9273fa8a835b3d83d055550bacc81",
-      "size": 9241
+      "sha256": "3f60f41224621f4b9f5849a8060aa3c3c2aa731e99c27fbe51cd1391776d4338",
+      "size": 10635
     },
     "scientific-data-astro/fixtures/_internal/radial_velocity_systemic.py": {
       "executable": false,
@@ -4827,8 +4827,8 @@
     "scientific-data-astro/fixtures/aperture_photometry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "17f78b43780cf96e613c66173cb8050476b71bf36649b1e5093b59efadb63709",
-      "size": 11928
+      "sha256": "e7a0e26298bbc91622157dccafa9b5e53deba6447ba6439874269522e798d75f",
+      "size": 17748
     },
     "scientific-data-astro/fixtures/app_run_bundle.py": {
       "executable": false,
@@ -4839,8 +4839,8 @@
     "scientific-data-astro/fixtures/apt_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "cb8e6c67e24ff706e74f33e25d7bf4f7ce1c8caa6af0e646a8b3e2d0cc3a1d45",
-      "size": 30215
+      "sha256": "1cd0ec86590227568d9d85516a64e8de33d1deed9de06de3f3786a56e5fbd241",
+      "size": 30710
     },
     "scientific-data-astro/fixtures/ascii_spectrum_workbench.py": {
       "executable": false,
@@ -4863,8 +4863,8 @@
     "scientific-data-astro/fixtures/astrometry_net_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "74ce7a8a0c9d74ccd20508d236bcbd038bfd4e4ce2b1020a25c5245969bf48c3",
-      "size": 140495
+      "sha256": "870e8870b2896878bcb9c324c424fde05b22a68467fefef03bd005e04680c87e",
+      "size": 146086
     },
     "scientific-data-astro/fixtures/datanalysis_env.py": {
       "executable": false,
@@ -4905,14 +4905,14 @@
     "scientific-data-astro/fixtures/fxcor_iraf_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "9ebbb66934c9f23f6e36b63c35a58ab536b37dd8e52bb65c6d072b62a258de05",
-      "size": 35650
+      "sha256": "fbf5c62ea054b88c12d460e5d4726c6a4ae93692dd55ac59b5ac0665164f0333",
+      "size": 36782
     },
     "scientific-data-astro/fixtures/inspect_fits.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "c145889e0dcf3b7410e1d7bfe7dada7c2b7e9bdfba6ab7c37aa39be8770ba23c",
-      "size": 24812
+      "sha256": "45793364d3fc3ec81316a5937aefe8ca2c3ccd4c6b15c74d85cf22d928e3b87f",
+      "size": 34008
     },
     "scientific-data-astro/fixtures/istarmod_workbench.py": {
       "executable": false,
@@ -4935,8 +4935,8 @@
     "scientific-data-astro/fixtures/legacy_rv_coursework_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "31b2642d4941339798736e8d10915a12f199e1089f6fe1f4e6236a5bd04c6ec0",
-      "size": 32594
+      "sha256": "f777efaad063dc8f561f8fed8049fc56434b779271479e72b8917020ff0b343f",
+      "size": 39245
     },
     "scientific-data-astro/fixtures/legacy_spectroscopy_envcheck.py": {
       "executable": false,
@@ -4947,14 +4947,14 @@
     "scientific-data-astro/fixtures/legacy_spectroscopy_report_builder.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "46363d3d350cf9aff1b52faee01f9cf0d561470fa7e48b69720e18050506efb8",
-      "size": 33719
+      "sha256": "adc9529424e8903a46cf81d01c0d9f8423545474dc218d50c2dd9f4453532c8b",
+      "size": 36271
     },
     "scientific-data-astro/fixtures/li6708_equivalent_width_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "1f42d5bb854a9fc409f7aaa0a77503b7a2929d01c7bd41b1cc91a9f5bd105d7d",
-      "size": 22138
+      "sha256": "b744423279caf1c82ecdd30aa669b663feea90fb4657929a64866d25b9c031e5",
+      "size": 28123
     },
     "scientific-data-astro/fixtures/notebook_workbench.py": {
       "executable": false,
@@ -4965,14 +4965,14 @@
     "scientific-data-astro/fixtures/photometric_solution.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "85300417efb0272b405f126668595c9fae95138e26577f1d49007587667ce8a9",
-      "size": 20030
+      "sha256": "88d93905b9643801a71db20d6f8a3b668f34e85bad814561a8620ca20d58cd16",
+      "size": 23762
     },
     "scientific-data-astro/fixtures/photometry_noise_budget.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "2d1fbbaec95921036f45eccfc90e480f134fcc90c9cde2d8b8fdad2e99996fad",
-      "size": 13157
+      "sha256": "234e25d322a8a6f483493ebbe1cf79951ecb905275387444fbea746eb9d394bd",
+      "size": 15939
     },
     "scientific-data-astro/fixtures/radial_velocity_workbench.py": {
       "executable": false,
@@ -4995,8 +4995,8 @@
     "scientific-data-astro/fixtures/sb2_double_gaussian_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "11eedac0f711c5cc718a6e13c2c7c841895022e899d5ec47528cfb49828b6021",
-      "size": 24097
+      "sha256": "3ba5a24d64958125730dc7fe7c0e899365e63e3fa920e853376e4247c7b29388",
+      "size": 28502
     },
     "scientific-data-astro/fixtures/spectra_ascii_coursework_workbench.py": {
       "executable": false,
@@ -5007,20 +5007,20 @@
     "scientific-data-astro/fixtures/spectral_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "76b79056938570ed55c0101f76ba41a4c5cab9aa67c743cfd5e39fe0bdbb04e9",
-      "size": 41417
+      "sha256": "c5406739fd43ba702cad0de6b46f0007fdb5409a202e88e47d09499dcbcd93eb",
+      "size": 49256
     },
     "scientific-data-astro/fixtures/spectroscopy_pipeline_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "82262ae0637a30b5bc38228caec1d23221e4d4c21460889be9db00c7be16e3d2",
-      "size": 17320
+      "sha256": "aaa31a26e197863838bd6acffddb3a81236ff1b8b50b9ceb92b3f39989f33b3f",
+      "size": 25328
     },
     "scientific-data-astro/fixtures/stilts_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "8c27844b531c7f119aa70483b96068c7ae29f85253f981e062ca475d61d63e57",
-      "size": 19984
+      "sha256": "0a624d72a58ddcd836603f2edbed722c99f955084cb33d6b6634ae583e8396ff",
+      "size": 20599
     },
     "scientific-data-astro/fixtures/teareduce_bridge.py": {
       "executable": false,
@@ -5667,8 +5667,8 @@
     "scientific-data-documents/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "5321adbfc162143782237e9b6d9e44f98efda9abf3fa235b864331cffd4c1e87",
-      "size": 26356
+      "sha256": "37965a12d843ec22a43ef450d289b17219d815b3646473232786af25e7eaba8f",
+      "size": 26391
     },
     "scientific-data-documents/.cache/archived_references/references/academic-reporting.md": {
       "executable": false,
@@ -5763,8 +5763,8 @@
     "scientific-data-documents/fixtures/_internal/fixture_script_dispatch.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "3921c545af00ac88dda5cf573ea8dadf896fa0279c5fe4b9647f48aba94f741e",
-      "size": 1646
+      "sha256": "2d2e5d815a1d61341fee3900fd59a3ea0a33b58bdc29e385399ae3417e5bdf6a",
+      "size": 5269
     },
     "scientific-data-documents/fixtures/_internal/iwork_iwa.py": {
       "executable": false,
@@ -5805,14 +5805,14 @@
     "scientific-data-documents/fixtures/_internal/public_contract.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "4bc1dc21d8f1604311d1db058113783afe75093a4e8ffe3578590cdff9c7512e",
-      "size": 6790
+      "sha256": "98da132ab95fc33fa1c60be6e9b5e22d4372288ece1143125a6e7426ae164c1a",
+      "size": 6845
     },
     "scientific-data-documents/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f80060424b1710062072e5377004d3266fb9273fa8a835b3d83d055550bacc81",
-      "size": 9241
+      "sha256": "3f60f41224621f4b9f5849a8060aa3c3c2aa731e99c27fbe51cd1391776d4338",
+      "size": 10635
     },
     "scientific-data-documents/fixtures/_internal/radial_velocity_systemic.py": {
       "executable": false,
@@ -5883,8 +5883,8 @@
     "scientific-data-documents/fixtures/latex_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "eeb1ca46b88f4648dd1a12f439669e7dbaf9bb314c991b03b448d5e3c83e806e",
-      "size": 52163
+      "sha256": "f0677f19a3541d4ee6f8dc533311d4509925d94af4c85616c8b319b263c6f809",
+      "size": 53919
     },
     "scientific-data-documents/fixtures/office_roundtrip.py": {
       "executable": false,
@@ -5933,6 +5933,12 @@
       "kind": "file",
       "sha256": "8f641f8984bfc8d59d141522a3b882b4ad3112a3fe814ffd6323572ae84dcbea",
       "size": 131
+    },
+    "scientific-data-documents/references/coursework-figure-equivalents.md": {
+      "executable": false,
+      "kind": "file",
+      "sha256": "9f545ca6a91a267898a6c0cd28c67e6913e1d22faf06c3153058949aff0fbf25",
+      "size": 975
     },
     "scientific-data-documents/references/formats-and-handoffs.md": {
       "executable": false,
@@ -7196,11 +7202,17 @@
       "sha256": "cdecc0ba6358f7bc10203a3d1dbfb086b30d1cd6d47e24b7c887b50c3168684f",
       "size": 9870
     },
+    "scientific-data-maintainer/.cache/archived_references/capability_io_contracts.json": {
+      "executable": false,
+      "kind": "file",
+      "sha256": "50b7e6324ac7f700172c509953770b55c7da3c23f88cb922679c5daa6f818527",
+      "size": 120908
+    },
     "scientific-data-maintainer/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "5321adbfc162143782237e9b6d9e44f98efda9abf3fa235b864331cffd4c1e87",
-      "size": 26356
+      "sha256": "37965a12d843ec22a43ef450d289b17219d815b3646473232786af25e7eaba8f",
+      "size": 26391
     },
     "scientific-data-maintainer/.cache/archived_references/real-world-capability-classification-v1-7.md": {
       "executable": false,
@@ -7385,8 +7397,8 @@
     "scientific-data-maintainer/fixtures/_internal/fixture_script_dispatch.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "3921c545af00ac88dda5cf573ea8dadf896fa0279c5fe4b9647f48aba94f741e",
-      "size": 1646
+      "sha256": "2d2e5d815a1d61341fee3900fd59a3ea0a33b58bdc29e385399ae3417e5bdf6a",
+      "size": 5269
     },
     "scientific-data-maintainer/fixtures/_internal/path_safety.py": {
       "executable": false,
@@ -7403,14 +7415,14 @@
     "scientific-data-maintainer/fixtures/_internal/public_contract.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "4bc1dc21d8f1604311d1db058113783afe75093a4e8ffe3578590cdff9c7512e",
-      "size": 6790
+      "sha256": "98da132ab95fc33fa1c60be6e9b5e22d4372288ece1143125a6e7426ae164c1a",
+      "size": 6845
     },
     "scientific-data-maintainer/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f80060424b1710062072e5377004d3266fb9273fa8a835b3d83d055550bacc81",
-      "size": 9241
+      "sha256": "3f60f41224621f4b9f5849a8060aa3c3c2aa731e99c27fbe51cd1391776d4338",
+      "size": 10635
     },
     "scientific-data-maintainer/fixtures/_internal/run_bundle.py": {
       "executable": false,
@@ -7517,74 +7529,74 @@
     "scientific-data-maintainer/fixtures/audit_coursework_handoff_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "529351bf50ed174bc604912958152f96dce8c90ddcfe97bccf52b0dbb6c80901",
-      "size": 8066
+      "sha256": "8bd50c8f1db96f4db732a6fac43af142d5fcfaaf2cf628742aed2ea122236023",
+      "size": 8092
     },
     "scientific-data-maintainer/fixtures/audit_coursework_notebook_fidelity_regression.py": {
       "executable": true,
       "kind": "file",
-      "sha256": "ac45956c1a51788e11060cc5d2aeb6dcd49bc65a35bd7421aa682da15b776954",
-      "size": 7723
+      "sha256": "862b54e122e898d65fedad5e4f595095dc9e89862c6d91215b2f538c67693aff",
+      "size": 7945
     },
     "scientific-data-maintainer/fixtures/audit_document_reporting_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "42edd237946faf43bb5f2264458ab73bfb73b10e69f59b52c8e29c88a690c344",
-      "size": 6437
+      "sha256": "4f9721bcd50fb2f1ac10db72324838c8ced25ed2cae10fda31a762b81df95137",
+      "size": 6561
     },
     "scientific-data-maintainer/fixtures/audit_external_astro_tools_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f4c6eca3647d6de77059bf7bea76d5f3336d9ec5b008283e824d08f6042641b5",
-      "size": 12661
+      "sha256": "47d18517ad9810b0069120b63ce5e79ba2f29cdb8d27de6759a7de5bd09d1366",
+      "size": 14227
     },
     "scientific-data-maintainer/fixtures/audit_fits_rgb_batch_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "acd03efe351e88aa3c59566159f477c754598b599670560aea34c336a3907145",
-      "size": 13676
+      "sha256": "0c5ec8a8e28a8cccbffeedb63dde5ece6cbfd84bc933f03ca423c28f3cbdceb1",
+      "size": 14171
     },
     "scientific-data-maintainer/fixtures/audit_physical_qa_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "9c3688b265dd79e95db9657f3ac586f5a2f32742e2ec66f95d4d0cedc42eeffc",
-      "size": 4692
+      "sha256": "31e35a53148f6eaaeb028c2f26cb80aa972fbbd359d967a36e9fc012b388f713",
+      "size": 4718
     },
     "scientific-data-maintainer/fixtures/audit_practice4_visual_handoff_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "5491ff23af7ab78fbd105931ec7c85cae0bcfebaec02488e28b8e5ebef560cec",
-      "size": 7232
+      "sha256": "6238a27f1ddea6f3926e243b1e525da9855dd2b259750228efeaac5398c41a9b",
+      "size": 7773
     },
     "scientific-data-maintainer/fixtures/audit_step1_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "d76ca986684fbbe3fce05d7349b5ba52076cc7826133ffbc60c1b3b60885aba2",
-      "size": 8332
+      "sha256": "f76ae731cb728a7122d49801329ebad0dc422b4a2a756ebc6c196a8318369a43",
+      "size": 8358
     },
     "scientific-data-maintainer/fixtures/audit_step2_contract_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "599a664fe9c5a65e81f883aaee5a6db959855ab6bbf6ca85aad34f39471b7e5e",
-      "size": 6544
+      "sha256": "afdf6225a25025e07e1f71faf89a18c0271f8ced91fd715dfb6ee4ec3ec1b3d4",
+      "size": 7182
     },
     "scientific-data-maintainer/fixtures/audit_v1_2_release_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "a0ac1bc73ea25d87832f8c1e194e765b60a3829815852cb0b7e62fbacc18fe9a",
-      "size": 2391
+      "sha256": "f5b12d437f1695a7cbcdeb7f5935cf13e24be1b8e9fb0772517b5c94f82bf782",
+      "size": 2656
     },
     "scientific-data-maintainer/fixtures/audit_v1_3_release_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f26eea607f0a2d3994f11b554d035779a686797a2997fb6281ec610b71b06922",
-      "size": 7140
+      "sha256": "f19f29fa573c309a77500cd4af8d4f942a778ce535f1fae87e1c862e456fd36a",
+      "size": 7358
     },
     "scientific-data-maintainer/fixtures/audit_v1_4_companion_routing_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "371395a72f8c7a43bfd7abe2f3c97259bceb7ab54c37a92efb460ae424db40dc",
-      "size": 4920
+      "sha256": "c41e20679a377c2bcfdfb280c2cd97b201df9bf9fe36da5bf37153ac16809300",
+      "size": 5118
     },
     "scientific-data-maintainer/fixtures/audit_v1_5_release_regression.py": {
       "executable": false,
@@ -7709,8 +7721,8 @@
     "scientific-data-maintainer/fixtures/audit_v1_6_fxcor_run_auto_regression.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "916261b8747bf0a6a50f830c6ea68c2e2eaa9b708f2ccfb65e8845b71326c82f",
-      "size": 9615
+      "sha256": "bbfaecbb9ae36232d8ae24a0ccf3fc79b358feb4e20e17ddc255353b19eb031a",
+      "size": 11433
     },
     "scientific-data-maintainer/fixtures/audit_v1_6_inspect_data_container_regression.py": {
       "executable": false,
@@ -8333,8 +8345,8 @@
     "scientific-data-maintainer/fixtures/capability_probe_matrix.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "ae2b9348c2318ae7b075e1757a26bf8245cb706c636c5464d4999628f1c04c6c",
-      "size": 29298
+      "sha256": "6c3d4ea768fb3d42f6854e5851b1153f014c48dd993e477703dfd4068919840d",
+      "size": 30130
     },
     "scientific-data-maintainer/fixtures/coursework_requirements_gate.py": {
       "executable": true,
@@ -8381,8 +8393,8 @@
     "scientific-data-maintainer/fixtures/validate_skill_samples.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "4ea4c33b965f094ec9a71b4a7e1c560e643096354e659b9411ad11beea07d87f",
-      "size": 68809
+      "sha256": "2477feb0e872f807992e04db5e1d82a7d725bb8a98f582ccdd33534825badc34",
+      "size": 68854
     },
     "scientific-data-maintainer/public_surface_registry.yaml": {
       "executable": false,
@@ -10053,8 +10065,8 @@
     "scientific-data-notebooks/.cache/archived_references/public_surface_registry.yaml": {
       "executable": false,
       "kind": "file",
-      "sha256": "5321adbfc162143782237e9b6d9e44f98efda9abf3fa235b864331cffd4c1e87",
-      "size": 26356
+      "sha256": "37965a12d843ec22a43ef450d289b17219d815b3646473232786af25e7eaba8f",
+      "size": 26391
     },
     "scientific-data-notebooks/.cache/archived_references/references/coursework-notebook-comparison.md": {
       "executable": false,
@@ -10173,8 +10185,8 @@
     "scientific-data-notebooks/fixtures/_internal/fixture_script_dispatch.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "3921c545af00ac88dda5cf573ea8dadf896fa0279c5fe4b9647f48aba94f741e",
-      "size": 1646
+      "sha256": "2d2e5d815a1d61341fee3900fd59a3ea0a33b58bdc29e385399ae3417e5bdf6a",
+      "size": 5269
     },
     "scientific-data-notebooks/fixtures/_internal/iwork_iwa.py": {
       "executable": false,
@@ -10209,14 +10221,14 @@
     "scientific-data-notebooks/fixtures/_internal/public_contract.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "4bc1dc21d8f1604311d1db058113783afe75093a4e8ffe3578590cdff9c7512e",
-      "size": 6790
+      "sha256": "98da132ab95fc33fa1c60be6e9b5e22d4372288ece1143125a6e7426ae164c1a",
+      "size": 6845
     },
     "scientific-data-notebooks/fixtures/_internal/public_surface_registry.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "f80060424b1710062072e5377004d3266fb9273fa8a835b3d83d055550bacc81",
-      "size": 9241
+      "sha256": "3f60f41224621f4b9f5849a8060aa3c3c2aa731e99c27fbe51cd1391776d4338",
+      "size": 10635
     },
     "scientific-data-notebooks/fixtures/_internal/radial_velocity_systemic.py": {
       "executable": false,
@@ -10317,8 +10329,8 @@
     "scientific-data-notebooks/fixtures/timeseries_forecasting_workbench.py": {
       "executable": false,
       "kind": "file",
-      "sha256": "57fd61d711547d27df704ca9f2c0d9025979f3bf95ffd9781aa807ce1663379b",
-      "size": 42196
+      "sha256": "682750ef151186020f539a17652c7467d752db0f5b5aef1b1c66c7030d5aea51",
+      "size": 42336
     },
     "scientific-data-notebooks/public_surface_registry.yaml": {
       "executable": false,

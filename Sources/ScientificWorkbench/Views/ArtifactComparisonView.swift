@@ -68,10 +68,10 @@ struct ArtifactComparisonSheet: View {
         }
 
         HStack(alignment: .top, spacing: 10) {
-          ArtifactPreview(store: store, job: source.job, artifact: source.artifact)
+          ArtifactPreview(store: store, job: source.job, artifact: source.artifact, allowsMeasurementSynthesis: false)
             .frame(minWidth: 430, maxWidth: .infinity)
           Divider()
-          ArtifactPreview(store: store, job: comparisonJob, artifact: comparisonArtifact)
+          ArtifactPreview(store: store, job: comparisonJob, artifact: comparisonArtifact, allowsMeasurementSynthesis: false)
             .frame(minWidth: 430, maxWidth: .infinity)
         }
       } else {
@@ -135,11 +135,11 @@ struct ArtifactMetadataView: View {
         Text("Manifest size: \(ByteCountFormatter.string(fromByteCount: recordedByteCount, countStyle: .file))")
       }
       if let hash = inspection.recordedSHA256 {
-        Text("Recorded SHA-256: \(hash)")
+        Text("Tool manifest SHA-256: \(hash)")
           .font(.system(.caption2, design: .monospaced))
           .textSelection(.enabled)
       } else {
-        Text("Recorded SHA-256: not available")
+        Text("Tool manifest SHA-256: not available")
       }
       if let current = inspection.currentByteCount,
          let recorded = inspection.recordedByteCount,

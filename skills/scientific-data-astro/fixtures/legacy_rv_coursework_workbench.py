@@ -25,6 +25,37 @@ from _internal.runtime_common import clean_known_stderr, configure_runtime
 
 
 TOOL_NAME = "legacy_rv_coursework_workbench.analyze"
+MEASUREMENT_METHOD = "Heliocentric velocities from fxcor and rotation estimates from CCF widths"
+RV_ASSUMPTIONS = [
+    "Order velocities use the template velocity and heliocentric corrections for the object and template. "
+    "The corrections use the recorded UTC observation start and add half the exposure time when available.",
+    "The inverse-variance mean uses the reported fxcor velocity errors as weights. Its formal uncertainty "
+    "treats orders as independent and excludes template, correction, and calibration systematics.",
+    "Order-to-order scatter is the sample standard deviation of the selected heliocentric velocities.",
+    "Selection uses the listed Tonry-Davis R and velocity-error limits. For three or more eligible orders, "
+    "it also clips relative velocities around their median using a scaled MAD and a 12 km/s minimum tolerance.",
+]
+ROTATION_ASSUMPTIONS = [
+    "Rotation is a provisional estimate from the CCF full width at half maximum in pixels. "
+    "The supplied calibration is evaluated with shape-preserving cubic (PCHIP) interpolation inside its range.",
+    "The interpolation supplies no rotation uncertainty. Review the correlation profile before interpreting the value.",
+]
+QUALITY_MESSAGES = {
+    "sb2_manual_ccf_review_required": "SB2 requires manual CCF peak review before a velocity can be adopted.",
+    "no_usable_orders": "No order passed selection. Heliocentric RV is unavailable.",
+    "invalid_order_errors": "Orders with missing or invalid fxcor velocity errors were excluded.",
+    "few_orders_selected": "Fewer than five orders were selected.",
+    "high_order_rejection": "At least 40% of otherwise usable orders were rejected.",
+    "large_order_scatter": "The selected orders have a sample scatter of at least 5 km/s.",
+    "first_pass_fwhm_proxy": "Rotation is a provisional estimate from CCF width.",
+    "manual_ccf_profile_review_required": "Review the CCF profile before interpreting the rotation estimate.",
+    "missing_fwhm": "A finite, positive CCF width is required for a rotation estimate.",
+    "calibration_range_warning": "CCF width is outside the calibration range. Rotation is unavailable.",
+    "invalid_rotation_estimate": "The calibration did not yield a finite, non-negative rotation estimate.",
+    "low_tdr": "Tonry-Davis R is missing or below eight.",
+    "compare_with_literature_or_istarmod": "Compare against external or independent rotation estimates.",
+    "missing_rotation_calibration": "Rotation is unavailable without the FWHM calibration table.",
+}
 
 
 class InputValidationError(Exception):
@@ -98,6 +129,9 @@ def blocked_payload(args, issues: list[str]) -> dict:
             "input_count": len(args.inputs or []),
             "fits_root": args.fits_root,
             "calibration_csv": args.calibration_csv,
+            "measurement_summary": {
+                "method": MEASUREMENT_METHOD, "measurements": [], "diagnostics": [], "assumptions": [],
+            },
         },
         qa=standard_qa_payload(status="blocked", findings=issues, metrics={"issue_count": len(issues)}),
     )
@@ -266,10 +300,21 @@ def expand_inputs(inputs: list[str]) -> tuple[list[Path], dict | None]:
     return deduped, inferred_config
 
 
+def usable_velocity_error(error: float | None) -> bool:
+    if error is None or not math.isfinite(error) or error <= 0:
+        return False
+    variance = error * error
+    return variance > 0 and math.isfinite(variance) and math.isfinite(1 / variance)
+
+
 def robust_select(rows: list[dict], *, tdr_min: float, verr_max: float | None = None) -> list[dict]:
     selected = []
     for row in rows:
-        if row.get("vrel_kms") is None or row.get("verr_kms") is None or row.get("tdr") is None:
+        if (
+            row.get("vhelio_calc_kms") is None
+            or row.get("tdr") is None
+            or not usable_velocity_error(row.get("verr_kms"))
+        ):
             continue
         if row["tdr"] < tdr_min:
             continue
@@ -297,13 +342,16 @@ def thresholds_for_case(case_id: str, mode: str) -> tuple[float, float | None]:
     return 3.0, None
 
 
-def build_case_diagnostics(case_id: str, mode: str, case_rows: list[dict], selected: list[dict]) -> dict:
+def build_case_diagnostics(
+    case_id: str, mode: str, case_rows: list[dict], selected: list[dict], tdr_min: float, verr_max: float | None,
+) -> dict:
     usable_rows = [
         row
         for row in case_rows
-        if row.get("vhelio_calc_kms") is not None and row.get("verr_kms") is not None and row.get("tdr") is not None
+        if row.get("vhelio_calc_kms") is not None and usable_velocity_error(row.get("verr_kms")) and row.get("tdr") is not None
     ]
-    selected_values = [row["vhelio_calc_kms"] for row in selected if row.get("vhelio_calc_kms") is not None]
+    invalid_errors = sum(not usable_velocity_error(row.get("verr_kms")) for row in case_rows)
+    selected_values = [row["vhelio_calc_kms"] for row in selected]
     rejected_count = max(0, len(usable_rows) - len(selected_values))
     rejection_fraction = rejected_count / len(usable_rows) if usable_rows else None
     scatter = None
@@ -314,7 +362,11 @@ def build_case_diagnostics(case_id: str, mode: str, case_rows: list[dict], selec
     flags = []
     if mode == "sb2_rv":
         flags.append("sb2_manual_ccf_review_required")
-    if len(selected_values) < 5:
+    if invalid_errors:
+        flags.append("invalid_order_errors")
+    if not selected_values:
+        flags.append("no_usable_orders")
+    elif len(selected_values) < 5:
         flags.append("few_orders_selected")
     if rejection_fraction is not None and rejection_fraction >= 0.4:
         flags.append("high_order_rejection")
@@ -324,6 +376,9 @@ def build_case_diagnostics(case_id: str, mode: str, case_rows: list[dict], selec
     return {
         "case_id": case_id,
         "mode": mode,
+        "tdr_min": tdr_min,
+        "verr_max_kms": verr_max,
+        "invalid_velocity_error_orders": invalid_errors,
         "usable_orders_before_filter": len(usable_rows),
         "selected_orders": len(selected_values),
         "rejected_orders": rejected_count,
@@ -345,10 +400,10 @@ def rv_adoption_labels(mode: str, diagnostics: dict) -> tuple[str, str, str]:
 
 
 def vsini_quality_flags(row: dict, calibration_x) -> list[str]:
-    flags = ["first_pass_fwhm_proxy", "manual_ccf_profile_review_required"]
+    flags = []
     fwhm_pix = row.get("fwhm_pix")
     tdr = row.get("tdr")
-    if fwhm_pix is None:
+    if fwhm_pix is None or fwhm_pix <= 0:
         flags.append("missing_fwhm")
     elif fwhm_pix < float(calibration_x.min()) or fwhm_pix > float(calibration_x.max()):
         flags.append("calibration_range_warning")
@@ -383,7 +438,8 @@ def normalize_rows(raw_rows: list[dict], fits_root: Path) -> list[dict]:
             "verr_kms",
             "veldisp_kms_per_pix",
         ]:
-            record[field] = parse_float(record.get(field))
+            value = parse_float(record.get(field))
+            record[field] = value if value is not None and math.isfinite(value) else None
         record["aperture"] = int(float(record["aperture"]))
         image_name = record.get("image_name")
         template_image = record.get("template_image")
@@ -413,33 +469,84 @@ def normalize_rows(raw_rows: list[dict], fits_root: Path) -> list[dict]:
                 record["h_tpl_kms"],
                 record["h_obj_kms"],
             )
-            record["vobs_calc_kms"] = vobs
-            record["vhelio_calc_kms"] = vhelio
+            if math.isfinite(vobs) and math.isfinite(vhelio):
+                record["vobs_calc_kms"] = vobs
+                record["vhelio_calc_kms"] = vhelio
         rows.append(record)
     return rows
 
 
-def write_markdown(path: Path, rv_summaries: list[dict], vsini_rows: list[dict], notes: list[str]) -> None:
-    lines = ["# Resumen reproducible de RV y v sin i", "", "## Velocidad radial", ""]
+def rotation_label(row: dict) -> str:
+    return f"{row['label']}, order {row['apertura']}"
+
+
+def measurement_summary(
+    rv_summaries: list[dict], rv_diagnostics: list[dict], vsini_rows: list[dict], calibration_x,
+) -> dict:
+    measurements = []
+    diagnostics = []
+    for item in rv_summaries:
+        measurements.append({
+            "label": f"{item['label']}: heliocentric RV",
+            "value": item["vhelio_media_kms"],
+            "uncertainty": item["vhelio_err_media_kms"],
+            "unit": "km/s",
+        })
+    for item in rv_diagnostics:
+        for key, label, unit in [
+            ("selected_orders", "selected orders", "dimensionless"),
+            ("rejected_orders", "orders rejected by selection", "dimensionless"),
+            ("invalid_velocity_error_orders", "orders with missing or invalid errors", "dimensionless"),
+            ("selected_rv_scatter_kms", "sample scatter", "km/s"),
+            ("tdr_min", "minimum Tonry-Davis R", "dimensionless"),
+            ("verr_max_kms", "maximum fxcor velocity error", "km/s"),
+        ]:
+            if item[key] is not None:
+                diagnostics.append({"label": f"{item['case_id']}: {label}", "value": item[key], "unit": unit})
+    if vsini_rows and calibration_x is not None:
+        diagnostics.extend([
+            {"label": "Minimum calibration width", "value": float(calibration_x.min()), "unit": "pixels"},
+            {"label": "Maximum calibration width", "value": float(calibration_x.max()), "unit": "pixels"},
+        ])
+    for item in vsini_rows:
+        label = rotation_label(item)
+        if item["vsini_interp_kms"] is not None:
+            measurements.append({"label": f"{label}: v sin i estimate", "value": item["vsini_interp_kms"], "unit": "km/s"})
+        if item["fwhm_pix"] is not None and item["fwhm_pix"] > 0:
+            diagnostics.append({"label": f"{label}: CCF width", "value": item["fwhm_pix"], "unit": "pixels"})
+    return {
+        "method": MEASUREMENT_METHOD,
+        "measurements": measurements,
+        "diagnostics": diagnostics,
+        "assumptions": (RV_ASSUMPTIONS if rv_diagnostics else []) + (ROTATION_ASSUMPTIONS if vsini_rows else []),
+    }
+
+
+def write_markdown(path: Path, details: dict, findings: list[dict], rv_summaries: list[dict]) -> None:
+    lines = ["# Legacy spectroscopy measurements", "", details["method"], ""]
+    for heading, key in [("Measurements", "measurements"), ("Diagnostics", "diagnostics")]:
+        lines.extend([f"## {heading}", ""])
+        for item in details[key]:
+            value = f"{item['value']:.6g}"
+            unit = "" if item["unit"] == "dimensionless" else f" {item['unit']}"
+            if item.get("uncertainty") is not None:
+                value += f" ± {item['uncertainty']:.3g}"
+            elif key == "measurements":
+                unit += " (uncertainty unavailable)"
+            lines.append(f"- {item['label']}: {value}{unit}")
+        if not details[key]:
+            lines.append("- Unavailable.")
+        lines.append("")
     if rv_summaries:
-        for item in rv_summaries:
-            flag_text = f" Flags: {item['quality_flags']}." if item.get("quality_flags") else ""
-            lines.append(
-                f"- {item['label']}: {item['vhelio_media_kms']:.4f} +/- {item['vhelio_err_media_kms']:.4f} km/s con {item['n_ordenes']} orden(es) [{item['ordenes_usados']}].{flag_text}"
-            )
-    else:
-        lines.append("- No se pudieron consolidar casos RV con la informacion disponible.")
-    lines.extend(["", "## v sin i", ""])
-    if vsini_rows:
-        for item in vsini_rows:
-            flag_text = f" Flags: {', '.join(item.get('quality_flags') or [])}." if item.get("quality_flags") else ""
-            lines.append(
-                f"- {item['label']}: FWHM = {item['fwhm_pix']}, v sin i interpolado = {item['vsini_interp_kms']}, TDR = {item['tdr']}.{flag_text}"
-            )
-    else:
-        lines.append("- No se pudo derivar ningun v sin i reproducible.")
-    lines.extend(["", "## Caveats", ""])
-    lines.extend(f"- {item}" for item in notes)
+        lines.extend(["## Selected orders", ""])
+        lines.extend(f"- {item['label']}: {item['ordenes_usados']}" for item in rv_summaries)
+        lines.append("")
+    if findings:
+        lines.extend(["## Quality findings", ""])
+        lines.extend(f"- {item['message']}" for item in findings)
+        lines.append("")
+    lines.extend(["## Method and assumptions", ""])
+    lines.extend(f"- {item}" for item in details["assumptions"])
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -576,28 +683,30 @@ def cmd_analyze(args):
     ]
     for case_id in sorted({row["case_id"] for row in rv_rows}):
         case_rows = [row for row in rv_rows if row["case_id"] == case_id]
-        tdr_min, verr_max = thresholds_for_case(case_id, case_rows[0].get("mode"))
+        mode = case_rows[0]["mode"]
+        tdr_min, verr_max = thresholds_for_case(case_id, mode)
         selected = robust_select(case_rows, tdr_min=tdr_min, verr_max=verr_max)
         filtered_rows.extend(selected)
-        diagnostics = build_case_diagnostics(case_id, case_rows[0].get("mode"), case_rows, selected)
+        diagnostics = build_case_diagnostics(case_id, mode, case_rows, selected, tdr_min, verr_max)
         rv_diagnostics.append(diagnostics)
-        values = [row["vhelio_calc_kms"] for row in selected if row.get("vhelio_calc_kms") is not None]
-        errors = [row["verr_kms"] for row in selected if row.get("vhelio_calc_kms") is not None and row.get("verr_kms") is not None]
-        if values and errors:
+        if selected:
+            values = [row["vhelio_calc_kms"] for row in selected]
+            errors = [row["verr_kms"] for row in selected]
             mean, err = weighted_mean(values, errors)
+            measurement_state, adoption_state, robustness = rv_adoption_labels(mode, diagnostics)
             rv_summaries.append(
                 {
                     "case_id": case_id,
                     "label": case_rows[0].get("case_label") or case_id,
-                    "mode": case_rows[0].get("mode"),
+                    "mode": mode,
                     "n_ordenes": len(values),
                     "vhelio_media_kms": mean,
                     "vhelio_err_media_kms": err,
-                    "ordenes_usados": ",".join(str(item["aperture"]) for item in selected if item.get("vhelio_calc_kms") is not None),
+                    "ordenes_usados": ",".join(str(item["aperture"]) for item in selected),
                     "quality_flags": ",".join(diagnostics["quality_flags"]),
-                    "measurement_state": rv_adoption_labels(case_rows[0].get("mode"), diagnostics)[0],
-                    "adoption_state": rv_adoption_labels(case_rows[0].get("mode"), diagnostics)[1],
-                    "physical_robustness": rv_adoption_labels(case_rows[0].get("mode"), diagnostics)[2],
+                    "measurement_state": measurement_state,
+                    "adoption_state": adoption_state,
+                    "physical_robustness": robustness,
                 }
             )
     for item in rv_diagnostics:
@@ -627,19 +736,27 @@ def cmd_analyze(args):
             ],
         )
 
+    rotation_rows = [item for item in normalized_rows if item.get("mode") == "vsini_fwhm"]
     vsini_rows = []
+    calibration_x = None
     calibration_plot = None
     if calibration_data is not None:
         calibration_x, calibration_y, calibration_model = calibration_data
-        for row in [item for item in normalized_rows if item.get("mode") == "vsini_fwhm"]:
+        for row in rotation_rows:
             fwhm_pix = row.get("fwhm_pix")
-            if fwhm_pix is None:
-                vsini = None
-            else:
-                raw_vsini = calibration_model(fwhm_pix)
-                vsini = None if raw_vsini is None or math.isnan(float(raw_vsini)) else float(raw_vsini)
             flags = vsini_quality_flags(row, calibration_x)
+            vsini = None
+            if not {"missing_fwhm", "calibration_range_warning"}.intersection(flags):
+                estimate = float(calibration_model(fwhm_pix))
+                if math.isfinite(estimate) and estimate >= 0:
+                    vsini = estimate
+                    flags.extend(["first_pass_fwhm_proxy", "manual_ccf_profile_review_required"])
+                else:
+                    flags.append("invalid_rotation_estimate")
             measurement_state, adoption_state, physical_robustness = vsini_adoption_labels(flags)
+            if vsini is None:
+                measurement_state = "unavailable"
+                adoption_state = "not_adopted"
             vsini_rows.append(
                 {
                     "case_id": row["case_id"],
@@ -680,21 +797,33 @@ def cmd_analyze(args):
             plot_vsini_calibration(calibration_plot, calibration_x, calibration_y, calibration_model, vsini_rows)
         notes.append("Los valores de v sin i se deben interpretar como primera pasada automatica a partir de la calibracion FWHM-v sin i.")
         notes.append("Las tablas distinguen entre medido, adoptado y fisicamente robusto para evitar cierres excesivos en SB2 y v sin i.")
-    else:
+    elif rotation_rows:
         notes.append("No se encontro una calibracion FWHM-v sin i, asi que la parte de v sin i queda incompleta.")
 
     rv_plot = figures_dir / "rv_por_orden.png"
     plot_rv_by_case(rv_plot, filtered_rows)
     summary_md = output_dir / "summary.md"
-    write_markdown(summary_md, rv_summaries, vsini_rows, notes)
-
     qa_findings = []
     for item in rv_diagnostics:
         for flag in item.get("quality_flags", []):
-            qa_findings.append({"case_id": item["case_id"], "finding": flag})
+            qa_findings.append({
+                "case_id": item["case_id"], "finding": flag,
+                "message": f"{item['case_id']}: {QUALITY_MESSAGES[flag]}",
+            })
     for item in vsini_rows:
         for flag in item.get("quality_flags", []):
-            qa_findings.append({"case_id": item["case_id"], "finding": flag})
+            qa_findings.append({
+                "case_id": item["case_id"], "finding": flag,
+                "message": f"{rotation_label(item)}: {QUALITY_MESSAGES[flag]}",
+            })
+    if rotation_rows and calibration_data is None:
+        for case_id in sorted({row["case_id"] for row in rotation_rows}):
+            qa_findings.append({
+                "case_id": case_id, "finding": "missing_rotation_calibration",
+                "message": f"{case_id}: {QUALITY_MESSAGES['missing_rotation_calibration']}",
+            })
+    details = measurement_summary(rv_summaries, rv_diagnostics, vsini_rows, calibration_x)
+    write_markdown(summary_md, details, qa_findings, rv_summaries)
 
     payload = standard_tool_payload(
         TOOL_NAME,
@@ -714,6 +843,7 @@ def cmd_analyze(args):
             "rv_diagnostics": rv_diagnostics,
             "vsini_rows": vsini_rows,
             "fits_root": str(fits_root),
+            "measurement_summary": details,
         },
         qa=standard_qa_payload(
             status="warning" if qa_findings else "ok",

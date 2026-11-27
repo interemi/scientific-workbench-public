@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2] / "scientific-data-analysis"
 SCRIPTS = ROOT / "scripts"
 
 
@@ -94,17 +94,19 @@ def check_excluded_connectors(tmp: Path) -> None:
 
 
 def check_v1_4_docs(tmp: Path) -> None:
+    archive = ROOT.parent / "scientific-data-documents" / ".cache" / "archived_references"
+    maintainer = ROOT.parent / "scientific-data-maintainer" / ".cache" / "archived_references"
     expected = {
-        "SKILL.md": ["companion-routing", "email, Google Drive, and Zotero remain outside"],
-        "README.txt": ["companion_route_check.py", "does not route to email, Google Drive, or Zotero"],
-        "RELEASE-v1.txt": ["v1.4 adds companion routing", "email, Google Drive, and Zotero outside"],
-        "references/architecture.md": ["audit_v1_4_companion_routing_regression.py"],
-        "references/companion-routing.md": ["Email, Google Drive, and Zotero are not part of v1.4 routing"],
+        ROOT / "SKILL.md": ["companion-routing", "companion_route_check.py"],
+        archive / "README.txt": ["companion_route_check.py", "does not route to email, Google Drive, or Zotero"],
+        archive / "RELEASE-v1.txt": ["v1.4 adds companion routing", "email, Google Drive, and Zotero outside"],
+        maintainer / "architecture.md": ["audit_v1_4_companion_routing_regression.py"],
+        ROOT / "references" / "companion-routing.md": ["advisory only", "without invoking connectors"],
     }
-    for relative, terms in expected.items():
-        text = (ROOT / relative).read_text(encoding="utf-8")
+    for path, terms in expected.items():
+        text = path.read_text(encoding="utf-8")
         missing = [term for term in terms if term not in text]
-        require(not missing, f"{relative} is missing v1.4 terms: {missing}")
+        require(not missing, f"{path.name} is missing v1.4 terms: {missing}")
 
 
 def main() -> None:

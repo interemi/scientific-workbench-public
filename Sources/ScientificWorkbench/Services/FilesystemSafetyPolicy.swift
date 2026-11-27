@@ -155,7 +155,7 @@ struct FilesystemSafetyPolicy {
             reason: "this option can access or write data outside attached inputs and is disabled in raw arguments"
           )
         case .outputPath, .readPath, .hybridReadPath, .externalReadPath,
-          .hybridExternalReadPath, .safeFileName, .scalar:
+          .hybridExternalReadPath, .safeFileName, .finiteNumber, .scalar:
           let value = try requiredValue(after: token, at: index, in: arguments)
           try validateKnownValue(
             value,
@@ -202,10 +202,27 @@ struct FilesystemSafetyPolicy {
     case externalReadPath
     case hybridExternalReadPath
     case safeFileName
+    case finiteNumber
     case scalar
     case flag
     case blocked
     case unknown
+  }
+
+  enum CommandEvidenceOption {
+    case flag, path, value, unknown
+  }
+
+  func commandEvidenceOption(_ option: String, capabilityID: String) -> CommandEvidenceOption {
+    guard option.hasPrefix("--"), option == option.lowercased() else { return .unknown }
+    if option == "--trust-notebook-code", capabilityID == "notebook_workbench.execute-copy" { return .flag }
+    switch optionKind(option, capabilityID: capabilityID) {
+    case .flag: return .flag
+    case .outputPath, .readPath, .hybridReadPath, .externalReadPath, .hybridExternalReadPath:
+      return .path
+    case .safeFileName, .finiteNumber, .scalar: return .value
+    case .blocked, .unknown: return .unknown
+    }
   }
 
   private func validateOptionValue(
@@ -219,7 +236,7 @@ struct FilesystemSafetyPolicy {
     let kind = optionKind(option, capabilityID: capabilityID)
     switch kind {
     case .outputPath, .readPath, .hybridReadPath, .externalReadPath,
-      .hybridExternalReadPath, .safeFileName, .scalar:
+      .hybridExternalReadPath, .safeFileName, .finiteNumber, .scalar:
       try validateKnownValue(
         value,
         option: option,
@@ -275,6 +292,10 @@ struct FilesystemSafetyPolicy {
       }
     case .safeFileName:
       try validateSafeFileName(value, option: option)
+    case .finiteNumber:
+      guard let number = Double(value), number.isFinite else {
+        throw FilesystemSafetyError.unsafeRawArgument(argument: option, reason: "enter a finite number")
+      }
     case .scalar, .flag, .blocked, .unknown:
       break
     }
@@ -458,6 +479,15 @@ struct FilesystemSafetyPolicy {
     if normalized == "--report-md", capabilityID == "echelle_multispec_inventory" {
       return .flag
     }
+    if normalized == "--preview-if-available", capabilityID == "inspect_fits" {
+      return .flag
+    }
+    if normalized == "--pixel", capabilityID == "inspect_fits" {
+      return .scalar
+    }
+    if normalized == "--source", capabilityID == "photometry_noise_budget" {
+      return .finiteNumber
+    }
     if Self.outputPathOptions.contains(normalized) {
       return .outputPath
     }
@@ -526,21 +556,24 @@ struct FilesystemSafetyPolicy {
       "--api-base", "--api-key", "--append-code", "--append-markdown", "--author", "--backend",
       "--branch-token", "--cache-policy", "--case-id", "--cell", "--cell-range", "--center-dec",
       "--center-ra", "--color-col", "--confirmation-id", "--continuum-degree",
+      "--coordinate-epoch-jyear", "--coordinate-frame",
       "--continuum-window", "--cpulimit-sec", "--crop", "--dark-per-pixel", "--date-column",
       "--depth", "--domain", "--download-product", "--downsample-factor", "--error-col",
       "--expression", "--extension", "--fallback-scale-err", "--fallback-scale-est", "--find",
       "--fixed-rv", "--format", "--frequency", "--gain", "--hdu", "--head", "--header-key",
       "--how", "--id-col", "--ifmt", "--ifmt1", "--ifmt2", "--input-format", "--input-value",
       "--inst-mag-col", "--integration-window", "--intent", "--join", "--kernel-name", "--kind",
-      "--kinematics-mode", "--language", "--lazy-threshold-mb", "--left-dec", "--left-key",
-      "--left-ra", "--line-center", "--line-label", "--line-window", "--literature-ew-ma",
+      "--kinematics-mode", "--language", "--lazy-threshold-mb", "--left-dec", "--left-dec-unit",
+      "--left-format", "--left-key", "--left-ra", "--left-ra-unit", "--line-center", "--line-label",
+      "--line-window", "--literature-ew-ma",
       "--max-columns", "--max-files", "--max-per-ext", "--max-separation-index", "--maxrepeat",
       "--min-separation", "--n-frames", "--n-pixels", "--new-label", "--nsigma", "--object-name",
       "--objs", "--ofmt", "--order", "--parity", "--passes", "--peer-count", "--peer-strategy",
       "--planet-count", "--poll-sec", "--prefer", "--preview-rows", "--previous-label", "--profile",
       "--publicly-visible", "--qa-residual-threshold", "--radius-arcsec", "--radius-deg",
       "--read-noise", "--reason", "--reference-slides", "--replace", "--replace-text",
-      "--report-author", "--report-title", "--right-dec", "--right-key", "--right-ra", "--rule",
+      "--report-author", "--report-title", "--right-dec", "--right-dec-unit", "--right-format", "--right-key",
+      "--right-ra", "--right-ra-unit", "--rule",
       "--run-id", "--runtime-profile", "--sample-size", "--scale-err", "--scale-est",
       "--scale-lower", "--scale-type", "--scale-units", "--scale-upper", "--sheet", "--size",
       "--sky-estimate-pixels", "--sky-per-pixel", "--std-mag-col", "--stretch-percentiles",

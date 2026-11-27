@@ -3,12 +3,17 @@
 
 import argparse
 import json
+import warnings
 from pathlib import Path
 
 from _internal.datanalysis_bootstrap import ensure_datanalysis_runtime
 from _internal.public_contract import build_blocked_payload, build_tool_payload, emit_payload_best_effort
 from _internal.runtime_common import configure_runtime
 from _internal.tabular_io import read_table_any, write_table_any
+
+
+class SpectralMeasurementError(ValueError):
+    """A requested spectral measurement could not be computed."""
 
 
 def parse_args():
@@ -65,7 +70,7 @@ def load_dependencies():
     return plt, np, fits, Table, curve_fit, medfilt, find_peaks
 
 
-def emit_dependency_blocked(args, message):
+def emit_spectral_blocked(args, message):
     input_path = Path(args.input).expanduser()
     payload = build_blocked_payload(
         "spectral_workbench",
@@ -109,9 +114,9 @@ def wavelength_from_header(np, header, n, axis=1):
     cdelt = header.get(f"CDELT{axis}", header.get(f"CD{axis}_{axis}"))
     crpix = header.get(f"CRPIX{axis}", 1.0)
     if crval is None or cdelt is None:
-        return np.arange(n, dtype=float)
+        return np.arange(n, dtype=float), "Pixel", "pixel"
     pixels = np.arange(n, dtype=float) + 1.0
-    return crval + (pixels - crpix) * cdelt
+    return crval + (pixels - crpix) * cdelt, header.get(f"CTYPE{axis}", "Axis"), header.get(f"CUNIT{axis}")
 
 
 def orient_2d_array(np, array):
@@ -284,16 +289,17 @@ def read_fits_spectrum(
             arr = np.asarray(data)
             arr = np.squeeze(arr)
             if arr.ndim == 1:
+                wavelength, axis_name, axis_unit = wavelength_from_header(np, hdu.header, arr.size)
                 meta = {
                     "source": "fits_image_hdu",
                     "object": hdu.header.get("OBJECT"),
                     "instrument": hdu.header.get("INSTRUME"),
                     "date_obs": hdu.header.get("DATE-OBS"),
-                    "axis_name": hdu.header.get("CTYPE1", "Axis"),
-                    "axis_unit": hdu.header.get("CUNIT1"),
+                    "axis_name": axis_name,
+                    "axis_unit": axis_unit,
                     "flux_unit": hdu.header.get("BUNIT"),
                 }
-                return wavelength_from_header(np, hdu.header, arr.size, axis=1), arr.astype(float), None, sanitize_meta(meta), None
+                return wavelength, arr.astype(float), None, sanitize_meta(meta), None
             if arr.ndim == 2:
                 oriented, dispersion_axis, orientation = orient_2d_array(np, arr.astype(float))
                 order_centers, spatial_profile = detect_order_centers(np, find_peaks, oriented, order_count=order_count)
@@ -317,13 +323,16 @@ def read_fits_spectrum(
                     bg_outer=bg_outer,
                     optimal=optimal_extraction,
                 )
+                wavelength, axis_name, axis_unit = wavelength_from_header(
+                    np, hdu.header, extracted.size, axis=dispersion_axis,
+                )
                 meta = {
                     "source": "fits_2d_hdu",
                     "object": hdu.header.get("OBJECT"),
                     "instrument": hdu.header.get("INSTRUME"),
                     "date_obs": hdu.header.get("DATE-OBS"),
-                    "axis_name": hdu.header.get(f"CTYPE{dispersion_axis}", "Axis"),
-                    "axis_unit": hdu.header.get(f"CUNIT{dispersion_axis}"),
+                    "axis_name": axis_name,
+                    "axis_unit": axis_unit,
                     "flux_unit": hdu.header.get("BUNIT"),
                     "extraction_mode": "experimental_profile_weighted_2d" if optimal_extraction else "aperture_sum_2d",
                     "trace_row": int(chosen_seed),
@@ -332,7 +341,7 @@ def read_fits_spectrum(
                     "order_index": int(order_index),
                 }
                 return (
-                    wavelength_from_header(np, hdu.header, extracted.size, axis=dispersion_axis),
+                    wavelength,
                     extracted,
                     error,
                     sanitize_meta(meta),
@@ -398,6 +407,8 @@ def read_ascii_spectrum(np, Table, path, wavelength_col=None, flux_col=None, err
                 "error_col": error_col,
                 "axis_name": wavelength_col,
                 "flux_name": flux_col,
+                "axis_unit": str(table[wavelength_col].unit) if table[wavelength_col].unit is not None else None,
+                "flux_unit": str(table[flux_col].unit) if table[flux_col].unit is not None else None,
             }
         ),
         None,
@@ -417,13 +428,51 @@ def apply_wavelength_calibration(np, Table, path, degree):
     pixel_name = next((lower[name] for name in ["pixel", "x", "column"] if name in lower), None)
     wave_name = next((lower[name] for name in ["wavelength", "lambda", "wave"] if name in lower), None)
     if pixel_name is None or wave_name is None:
-        raise SystemExit("Calibration table must include pixel/x and wavelength columns.")
+        raise SpectralMeasurementError("Calibration table must include pixel/x and wavelength columns.")
     pixels = np.asarray(calibration[pixel_name], dtype=float)
     wavelengths = np.asarray(calibration[wave_name], dtype=float)
-    coefficients = np.polyfit(pixels, wavelengths, min(degree, len(pixels) - 1))
+    if degree < 1 or len(pixels) < 2 or not np.all(np.isfinite(pixels) & np.isfinite(wavelengths)):
+        raise SpectralMeasurementError("Wavelength calibration needs two or more finite anchors and a positive degree.")
+    if np.unique(pixels).size != pixels.size:
+        raise SpectralMeasurementError("Wavelength calibration needs distinct anchor pixels.")
+    used_degree = min(degree, len(pixels) - 1)
+    try:
+        coefficients, _, rank, _, _ = np.polyfit(pixels, wavelengths, used_degree, full=True)
+    except np.linalg.LinAlgError as error:
+        raise SpectralMeasurementError("Wavelength calibration failed to solve the polynomial.") from error
+    if rank != used_degree + 1 or not np.all(np.isfinite(coefficients)):
+        raise SpectralMeasurementError("Wavelength calibration is rank-deficient or yielded non-finite coefficients.")
     model = np.polyval(coefficients, pixels)
     residual_rms = float(np.sqrt(np.mean((model - wavelengths) ** 2)))
-    return coefficients.tolist(), residual_rms
+    if not np.isfinite(residual_rms):
+        raise SpectralMeasurementError("Wavelength calibration yielded non-finite residuals.")
+    return {
+        "path": str(Path(path).resolve()),
+        "coefficients": coefficients.tolist(),
+        "residual_rms": residual_rms,
+        "degree": used_degree,
+        "requested_degree": degree,
+        "anchor_count": int(pixels.size),
+        "residual_degrees_of_freedom": int(pixels.size) - used_degree - 1,
+        "anchor_pixel_range": [float(pixels.min()), float(pixels.max())],
+        "wavelength_unit": str(calibration[wave_name].unit) if calibration[wave_name].unit is not None else None,
+        "method": "Unweighted polynomial in zero-based dispersion pixel index",
+    }
+
+
+def calibrated_axis(np, samples, meta, calibration):
+    pixels = np.arange(samples, dtype=float)
+    wavelength = np.polyval(calibration["coefficients"], pixels)
+    steps = np.diff(wavelength)
+    if not np.all(np.isfinite(wavelength)) or not (np.all(steps > 0) or np.all(steps < 0)):
+        raise SpectralMeasurementError("Calibrated wavelength must be finite and strictly monotonic across the spectrum.")
+    first, last = calibration["anchor_pixel_range"]
+    extrapolated = int(np.count_nonzero((pixels < first) | (pixels > last)))
+    return (
+        wavelength,
+        {**meta, "axis_name": "Wavelength", "axis_unit": calibration["wavelength_unit"]},
+        {**calibration, "extrapolated_sample_count": extrapolated},
+    )
 
 
 def gaussian(x, amp, mu, sigma, offset):
@@ -446,12 +495,18 @@ def robust_rms(np, values):
     return float(1.4826 * mad)
 
 
-def fit_line(np, curve_fit, wavelength, flux, continuum, center, width, *, normalize_output=False):
+def fit_line(np, curve_fit, wavelength, flux, continuum, center, width, *, meta, normalize_output=False):
+    from scipy.optimize import OptimizeWarning
+
+    if not np.isfinite(center) or not np.isfinite(width) or width <= 0:
+        raise SpectralMeasurementError("Line fitting needs a finite center and a finite, positive window width.")
     mask = (wavelength >= center - width / 2.0) & (wavelength <= center + width / 2.0)
-    if np.sum(mask) < 5:
-        raise SystemExit("Not enough samples in the requested line window.")
     x = wavelength[mask]
     y = flux[mask]
+    if np.unique(x).size < 5:
+        raise SpectralMeasurementError("Line fitting needs at least five distinct samples in the requested window.")
+    if np.ptp(y) <= np.finfo(float).eps * np.max(np.abs(y)):
+        raise SpectralMeasurementError("The requested line window has no measurable flux variation.")
     cont = continuum[mask]
     residual = y - cont
     peak_index = int(np.argmax(np.abs(residual)))
@@ -459,29 +514,74 @@ def fit_line(np, curve_fit, wavelength, flux, continuum, center, width, *, norma
     mu0 = float(x[peak_index])
     sigma0 = max(width / 8.0, (x[-1] - x[0]) / 10.0)
     offset0 = float(np.median(cont))
-    popt, _ = curve_fit(gaussian, x, y, p0=[amp0, mu0, sigma0, offset0], maxfev=20000)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", OptimizeWarning)
+        try:
+            popt, covariance = curve_fit(gaussian, x, y, p0=[amp0, mu0, sigma0, offset0], maxfev=20000)
+        except (RuntimeError, ValueError, FloatingPointError) as error:
+            raise SpectralMeasurementError("Gaussian line fit failed to converge in the requested window.") from error
     model_raw = gaussian(x, *popt)
     amplitude = float(popt[0])
     sigma = float(abs(popt[2]))
     offset = float(popt[3])
+    if not np.all(np.isfinite(popt)) or not np.all(np.isfinite(model_raw)) or sigma <= 0:
+        raise SpectralMeasurementError("Gaussian line fit yielded invalid parameters or model values.")
     if not np.isfinite(offset) or abs(offset) <= np.finfo(float).eps:
-        raise SystemExit("Gaussian line fit has a zero or non-finite continuum offset; equivalent width is undefined.")
+        raise SpectralMeasurementError("Gaussian line fit has a zero or non-finite continuum offset. Equivalent width is undefined.")
     equivalent_width_fit = float(-amplitude * sigma * np.sqrt(2.0 * np.pi) / offset)
     integrate = getattr(np, "trapezoid", None) or getattr(np, "trapz")
     with np.errstate(divide="ignore", invalid="ignore"):
         equivalent_width_integral = float(integrate(1.0 - (y / cont), x))
     if not np.isfinite(equivalent_width_fit) or not np.isfinite(equivalent_width_integral):
-        raise SystemExit("Equivalent-width calculation produced a non-finite value; inspect the continuum and line window.")
+        raise SpectralMeasurementError("Equivalent-width calculation yielded a non-finite value. Review the continuum and line window.")
     difference = float(abs(equivalent_width_fit - equivalent_width_integral))
     scale = max(abs(equivalent_width_fit), abs(equivalent_width_integral), np.finfo(float).eps)
     relative_difference = float(difference / scale)
     consistent = bool(relative_difference <= 0.25)
     if normalize_output:
         if np.any(~np.isfinite(cont)) or np.any(np.abs(cont) <= np.finfo(float).eps):
-            raise SystemExit("Continuum is zero or non-finite inside the line window; normalized fit model is undefined.")
+            raise SpectralMeasurementError("Continuum is zero or non-finite inside the line window. The normalized model is undefined.")
         fit_model = model_raw / cont
     else:
         fit_model = model_raw
+    residual_rms = float(np.sqrt(np.mean((y - model_raw) ** 2)))
+    if not np.isfinite(residual_rms):
+        raise SpectralMeasurementError("Gaussian line fit yielded non-finite residuals.")
+    quality_findings = []
+    if not (x[0] <= popt[1] <= x[-1]):
+        quality_findings.append("Gaussian center is outside the sampled line window.")
+    if 2.354820045 * sigma > x[-1] - x[0]:
+        quality_findings.append("Gaussian FWHM exceeds the sampled line span.")
+    if not meta.get("axis_unit"):
+        quality_findings.append("The spectral axis unit is unspecified. Confirm the source or calibration unit before using widths or positions.")
+    formal_errors = None
+    if (
+        not any(issubclass(item.category, OptimizeWarning) for item in caught)
+        and np.all(np.isfinite(covariance))
+        and np.all(np.diag(covariance) > 0)
+        and residual_rms > np.finfo(float).eps * np.max(np.abs(y))
+    ):
+        amplitude_error, center_error, sigma_error, offset_error = np.sqrt(np.diag(covariance))
+        factor = np.sqrt(2.0 * np.pi)
+        gradient = np.array([
+            -factor * sigma / offset,
+            0,
+            -factor * amplitude * np.sign(popt[2]) / offset,
+            -equivalent_width_fit / offset,
+        ])
+        variance_ew = float(gradient @ covariance @ gradient)
+        formal_errors = {
+            "amplitude": float(amplitude_error),
+            "center": float(center_error),
+            "sigma": float(sigma_error),
+            "fwhm": float(2.354820045 * sigma_error),
+            "offset": float(offset_error),
+            "equivalent_width": float(np.sqrt(variance_ew)) if np.isfinite(variance_ew) and variance_ew > 0 else None,
+        }
+    if formal_errors is None:
+        quality_findings.append("Formal Gaussian uncertainties are unavailable from the residual covariance.")
+    elif formal_errors["equivalent_width"] is None:
+        quality_findings.append("The covariance does not support a formal Gaussian equivalent-width uncertainty.")
     return {
         "window_center": float(center),
         "window_width": float(width),
@@ -498,6 +598,16 @@ def fit_line(np, curve_fit, wavelength, flux, continuum, center, width, *, norma
         "equivalent_width_relative_difference": relative_difference,
         "equivalent_width_consistent": consistent,
         "line_kind": "emission" if amplitude > 0 else "absorption",
+        "method": "Unweighted least-squares Gaussian plus a constant in raw-flux space",
+        "axis_unit": meta.get("axis_unit"),
+        "flux_unit": meta.get("flux_unit"),
+        "fit_sample_count": int(x.size),
+        "residual_degrees_of_freedom": int(x.size) - 4,
+        "residual_rms": residual_rms,
+        "formal_uncertainties": formal_errors,
+        "uncertainty_method": "Local parameter covariance scaled by residual variance; calibration and continuum systematics are excluded.",
+        "equivalent_width_integral_uncertainty": None,
+        "quality_findings": quality_findings,
         "fit_flux_space": "raw",
         "fit_model_space": "normalized" if normalize_output else "raw",
         "fit_x": x.tolist(),
@@ -524,6 +634,14 @@ def equivalent_width_qa(summary):
         )
         for label, fit in inconsistent
     ]
+    findings.extend(
+        f"{label}: {finding}"
+        for label, fit in line_fits for finding in fit["quality_findings"]
+    )
+    findings.extend(
+        f"all_orders[{index}]: {order['line_fit_error']}"
+        for index, order in enumerate(summary.get("all_orders") or []) if "line_fit_error" in order
+    )
     metrics = {
         "line_fit_count": len(line_fits),
         "equivalent_width_inconsistent_count": len(inconsistent),
@@ -534,6 +652,21 @@ def equivalent_width_qa(summary):
         ),
     }
     return findings, metrics
+
+
+def calibration_findings(calibration):
+    if calibration is None:
+        return []
+    findings = []
+    if calibration["degree"] != calibration["requested_degree"]:
+        findings.append("Wavelength calibration reduced the requested polynomial degree to match the available anchors.")
+    if calibration["residual_degrees_of_freedom"] == 0:
+        findings.append("Wavelength calibration has zero residual degrees of freedom. Anchor residuals cannot estimate wavelength uncertainty.")
+    if calibration["extrapolated_sample_count"]:
+        findings.append(f"Wavelength calibration extrapolates for {calibration['extrapolated_sample_count']} samples outside the anchor range.")
+    if not calibration["wavelength_unit"]:
+        findings.append("The calibration table does not declare a wavelength unit.")
+    return findings
 
 
 def axis_label(meta):
@@ -601,9 +734,9 @@ def main():
     except SystemExit as exc:
         if isinstance(exc.code, int):
             return exc.code
-        return emit_dependency_blocked(args, str(exc.code) or "Spectral dependencies are unavailable.")
+        return emit_spectral_blocked(args, str(exc.code) or "Spectral dependencies are unavailable.")
     except (ImportError, ModuleNotFoundError) as exc:
-        return emit_dependency_blocked(args, f"Spectral dependencies are unavailable: {type(exc).__name__}: {exc}")
+        return emit_spectral_blocked(args, f"Spectral dependencies are unavailable: {type(exc).__name__}: {exc}")
     path = Path(args.input)
     if not path.exists():
         raise SystemExit(f"File not found: {path}")
@@ -629,15 +762,11 @@ def main():
 
     calibration_info = None
     if args.calibration_table:
-        coefficients, residual_rms = apply_wavelength_calibration(np, Table, args.calibration_table, args.calibration_degree)
-        pixel_axis = np.arange(len(wavelength), dtype=float)
-        wavelength = np.polyval(coefficients, pixel_axis)
-        calibration_info = {
-            "path": str(Path(args.calibration_table).resolve()),
-            "coefficients": coefficients,
-            "residual_rms": residual_rms,
-            "degree": int(args.calibration_degree),
-        }
+        try:
+            fit = apply_wavelength_calibration(np, Table, args.calibration_table, args.calibration_degree)
+            wavelength, meta, calibration_info = calibrated_axis(np, len(wavelength), meta, fit)
+        except (OSError, ValueError) as error:
+            return emit_spectral_blocked(args, f"Wavelength calibration failed. {error}")
 
     processed = prepare_spectrum(np, medfilt, wavelength, flux, error, args.normalize)
     wavelength = processed["wavelength"]
@@ -680,16 +809,13 @@ def main():
         summary["normalized_flux_min"] = float(np.nanmin(display_flux))
         summary["normalized_flux_max"] = float(np.nanmax(display_flux))
     if args.line_window:
-        summary["line_fit"] = fit_line(
-            np,
-            curve_fit,
-            wavelength,
-            flux,
-            continuum,
-            args.line_window[0],
-            args.line_window[1],
-            normalize_output=args.normalize,
-        )
+        try:
+            summary["line_fit"] = fit_line(
+                np, curve_fit, wavelength, flux, continuum, *args.line_window,
+                meta=meta, normalize_output=args.normalize,
+            )
+        except SpectralMeasurementError as error:
+            return emit_spectral_blocked(args, str(error))
     extra_outputs = []
     if args.extract_all_orders_dir and diagnostic is not None and diagnostic.get("detected_order_centers"):
         order_dir = Path(args.extract_all_orders_dir)
@@ -712,14 +838,10 @@ def main():
                 order_index=0,
             )
             order_calibration = None
-            if args.calibration_table:
-                coefficients, residual_rms = apply_wavelength_calibration(np, Table, args.calibration_table, args.calibration_degree)
-                order_wave = np.polyval(coefficients, np.arange(len(order_wave), dtype=float))
-                order_calibration = {
-                    "coefficients": coefficients,
-                    "residual_rms": residual_rms,
-                    "degree": int(args.calibration_degree),
-                }
+            if calibration_info is not None:
+                order_wave, order_meta, order_calibration = calibrated_axis(
+                    np, len(order_wave), order_meta, calibration_info,
+                )
             order_processed = prepare_spectrum(np, medfilt, order_wave, order_flux, order_error, args.normalize)
             order_summary = {
                 "order_number": int(order_number),
@@ -734,16 +856,14 @@ def main():
             if order_calibration is not None:
                 order_summary["calibration"] = order_calibration
             if args.line_window:
-                order_summary["line_fit"] = fit_line(
-                    np,
-                    curve_fit,
-                    order_processed["wavelength"],
-                    order_processed["flux"],
-                    order_processed["continuum"],
-                    args.line_window[0],
-                    args.line_window[1],
-                    normalize_output=args.normalize,
-                )
+                try:
+                    order_summary["line_fit"] = fit_line(
+                        np, curve_fit, order_processed["wavelength"], order_processed["flux"],
+                        order_processed["continuum"], *args.line_window,
+                        meta=order_meta, normalize_output=args.normalize,
+                    )
+                except SpectralMeasurementError as error:
+                    order_summary["line_fit_error"] = str(error)
             export = Table()
             export["wavelength"] = order_processed["wavelength"]
             export["flux"] = order_processed["flux"]
@@ -870,11 +990,16 @@ def main():
             qa_findings.append("experimental_profile_weighted_extraction_not_iterative_horne")
         equivalent_width_findings, equivalent_width_metrics = equivalent_width_qa(summary)
         qa_findings.extend(equivalent_width_findings)
+        qa_findings.extend(calibration_findings(calibration_info))
         payload = build_tool_payload(
             "spectral_workbench",
             status="warning" if qa_findings else "ok",
             notes=[
-                "Spectral diagnostics are first-pass measurements; continuum windows, calibration, and line IDs still need domain review.",
+                "Review the continuum window, wavelength calibration, and line identification before using derived measurements.",
+                "The Gaussian fit does not use input flux errors as weights. Formal errors assume independent residuals around this model.",
+                "Uncertainty for direct equivalent-width integration and absolute wavelength calibration is unavailable.",
+            ] if args.line_window else [
+                "Review the wavelength calibration and extraction diagnostics before using the spectrum.",
             ],
             artifacts={
                 "summary_json": str(out),
@@ -913,6 +1038,9 @@ def main():
                 "optimal_extraction": args.optimal_extraction,
                 "order_count": args.order_count,
                 "order_index": args.order_index,
+                "line_window": args.line_window,
+                "calibration_degree": calibration_info["degree"] if calibration_info else None,
+                "wavelength_unit": meta.get("axis_unit"),
             },
             command="spectral_workbench.py",
         )

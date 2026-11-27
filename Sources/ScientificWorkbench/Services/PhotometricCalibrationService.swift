@@ -51,6 +51,14 @@ struct PhotometricCalibrationService {
 
     let columns = headers.enumerated().map { index, rawName in
       let name = rawName.isEmpty ? "column_\(index + 1)" : rawName
+      let key = normalized(name)
+      let tokens = Set(key.split(separator: "_").map(String.init))
+      let system = magnitudeSystem(tokens)
+      let unit = measurementUnit(key, tokens: tokens, system: system)
+      let isOffset = tokens.contains("offset")
+      let describesUncertainty = !tokens.isDisjoint(with: ["err", "error", "sigma", "uncert", "uncertainty"])
+      let isComponent = !tokens.isDisjoint(with: ["inst", "instrumental", "std", "catalog", "standard"])
+      let isWeight = !tokens.isDisjoint(with: ["variance", "ivar", "weight", "weights", "snr"])
       let numericCount = rows.reduce(into: 0) { count, row in
         guard index < row.count, finiteNumber(row[index]) != nil else { return }
         count += 1
@@ -65,7 +73,11 @@ struct PhotometricCalibrationService {
         airmassScore: scoreAirmass(name),
         filterScore: scoreFilter(name),
         uncertaintyScore: scoreUncertainty(name),
-        colorScore: scoreColor(name)
+        colorScore: scoreColor(name),
+        declaredUnit: unit,
+        declaredMagnitudeSystem: system,
+        declaredOffsetUncertaintyUnit: isOffset && describesUncertainty ? magnitudeUnit(from: unit) : nil,
+        isIncompatibleUncertainty: isWeight || (isComponent && !isOffset)
       )
     }
 
@@ -134,6 +146,15 @@ struct PhotometricCalibrationService {
     distinctValues(rows: review.rows, column: filterColumn)
   }
 
+  func needsInputUnitConfirmation(
+    review: PhotometricCalibrationReview,
+    selection: PhotometricCalibrationSelection
+  ) -> Bool {
+    let columns = [selection.instrumentalColumn, selection.catalogColumn, selection.airmassColumn,
+                   selection.includeColorTerm ? selection.colorColumn : nil]
+    return columns.compactMap { review.column(at: $0) }.contains { $0.declaredUnit == nil }
+  }
+
   func validate(
     review: PhotometricCalibrationReview,
     selection: PhotometricCalibrationSelection
@@ -154,34 +175,37 @@ struct PhotometricCalibrationService {
     guard required.allSatisfy(review.columns.indices.contains) else {
       return blocked("One or more selected columns are outside the table.")
     }
-    if let uncertainty = selection.uncertaintyColumn, required.contains(uncertainty) {
-      return blocked("Uncertainty must use a separate column.")
+    if let uncertainty = selection.uncertaintyColumn,
+       !review.columns.indices.contains(uncertainty) || required.contains(uncertainty) {
+      return blocked("Select a separate uncertainty column within the table.")
     }
     if selection.includeColorTerm {
       guard let color = selection.colorColumn else {
         return blocked("Select a color-index column before including a color term.")
       }
-      if required.contains(color) || color == selection.uncertaintyColumn {
-        return blocked("Color index must use a separate column.")
+      if !review.columns.indices.contains(color) || required.contains(color) || color == selection.uncertaintyColumn {
+        return blocked("Select a separate color-index column within the table.")
       }
     }
 
-    let availableFilters = filterValues(review: review, filterColumn: selection.filterColumn)
-    if selection.filterColumn != nil, availableFilters.count > 1,
-       selection.filterValue?.isEmpty != false {
-      return blocked("Choose one filter value before fitting.")
+    let convention: PhotometricCalibrationConvention
+    do {
+      convention = try validatedConvention(review: review, selection: selection)
+    } catch {
+      return blocked(error.localizedDescription)
     }
 
     var selectedRows = 0
     var usableRows = 0
     var skippedNonfinite = 0
     var nonpositiveUncertainty = 0
+    var nonpositiveAirmass = 0
     var instrumentalValues: [Double] = []
     var catalogValues: [Double] = []
     var airmassValues: [Double] = []
     var colorValues: [Double] = []
 
-    for row in review.rows where rowMatchesFilter(row, selection: selection) {
+    for row in review.rows where rowMatchesFilter(row, column: selection.filterColumn, passband: convention.passband) {
       selectedRows += 1
       guard let inst = value(row, at: instrumental),
             let std = value(row, at: catalog),
@@ -189,12 +213,16 @@ struct PhotometricCalibrationService {
         skippedNonfinite += 1
         continue
       }
+      if air <= 0 {
+        nonpositiveAirmass += 1
+        continue
+      }
       if let uncertaintyColumn = selection.uncertaintyColumn {
         guard let uncertainty = value(row, at: uncertaintyColumn) else {
           skippedNonfinite += 1
           continue
         }
-        if uncertainty <= 0 {
+        if uncertaintyMagnitude(uncertainty, unit: convention.offsetUncertaintyUnit) <= 0 {
           nonpositiveUncertainty += 1
           continue
         }
@@ -212,6 +240,9 @@ struct PhotometricCalibrationService {
       usableRows += 1
     }
 
+    if nonpositiveAirmass > 0 {
+      return blocked("Airmass must be positive and dimensionless.")
+    }
     if nonpositiveUncertainty > 0 {
       return blocked("All selected uncertainties must be positive.")
     }
@@ -237,10 +268,6 @@ struct PhotometricCalibrationService {
     if selection.uncertaintyColumn == nil {
       findings.append("The solution will be unweighted because no uncertainty column is selected.")
       nextActions.append("Select an offset uncertainty column when measurement errors are available.")
-    }
-    if selection.filterColumn == nil {
-      findings.append("No filter column is selected; the table is assumed to contain one passband.")
-      nextActions.append("Confirm that all selected standards belong to the same filter.")
     }
     if let airRange {
       if airRange.lowerBound < 0.95 || airRange.upperBound > 5.0 {
@@ -273,7 +300,8 @@ struct PhotometricCalibrationService {
       skippedNonfiniteRows: skippedNonfinite,
       airmassRange: airRange,
       catalogMagnitudeRange: catalogRange,
-      colorRange: colorRange
+      colorRange: colorRange,
+      convention: convention
     )
   }
 
@@ -284,6 +312,7 @@ struct PhotometricCalibrationService {
   ) throws -> PhotometricCalibrationStagedInput {
     let validation = validate(review: review, selection: selection)
     guard validation.canRun,
+          let convention = validation.convention,
           let instrumental = selection.instrumentalColumn,
           let catalog = selection.catalogColumn,
           let airmass = selection.airmassColumn else {
@@ -294,7 +323,6 @@ struct PhotometricCalibrationService {
 
     let inputsURL = URL(fileURLWithPath: runDirectory)
       .appendingPathComponent("inputs", isDirectory: true)
-    try FileManager.default.createDirectory(at: inputsURL, withIntermediateDirectories: true)
     let tableURL = inputsURL.appendingPathComponent("selected_photometric_standards.csv")
     let mappingURL = inputsURL.appendingPathComponent("photometric_column_mapping.json")
 
@@ -302,9 +330,10 @@ struct PhotometricCalibrationService {
     if selection.filterColumn != nil { headers.append("filter") }
     if selection.includeColorTerm { headers.append("color_index") }
     if selection.uncertaintyColumn != nil { headers.append("offset_err") }
+    headers += ["catalog_magnitude_system", "calibration_passband"]
 
     var outputRows: [[String]] = []
-    for row in review.rows where rowMatchesFilter(row, selection: selection) {
+    for row in review.rows where rowMatchesFilter(row, column: selection.filterColumn, passband: convention.passband) {
       guard let inst = value(row, at: instrumental),
             let std = value(row, at: catalog),
             let air = value(row, at: airmass) else {
@@ -322,11 +351,11 @@ struct PhotometricCalibrationService {
       }
       if let uncertaintyColumn = selection.uncertaintyColumn,
          let uncertainty = value(row, at: uncertaintyColumn), uncertainty > 0 {
-        output.append(render(uncertainty))
+        output.append(render(uncertaintyMagnitude(uncertainty, unit: convention.offsetUncertaintyUnit)))
       } else if selection.uncertaintyColumn != nil {
         continue
       }
-      outputRows.append(output)
+      outputRows.append(output + [convention.magnitudeSystem, convention.passband])
     }
     guard outputRows.count >= 3 else {
       throw PhotometricCalibrationError.invalidSelection(
@@ -337,6 +366,7 @@ struct PhotometricCalibrationService {
     let csv = ([headers] + outputRows)
       .map { $0.map(csvField).joined(separator: ",") }
       .joined(separator: "\n") + "\n"
+    try FileManager.default.createDirectory(at: inputsURL, withIntermediateDirectories: true)
     try csv.write(to: tableURL, atomically: true, encoding: .utf8)
 
     let sourceName = URL(fileURLWithPath: review.inputPath).lastPathComponent
@@ -348,8 +378,14 @@ struct PhotometricCalibrationService {
       "catalog_mag_column": review.columns[catalog].name,
       "airmass_column": review.columns[airmass].name,
       "filter_column": selection.filterColumn.flatMap { review.columns[safe: $0]?.name } ?? NSNull(),
-      "filter_value": selection.filterValue ?? NSNull(),
+      "filter_value": convention.passband,
+      "catalog_magnitude_system": convention.magnitudeSystem,
+      "magnitude_unit": "mag",
+      "airmass_unit": "dimensionless",
+      "color_index_unit": selection.includeColorTerm ? "mag" : NSNull(),
       "uncertainty_column": selection.uncertaintyColumn.flatMap { review.columns[safe: $0]?.name } ?? NSNull(),
+      "offset_uncertainty_input_unit": convention.offsetUncertaintyUnit?.rawValue ?? NSNull(),
+      "offset_uncertainty_output_unit": convention.offsetUncertaintyUnit == nil ? NSNull() : "mag",
       "color_column": selection.colorColumn.flatMap { review.columns[safe: $0]?.name } ?? NSNull(),
       "include_color_term": selection.includeColorTerm,
       "accepted_rows": outputRows.count,
@@ -465,7 +501,8 @@ struct PhotometricCalibrationService {
   private func scoreUncertainty(_ name: String) -> Int {
     let key = normalized(name)
     if ["offset_err", "mag_error", "mag_err", "error", "err", "sigma", "uncertainty"].contains(key) { return 100 }
-    if key.contains("uncert") || key.contains("error") || key.contains("sigma") || key.hasSuffix("_err") { return 85 }
+    if key.contains("uncert") || key.contains("error") || key.contains("sigma")
+      || key.split(separator: "_").contains("err") { return 85 }
     return 0
   }
 
@@ -509,16 +546,116 @@ struct PhotometricCalibrationService {
     ).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
   }
 
-  private func rowMatchesFilter(
-    _ row: [String],
+  private func validatedConvention(
+    review: PhotometricCalibrationReview,
     selection: PhotometricCalibrationSelection
-  ) -> Bool {
-    guard let filterColumn = selection.filterColumn,
-          let filterValue = selection.filterValue,
-          !filterValue.isEmpty else {
-      return true
+  ) throws -> PhotometricCalibrationConvention {
+    let magnitudeColumns = [
+      (selection.instrumentalColumn, "instrumental magnitude"),
+      (selection.catalogColumn, "catalog magnitude"),
+      (selection.includeColorTerm ? selection.colorColumn : nil, "color index")
+    ]
+    for (index, label) in magnitudeColumns {
+      if let unit = review.column(at: index)?.declaredUnit, unit != .magnitude(.magnitude) {
+        throw PhotometricCalibrationError.invalidSelection("The selected \(label) column must be in magnitudes.")
+      }
     }
-    return row[safe: filterColumn]?.trimmingCharacters(in: .whitespacesAndNewlines) == filterValue
+    if let unit = review.column(at: selection.airmassColumn)?.declaredUnit, unit != .dimensionless {
+      throw PhotometricCalibrationError.invalidSelection("Select a dimensionless airmass column.")
+    }
+    if needsInputUnitConfirmation(review: review, selection: selection), !selection.inputUnitsConfirmed {
+      throw PhotometricCalibrationError.invalidSelection("Confirm magnitudes and dimensionless airmass for the unlabeled columns.")
+    }
+    guard let system = selection.magnitudeSystem else {
+      throw PhotometricCalibrationError.invalidSelection("Select the magnitude system of the catalog standards.")
+    }
+    if let declared = review.column(at: selection.catalogColumn)?.declaredMagnitudeSystem, declared != system {
+      throw PhotometricCalibrationError.invalidSelection("The catalog magnitude column declares the \(declared.rawValue) system.")
+    }
+    let systemName = system == .other
+      ? selection.customMagnitudeSystem.trimmingCharacters(in: .whitespacesAndNewlines) : system.rawValue
+    guard !systemName.isEmpty else {
+      throw PhotometricCalibrationError.invalidSelection("Enter the documented catalog magnitude system.")
+    }
+    let passband: String
+    if let filter = selection.filterColumn {
+      guard review.columns.indices.contains(filter) else {
+        throw PhotometricCalibrationError.invalidSelection("Select a filter column within the table.")
+      }
+      let values = filterValues(review: review, filterColumn: filter)
+      let selected = selection.filterValue ?? (values.count == 1 ? values.first : nil)
+      guard let selected, values.contains(selected) else {
+        throw PhotometricCalibrationError.invalidSelection("Choose one filter value before fitting.")
+      }
+      passband = selected
+    } else {
+      passband = selection.singlePassband.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !passband.isEmpty else {
+        throw PhotometricCalibrationError.invalidSelection("Enter the single passband represented by the selected standards.")
+      }
+    }
+    let uncertainty = review.column(at: selection.uncertaintyColumn)
+    if let uncertainty {
+      if uncertainty.isIncompatibleUncertainty {
+        throw PhotometricCalibrationError.invalidSelection("Select the uncertainty of the magnitude offset, or fit without weights.")
+      }
+      guard let unit = selection.offsetUncertaintyUnit else {
+        throw PhotometricCalibrationError.invalidSelection("Confirm the offset uncertainty in mag or mmag.")
+      }
+      if let declared = uncertainty.declaredUnit, declared != .magnitude(unit) {
+        throw PhotometricCalibrationError.invalidSelection("The declared uncertainty unit conflicts with the selected mag or mmag unit.")
+      }
+    }
+    return PhotometricCalibrationConvention(
+      magnitudeSystem: systemName, passband: passband,
+      offsetUncertaintyUnit: uncertainty == nil ? nil : selection.offsetUncertaintyUnit
+    )
+  }
+
+  private func magnitudeSystem(_ tokens: Set<String>) -> PhotometricMagnitudeSystem? {
+    guard !tokens.isDisjoint(with: ["mag", "mags", "magnitude", "magnitudes", "abmag", "vegamag", "stmag"])
+    else { return nil }
+    let declarations: [(PhotometricMagnitudeSystem, Set<String>)] = [
+      (.ab, ["ab", "abmag"]), (.vega, ["vega", "vegamag"]), (.st, ["st", "stmag"])
+    ]
+    let detected = declarations.filter { !tokens.isDisjoint(with: $0.1) }
+    return detected.count == 1 ? detected.first?.0 : nil
+  }
+
+  private func measurementUnit(
+    _ key: String, tokens: Set<String>, system: PhotometricMagnitudeSystem?
+  ) -> PhotometricColumnUnit? {
+    if !tokens.isDisjoint(with: [
+      "jy", "mjy", "ujy", "njy", "adu", "counts", "electrons", "deg", "degree", "degrees",
+      "rad", "radian", "radians", "percent", "pct", "snr", "variance", "ivar"
+    ]) {
+      return .incompatible
+    }
+    if !tokens.isDisjoint(with: ["mmag", "mmags", "millimagnitude", "millimagnitudes"]) {
+      return .magnitude(.millimagnitude)
+    }
+    if system != nil || !tokens.isDisjoint(with: ["mag", "mags", "magnitude", "magnitudes"])
+      || ["m_inst", "m_std", "b_minus_v", "b_v", "bv", "g_r", "bp_rp"].contains(key) {
+      return .magnitude(.magnitude)
+    }
+    if !tokens.isDisjoint(with: ["airmass", "secz", "dimensionless"]) || ["air_mass", "sec_z"].contains(key) {
+      return .dimensionless
+    }
+    return tokens.contains("flux") ? .incompatible : nil
+  }
+
+  private func magnitudeUnit(from declaration: PhotometricColumnUnit?) -> PhotometricMagnitudeUnit? {
+    guard case let .magnitude(unit)? = declaration else { return nil }
+    return unit
+  }
+
+  private func uncertaintyMagnitude(_ value: Double, unit: PhotometricMagnitudeUnit?) -> Double {
+    unit == .millimagnitude ? value / 1_000 : value
+  }
+
+  private func rowMatchesFilter(_ row: [String], column: Int?, passband: String) -> Bool {
+    guard let column else { return true }
+    return row[safe: column]?.trimmingCharacters(in: .whitespacesAndNewlines) == passband
   }
 
   private func finiteNumber(_ raw: String) -> Double? {

@@ -205,13 +205,39 @@ in Capabilities:
 1. Add an RV table in text, CSV, TSV, or `.vels` format.
 2. Select `Inspect Columns`.
 3. Review the time, radial-velocity, and uncertainty columns.
-4. Confirm JD/BJD/HJD/MJD and km/s or m/s.
+4. Confirm the date format and reference (JD/BJD/HJD/MJD), its time scale (for
+   example UTC or TDB), and the velocity unit. If you select an uncertainty
+   column, confirm its unit separately. Explicit labels such as `BJD_TDB`
+   and `rv_km_s` prefill these selections.
 5. Select `Run Reviewed Inspection`.
 
-The app creates a normalized `.vels` copy inside the run, converting MJD to JD
-and m/s to km/s. The original table is unchanged. Missing columns, ambiguous
-units, or insufficient numeric data produce next actions; the backend waits
-until the mapping is valid.
+The run retains a normalized `.vels` copy and a column mapping. It converts
+MJD to JD on the declared scale and converts velocities and uncertainties
+independently to km/s. BJD and HJD keep their reference. The user must
+provide full dates and a consistent declaration before the run can start.
+Missing, nonnumeric, and nonfinite dates block preparation with a row count.
+The source table is read-only.
+
+### Measure circular aperture flux from FITS
+
+The bundled `aperture_photometry.py` command uses zero-based pixel
+coordinates. It sums finite aperture pixels and subtracts the local
+annulus median times their count. The summary identifies the selected
+HDU, its `BUNIT`, and omitted pixels and truncated apertures.
+
+For an image in electrons, the source term uses gain 1. For an ADU
+image, supply a positive `--gain` in electrons per ADU. For an HDU
+without `BUNIT`, use `--units electrons` or `--units adu` if the
+detector units are known. A total uncertainty requires supported units
+and, for ADU, a gain. The measured flux and background scatter remain
+available in that case. JSON records the unavailable total as `null`
+and CSV leaves the corresponding cell empty.
+
+The error model combines positive source Poisson variance, background
+scatter within the aperture, and the uncertainty of the annulus median.
+It assumes independent pixels and uses a Gaussian approximation for
+the median term. Correlated noise, gain uncertainty, and calibration
+systematics are outside this first-pass model.
 
 ### Guided photometric calibration
 
@@ -220,29 +246,169 @@ solution from standard stars:
 
 1. Add a CSV, TSV, or delimited text table.
 2. Select `Inspect Columns`.
-3. Confirm `Instrumental mag`, `Catalog mag`, and `Airmass`.
-4. Choose a filter if multiple bands are present.
-5. Select uncertainty and, when applicable, color index.
+3. Confirm the selected magnitudes, dimensionless airmass, and catalog
+   magnitude system (AB, Vega, ST, or another documented system).
+4. Choose one filter value or enter the single passband for a table without
+   a filter column.
+5. If weighting the fit, select the standard deviation of the catalog minus
+   instrumental magnitude offset and declare mag or mmag. An optional color
+   index uses magnitudes.
 6. Review the preview, ranges, and excluded rows.
 7. Select `Fit Reviewed Calibration`.
 
-The app saves a canonical copy and column mapping in the run. NaN, Inf, and
-nonnumeric values are excluded only from the copy, provided at least three
-valid standards remain. Suspicious ranges, narrow airmass/color coverage, and
+The staged table and column mapping retain the passband and catalog magnitude
+system. The fit uses the declared catalog system and preserves the input
+magnitude values. The app converts mmag uncertainties to mag before fitting.
+NaN, Inf, and nonnumeric values are excluded from the copy, provided at least
+three valid standards remain. Suspicious ranges, narrow airmass/color coverage, and
 fits without uncertainties produce warnings. The original table is unchanged;
 `photometric_solution.py` owns the scientific model.
 
+In Results, open the run summary to review fitted coefficients, their units and
+formal standard errors, residuals, and quality findings. Keep the residual table
+and plot for checking trends against airmass and color. A weighted fit uses the
+supplied absolute uncertainties. An unweighted fit estimates its standard errors
+from residual scatter when there are residual degrees of freedom. With no such
+degrees of freedom, an unweighted fit labels its coefficient uncertainties
+unavailable. Reduced chi-square is shown only for a weighted fit with positive
+residual degrees of freedom. Systematic calibration errors are outside these
+formal uncertainty estimates.
+
+### Estimate aperture-photometry noise
+
+Enter the net source counts per aperture and frame, and sky and dark counts
+per pixel and frame. The selected units apply to those three inputs. Read
+noise uses electrons per pixel per frame. With ADU inputs, enter the gain in
+electrons per ADU. The estimate assumes independent frames and pixels.
+
+Enable the background-estimate term when using a finite set of independent
+background pixels. Results shows the estimated SNR, the source signal with
+its modeled standard deviation, and the variance terms. Omitting the
+background term gives an optimistic estimate when the background is
+uncertain. At zero total variance, the SNR and dominant noise contribution
+are unavailable.
+
 ### Guided sky crossmatch
 
-`catalog_workbench.crossmatch-sky` requires two distinct text tables, explicit
-RA/Dec columns for each, confirmation of decimal degrees, and a positive match
-radius in arcseconds. Review numeric fractions, ranges, and previews.
-Nonfinite values, repeated columns, and coordinates outside RA `[0, 360)` or
-Dec `[-90, 90]` are rejected; the backend rechecks all rows.
+`catalog_workbench.crossmatch-sky` requires two distinct text tables. Choose the
+RA and Dec columns and their units for each catalog. Both axes accept decimal
+degrees or radians. RA also accepts decimal hours of right ascension. Review
+the numeric fractions and ranges before running.
 
-The guided inspector supports CSV, TSV, ECSV, and delimited text. Binary FITS
-tables, Parquet, and spreadsheets require a reviewed text conversion for this
+Confirm that both catalogs contain ICRS positions at the same coordinate
+epoch and enter that epoch as a Julian year, for example `2016.0`. Use the
+epoch of the positions themselves. If the catalogs differ in frame or epoch,
+prepare aligned copies before attaching them. The matcher applies no frame
+conversion or proper-motion propagation.
+
+Enter a finite radius in arcseconds greater than zero and at most 648,000
+(180 degrees). The matcher takes the nearest right-catalog row for each left
+row within that radius. The backend checks every row and rejects nonfinite or
+out-of-range coordinates and conflicting column units. ECSV metadata can
+declare `coordinate_frame` and `coordinate_epoch_jyear` for a consistency
+check. The summary and manifest record the four column mappings and units,
+the frame and epoch, and the radius. Both input files stay unchanged.
+
+The guided inspector supports CSV, TSV, ECSV, and delimited text. The backend
+uses the same delimiter as the reviewed preview and keeps ECSV column metadata.
+Binary FITS tables, Parquet, and spreadsheets require a reviewed text conversion for this
 form, or the backend's expert CLI.
+
+### Measure Li I equivalent width
+
+The Li I 6707.8 Å workflow measures equivalent width by integrating the
+continuum-normalized line. Supply an angstrom-calibrated MULTISPEC FITS
+spectrum or an ASCII table whose first two numeric columns are wavelength
+in angstroms and flux. The workflow checks declared FITS units and uses
+positive equivalent width for absorption.
+
+Open the run summary in Results to see the continuum and integration
+windows, residual scatter, line depth, and uncertainty diagnostics. The
+continuum-noise proxy propagates the actual trapezoid weights and assumes
+independent samples. The window-sensitivity grid repeats the measurement
+with shifted windows. The combined uncertainty is an approximation from
+both terms. With the grid skipped or insufficient, the width remains
+available and the combined uncertainty is shown as unavailable.
+
+### Check an existing celestial WCS
+
+Results identifies the FITS extension used for coordinates, the pixel
+round trip, and the quicklook. On an image, the check transforms the center
+and four corners to sky coordinates and back. A header-only WCS is checked
+at its reference pixel and produces no image quicklook.
+
+The residual is a pixel-space consistency check with a tolerance of
+0.01 pixel. Where usable pointing keywords are present in the selected
+image extension, the summary also gives their spherical separation from
+the WCS center in arcseconds. Catalog-based accuracy and coordinate
+uncertainties require an independent reference.
+
+### Review two-peak SB2 fits
+
+Supply one cross-correlation trace per CSV, with velocity in `km/s` and
+a CCF value. Use the same case ID for orders from a single observation.
+Unlabeled traces share the default case. Results shows the lower- and
+higher-velocity peak estimates per case, the median residual RMS of accepted
+orders, and the reasons for rejected orders. Velocity order alone does not
+identify the stars.
+
+The combined peak velocities use inverse-variance weights from the fitted
+center errors. The formal errors assume independent orders and exclude
+calibration and template systematics. Inspect the order table and plots
+before interpreting the combined estimates.
+
+### Review a general spectral line fit
+
+The bundled `spectral_workbench.py` command accepts a spectrum and
+`--line-window CENTER WIDTH`. Both numbers use the active spectral axis.
+Check the axis unit in the source metadata or in the optional
+`--calibration-table` before choosing the window. The calibration fits a
+polynomial against zero-based dispersion pixel indices. Its declared
+wavelength unit replaces the source axis unit. A plain table without a
+unit declaration leaves that unit unspecified.
+
+The JSON summary records the effective polynomial degree, anchor
+residual RMS, available degrees of freedom, and any extrapolation. Anchor
+residuals describe the calibration fit. Absolute wavelength uncertainty
+remains unavailable.
+
+The line fit uses an unweighted Gaussian and a constant continuum in
+raw-flux space. The reported formal errors use the local parameter
+covariance and omit calibration and continuum systematics. The summary
+also records the residual RMS, sample count, and equivalent width from
+direct integration for comparison. Uncertainty for the direct integral
+is unavailable. A failed fit returns a reason in the summary.
+
+For a set of 2D frames, the bundled `spectroscopy_pipeline_workbench.py`
+writes a batch report, a science-products CSV, and per-frame summaries.
+Each completed fit keeps its unit, formal errors, residual diagnostics,
+and quality findings. A blocked frame retains its reason. Completed
+frames remain available if a later frame is blocked. For automation,
+the command returns 0 for a completed batch (including warnings), 1
+for a partial batch or execution failure, and 2 if every frame is
+blocked. Use a fresh output directory to retain the previous batch report.
+
+### Review legacy radial velocities and rotation
+
+The expert `legacy_rv_coursework_workbench.analyze` route consumes parsed
+fxcor orders and uses the source and template FITS headers for heliocentric
+corrections. Provide one case ID per observation and component. The
+companion FWHM calibration table is optional and uses pixels for the CCF
+width and km/s for projected rotation.
+
+Results shows the heliocentric RV in km/s, its formal error from the
+reported fxcor errors, and the sample scatter of the selected orders.
+The filter excludes orders with missing, zero, negative, or non-finite
+errors. Check the Tonry-Davis R limits, selected orders, and quality
+findings. The formal error assumes independent orders and excludes
+template and calibration systematics. SB2 velocities require review of
+the CCF peaks before adoption.
+
+The projected rotation estimate uses PCHIP interpolation within the
+supplied calibration range. A width outside that range leaves the
+rotation value unavailable. The workflow has no CCF-width error model
+and reports the rotation uncertainty as unavailable. Use the CSV tables
+to inspect the per-order values and flags.
 
 ### Populate a legacy spectroscopy report
 

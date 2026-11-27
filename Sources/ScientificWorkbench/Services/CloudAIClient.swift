@@ -1,5 +1,18 @@
 import Foundation
 
+struct CloudAIReply: Sendable {
+  let text: String
+  let reportedModel: String?
+}
+
+private struct ReportedModelField: Decodable {
+  let value: String?
+
+  init(from decoder: Decoder) throws {
+    value = try? decoder.singleValueContainer().decode(String.self)
+  }
+}
+
 private struct CloudAIChatMessagePayload: Encodable {
   var role: String
   var content: String
@@ -77,6 +90,7 @@ private struct GeminiGenerateContentRequestPayload: Encodable {
 }
 
 private struct OpenAIResponsesResponsePayload: Decodable {
+  var model: ReportedModelField?
   var outputText: String?
   var output: [OutputItem]?
 
@@ -89,6 +103,7 @@ private struct OpenAIResponsesResponsePayload: Decodable {
   }
 
   enum CodingKeys: String, CodingKey {
+    case model
     case outputText = "output_text"
     case output
   }
@@ -107,6 +122,7 @@ private struct OpenAIResponsesResponsePayload: Decodable {
 }
 
 private struct ChatCompletionsResponsePayload: Decodable {
+  var model: ReportedModelField?
   var choices: [Choice]
 
   struct Choice: Decodable {
@@ -123,6 +139,7 @@ private struct ChatCompletionsResponsePayload: Decodable {
 }
 
 private struct OllamaChatResponsePayload: Decodable {
+  var model: ReportedModelField?
   var message: Message?
 
   struct Message: Decodable {
@@ -135,6 +152,7 @@ private struct OllamaChatResponsePayload: Decodable {
 }
 
 private struct GeminiGenerateContentResponsePayload: Decodable {
+  var modelVersion: ReportedModelField?
   var candidates: [Candidate]
 
   struct Candidate: Decodable {
@@ -320,6 +338,22 @@ struct CloudAIClient: Sendable {
     temperature: Double = 0.2,
     maxOutputTokens: Int? = nil
   ) async throws -> String {
+    try await generateReply(
+      provider: provider, apiKey: apiKey, model: model, baseURL: baseURL,
+      system: system, user: user, temperature: temperature, maxOutputTokens: maxOutputTokens
+    ).text
+  }
+
+  func generateReply(
+    provider: AIProvider,
+    apiKey: String,
+    model: String,
+    baseURL: String? = nil,
+    system: String,
+    user: String,
+    temperature: Double = 0.2,
+    maxOutputTokens: Int? = nil
+  ) async throws -> CloudAIReply {
     switch provider {
     case .ollama:
       return try await generateOllamaChat(
@@ -409,7 +443,7 @@ struct CloudAIClient: Sendable {
     user: String,
     temperature: Double,
     maxOutputTokens: Int?
-  ) async throws -> String {
+  ) async throws -> CloudAIReply {
     var request = URLRequest(url: try ollamaChatURL(from: baseURL))
     request.httpMethod = "POST"
     request.timeoutInterval = 60
@@ -430,7 +464,8 @@ struct CloudAIClient: Sendable {
     request.httpBody = try encodeRequestBody(body)
 
     let data = try await checkedData(for: request)
-    return try extractOllamaChatText(from: data)
+    let payload: OllamaChatResponsePayload = try decodeResponsePayload(from: data)
+    return try reply(text: payload.readableText, model: payload.model?.value)
   }
 
   private func generateOpenAI(
@@ -440,7 +475,7 @@ struct CloudAIClient: Sendable {
     user: String,
     temperature: Double,
     maxOutputTokens: Int?
-  ) async throws -> String {
+  ) async throws -> CloudAIReply {
     var request = URLRequest(url: URL(string: "https://api.openai.com/v1/responses")!)
     request.httpMethod = "POST"
     request.timeoutInterval = 60
@@ -457,7 +492,8 @@ struct CloudAIClient: Sendable {
     request.httpBody = try encodeRequestBody(body)
 
     let data = try await checkedData(for: request)
-    return try extractOpenAIResponsesText(from: data)
+    let payload: OpenAIResponsesResponsePayload = try decodeResponsePayload(from: data)
+    return try reply(text: payload.readableText, model: payload.model?.value)
   }
 
   private func generateOpenAICompatibleChat(
@@ -468,7 +504,7 @@ struct CloudAIClient: Sendable {
     user: String,
     temperature: Double,
     maxOutputTokens: Int?
-  ) async throws -> String {
+  ) async throws -> CloudAIReply {
     var request = URLRequest(url: URL(string: baseURL)!)
     request.httpMethod = "POST"
     request.timeoutInterval = 60
@@ -487,7 +523,8 @@ struct CloudAIClient: Sendable {
     request.httpBody = try encodeRequestBody(body)
 
     let data = try await checkedData(for: request)
-    return try extractChatCompletionsText(from: data)
+    let payload: ChatCompletionsResponsePayload = try decodeResponsePayload(from: data)
+    return try reply(text: payload.readableText, model: payload.model?.value)
   }
 
   private func generateGemini(
@@ -497,7 +534,7 @@ struct CloudAIClient: Sendable {
     user: String,
     temperature: Double,
     maxOutputTokens: Int?
-  ) async throws -> String {
+  ) async throws -> CloudAIReply {
     let cleanModel = model.replacingOccurrences(of: "models/", with: "")
     let encodedModel = cleanModel.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? cleanModel
     let endpoint = URL(
@@ -528,7 +565,8 @@ struct CloudAIClient: Sendable {
     request.httpBody = try encodeRequestBody(body)
 
     let data = try await checkedData(for: request)
-    return try extractGeminiText(from: data)
+    let payload: GeminiGenerateContentResponsePayload = try decodeResponsePayload(from: data)
+    return try reply(text: payload.readableText, model: payload.modelVersion?.value)
   }
 
   private func checkedData(for request: URLRequest) async throws -> Data {
@@ -557,28 +595,9 @@ struct CloudAIClient: Sendable {
     try JSONEncoder().encode(payload)
   }
 
-  private func extractOpenAIResponsesText(from data: Data) throws -> String {
-    let payload: OpenAIResponsesResponsePayload = try decodeResponsePayload(from: data)
-    guard let text = payload.readableText else { throw CloudAIError.invalidResponse }
-    return text
-  }
-
-  private func extractChatCompletionsText(from data: Data) throws -> String {
-    let payload: ChatCompletionsResponsePayload = try decodeResponsePayload(from: data)
-    guard let text = payload.readableText else { throw CloudAIError.invalidResponse }
-    return text
-  }
-
-  private func extractOllamaChatText(from data: Data) throws -> String {
-    let payload: OllamaChatResponsePayload = try decodeResponsePayload(from: data)
-    guard let text = payload.readableText else { throw CloudAIError.invalidResponse }
-    return text
-  }
-
-  private func extractGeminiText(from data: Data) throws -> String {
-    let payload: GeminiGenerateContentResponsePayload = try decodeResponsePayload(from: data)
-    guard let text = payload.readableText else { throw CloudAIError.invalidResponse }
-    return text
+  private func reply(text: String?, model: String?) throws -> CloudAIReply {
+    guard let text else { throw CloudAIError.invalidResponse }
+    return CloudAIReply(text: text, reportedModel: model)
   }
 
   private func decodeResponsePayload<T: Decodable>(from data: Data) throws -> T {

@@ -10,6 +10,8 @@ struct JobsView: View {
   @State private var searchIndex = RecentJobSearchIndex()
   @State private var searchResult: (request: SearchRequest, offsets: [Int])?
   @State private var pageIndex = 0
+  @State private var showsPortableInspection = false
+  @State private var showsReportRegeneration = false
 
   private var recentFilter: Binding<RecentJobFilter> { $store.recentJobFilter }
 
@@ -96,6 +98,12 @@ struct JobsView: View {
     .onChange(of: store.selectedJobID) {
       revealSelection(in: offsets)
     }
+    .sheet(isPresented: $showsPortableInspection) {
+      PortableRunInspectionSheet(store: store)
+    }
+    .sheet(isPresented: $showsReportRegeneration) {
+      TechnicalRunReportRegenerationSheet()
+    }
   }
 
   private var selectedJobOffset: Int? {
@@ -122,6 +130,10 @@ struct JobsView: View {
           .fontWeight(.semibold)
         Text("Queue, logs, and status")
           .foregroundStyle(.secondary)
+        Button("Inspect Portable ZIP", systemImage: "doc.zipper") { showsPortableInspection = true }
+          .accessibilityIdentifier("jobs.inspect-portable")
+        Button("Regenerate Report PDF…", systemImage: "doc.richtext") { showsReportRegeneration = true }
+          .accessibilityIdentifier("jobs.regenerate-report")
       }
       .padding(.horizontal, 16)
       .padding(.top, 18)
@@ -298,6 +310,9 @@ struct JobsView: View {
 struct JobDetailView: View {
   @ObservedObject var store: WorkbenchStore
   let job: JobRecord
+  @State private var showsVerification = false
+  @State private var showsPortableExport = false
+  @State private var showsTechnicalReport = false
 
   var body: some View {
     ScrollView {
@@ -313,6 +328,14 @@ struct JobDetailView: View {
           }
           Spacer()
           StatusBadge(status: job.displaySeverity)
+          if job.status != .queued && job.status != .running {
+            Button { showsVerification = true } label: {
+              Label("Verify Run", systemImage: "checkmark.shield")
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .disabled(store.hasActiveOperation)
+            .accessibilityIdentifier("jobs.verify-run")
+          }
         }
 
         if job.status == .queued || job.status == .running {
@@ -367,6 +390,12 @@ struct JobDetailView: View {
             Label("Support Bundle", systemImage: "lifepreserver")
           }
           .help("Export a redacted diagnostic bundle for this job.")
+
+          if job.status == .succeeded {
+            Button("Portable ZIP", systemImage: "doc.zipper") { showsPortableExport = true }
+              .help("Choose which evidence to include in a portable run package.")
+              .accessibilityIdentifier("jobs.export-portable")
+          }
         }
 
         Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 10) {
@@ -389,6 +418,11 @@ struct JobDetailView: View {
         }
 
         JobEvidenceStagesView(job: job)
+
+        if job.status == .succeeded {
+          Button("Technical Report", systemImage: "doc.text") { showsTechnicalReport = true }
+            .accessibilityIdentifier("jobs.technical-report")
+        }
 
         if let shortSummary = job.shortSummary {
           Text(shortSummary)
@@ -432,6 +466,16 @@ struct JobDetailView: View {
 
       }
       .padding(24)
+    }
+    .sheet(isPresented: $showsVerification) {
+      RunVerificationSheet(store: store, job: job)
+        .id(job.id)
+    }
+    .sheet(isPresented: $showsPortableExport) {
+      PortableRunExportSheet(store: store, job: job)
+    }
+    .sheet(isPresented: $showsTechnicalReport) {
+      TechnicalRunReportSheet(store: store, job: job)
     }
   }
 }

@@ -775,7 +775,7 @@ def run_validation(args):
     output_dir = ensure_validation_paths(args)
     validate_roots(args.roots)
     output_dir.mkdir(parents=True, exist_ok=True)
-    scripts_dir = Path(__file__).resolve().parent
+    scripts_dir = Path(__file__).resolve().parents[2] / "scientific-data-analysis" / "scripts"
     samples = select_samples(args.roots, args.max_per_ext)
     if args.include_system_iwork_samples:
         supplement_numbers_samples(samples, args.max_per_ext)

@@ -19,23 +19,32 @@ extension ScientificWorkbenchTests {
 
   @Test
   func processRunnerCancelsActiveProcess() async throws {
-    let runner = ProcessRunner()
+    let directory = try makeProcessTreeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let readyMarker = directory.appendingPathComponent("ready.pid")
+    let runner = ProcessRunner(defaultTimeoutSeconds: 30)
     let command = ProcessCommand(
-      executable: "/bin/sleep",
-      arguments: ["5"],
+      executable: "/bin/sh",
+      arguments: [
+        "-c",
+        "printf '%s' \"$$\" > \"$1\"; exec /bin/sleep 30",
+        "process-runner-fixture",
+        readyMarker.path
+      ],
       workingDirectory: nil
     )
-    let startedAt = Date()
     let task = Task {
       try await runner.run(command)
     }
+    defer { task.cancel() }
 
-    try await Task.sleep(nanoseconds: 200_000_000)
+    let pid = try await waitForProcessPID(at: readyMarker)
+    try #require(processExists(pid))
     await runner.cancelAll()
     let result = try await task.value
 
-    #expect(result.exitCode != 0)
-    #expect(result.finishedAt.timeIntervalSince(startedAt) < 3)
+    #expect([SIGTERM, SIGINT, SIGKILL].contains(result.exitCode))
+    #expect(await processTreeExited([pid]))
   }
 
   @Test
@@ -219,6 +228,7 @@ extension ScientificWorkbenchTests {
       "CDPATH": "/tmp/untrusted-cdpath",
       "PYTHONHOME": "/tmp/untrusted-python-home",
       "PYTHONPATH": "/tmp/untrusted-python-path",
+      RunRuntimeEvidence.environmentKey: "untrusted-runtime-request",
       "NODE_OPTIONS": "--require=/tmp/untrusted-node.js",
       "RUBYOPT": "-r/tmp/untrusted-ruby.rb",
       "PATH": "/compat/bin"
@@ -240,6 +250,7 @@ extension ScientificWorkbenchTests {
     #expect(environment["CDPATH"] == nil)
     #expect(environment["PYTHONHOME"] == nil)
     #expect(environment["PYTHONPATH"] == nil)
+    #expect(environment[RunRuntimeEvidence.environmentKey] == nil)
     #expect(environment["NODE_OPTIONS"] == nil)
     #expect(environment["RUBYOPT"] == nil)
     #expect(environment["PATH"]?.contains("/compat/bin") == true)

@@ -104,6 +104,7 @@ enum ProcessEnvironmentKeyPolicy {
       "PYTHONINSPECT",
       "PYTHONPATH",
       "PYTHONSTARTUP",
+      RunRuntimeEvidence.environmentKey,
       "RUBYLIB",
       "RUBYOPT",
       "SHELLOPTS",

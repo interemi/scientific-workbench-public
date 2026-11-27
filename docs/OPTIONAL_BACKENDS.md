@@ -178,8 +178,9 @@ The [IRAF Community installation guide](https://iraf-community.github.io/install
 describes macOS packages and a Homebrew tap. It may also need XQuartz for
 X11 tools. Check `command -v cl` and `command -v mkiraf` before the
 `legacy_spectroscopy_envcheck` preflight. `fxcor_iraf_workbench.prepare-session`
-creates a separate ASCII-safe coursework copy; run IRAF only there. No IRAF
-installation or real fxcor result was established by hosted Core CI.
+creates a separate ASCII-safe coursework copy for IRAF. Prepare a fresh
+workspace when retrying a case with existing FXCOR scripts or products. Hosted
+Core CI provides fixture-level evidence for this route.
 
 `istarmod_workbench` is a **legacy tree adapter**, not an installer of
 [upstream iSTARMOD](https://github.com/flabarga/iSTARMOD). Its inspection

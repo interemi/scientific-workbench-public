@@ -1,0 +1,1635 @@
+{
+  "schema_version": 1,
+  "capabilities": {
+    "datanalysis_env.status": {
+      "revision": 1,
+      "backend": "Local Python environment discovery. Uses configured and installed interpreter candidates.",
+      "inputs": [],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Optional copy of the discovery report, which is also printed to standard output."}
+      ],
+      "warnings": "A usable selection can coexist with warnings about other candidates. Package imports and notebook execution have their own healthcheck.",
+      "failure": "When no dedicated environment is found, exits 1 and reports recovery guidance. It does not install an environment.",
+      "summary": {
+        "version": "1.8",
+        "container": "root",
+        "complete": {"found": "boolean", "selected_python": "string", "selected_env_root": "string", "warnings": "array"},
+        "rejected": {"found": "boolean", "next_step": "string", "warnings": "array"}
+      }
+    },
+    "datanalysis_healthcheck": {
+      "revision": 1,
+      "backend": "The selected datanalysis interpreter checks imports. Jupyter support enables the optional temporary notebook smoke.",
+      "inputs": [
+        {"argument": "--kernel-name", "detail": "Kernel used for the generated smoke notebook."},
+        {"argument": "--skip-notebook-exec", "detail": "Check modules and imports without executing the notebook."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Environment identity, module status, missing or failed imports, and notebook smoke status."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Diagnostic provenance and summary output record when requested."}
+      ],
+      "warnings": "A notebook smoke blocked by the host environment can yield WARNING. A skipped smoke records no notebook execution result.",
+      "failure": "An incomplete stack or unsuccessful notebook smoke can exit 1 with a retained diagnostic report.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"ready": "boolean", "modules": "object", "notebook_execution": "object"},
+        "rejected": {"ready": "boolean", "missing": "array", "import_failures": "array", "notebook_execution": "object"}
+      }
+    },
+    "env_doctor": {
+      "revision": 1,
+      "backend": "Local Python, package metadata, interpreter discovery and installed tool checks.",
+      "inputs": [
+        {"argument": "--strict-core", "detail": "Exit 1 if any core dependency is missing, while retaining the diagnostic when its output path is usable."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Core and optional dependency status, discovered backends and recommended actions."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Summary output and environment-readiness provenance."}
+      ],
+      "warnings": "Unavailable optional features can produce WARNING even when Core is ready.",
+      "failure": "An invalid output destination can exit 2 with a controlled diagnostic on standard output. An independently writable summary path can retain it.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"core_modules": "object", "optional_groups": "object", "capabilities": "object", "recommendations": "array"},
+        "rejected": {"blocked_reason": "string", "error_type": "string", "requested_outputs": "object"}
+      }
+    },
+    "companion_route_check": {
+      "revision": 1,
+      "backend": "Local rule-based advisory routing in Python.",
+      "inputs": [
+        {"argument": "--task", "detail": "Short task description used to match advisory routes."},
+        {"argument": "--file", "detail": "Repeatable filename hint. The command uses its name and extension without reading the file."},
+        {"argument": "--format", "detail": "Repeatable explicit format hint."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Advisory recommendations, exclusions and routing policy. No plugins or connectors are started."}
+      ],
+      "warnings": "An unmatched request produces WARNING and an empty recommendation list.",
+      "failure": "A summary path that overlaps a supplied file hint or cannot be written exits 2 with a diagnostic on standard output.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"files": "array", "recommendations": "array", "excluded_by_policy": "array", "policy": "object"},
+        "rejected": {"files": "array"}
+      }
+    },
+    "stilts_workbench": {
+      "revision": 1,
+      "default_subcommand": "preflight",
+      "backend": "Local executable and Java archive discovery.",
+      "inputs": [
+        {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+        {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+        {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+        {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+        {"argument": "--dry-run", "detail": "Retained routing option. Preflight always discovers the backend without launching a catalog job."},
+        {"argument": "--timeout-sec", "unit": "seconds", "detail": "Retained routing option for execution timeouts."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."}
+      ],
+      "warnings": "Review detected backend availability before running a catalog job.",
+      "failure": "An unavailable backend can exit 2 with native alternatives.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"found": "boolean", "blocking_findings": "array", "native_alternative": "object"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      },
+      "subcommands": {
+        "preflight": {
+          "revision": 1,
+          "backend": "Local executable and Java archive discovery.",
+          "inputs": [
+            {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+            {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+            {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+            {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+            {"argument": "--dry-run", "detail": "Retained routing option. Preflight always discovers the backend without launching a catalog job."},
+            {"argument": "--timeout-sec", "unit": "seconds", "detail": "Retained routing option for execution timeouts."}
+          ],
+          "outputs": [
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."}
+          ],
+          "warnings": "Review detected backend availability before running a catalog job.",
+          "failure": "An unavailable backend can exit 2 with native alternatives.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"found": "boolean", "blocking_findings": "array", "native_alternative": "object"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "convert": {
+          "revision": 1,
+          "backend": "Optional local STILTS executable or Java with a STILTS or TOPCAT archive.",
+          "inputs": [
+            {"argument": "input", "format": "Table", "detail": "Readable input table in a supported STILTS format."},
+            {"argument": "--ifmt", "detail": "Override the input table format."},
+            {"argument": "--ofmt", "detail": "Override the output table format."},
+            {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+            {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+            {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+            {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+            {"argument": "--dry-run", "detail": "Record the command for review. A dry run produces a plan without a new backend result."},
+            {"argument": "--timeout-sec", "unit": "seconds", "detail": "Maximum wait for a backend run."}
+          ],
+          "outputs": [
+            {"argument": "output", "format": "Table", "detail": "Destination table written by STILTS."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."},
+            {"argument": "--log-dir", "format": "Directory", "detail": "Command and captured stdout and stderr logs."}
+          ],
+          "warnings": "Review inferred formats and metadata when changing representations.",
+          "failure": "Unavailable backends and unsafe arguments can exit 2. A nonzero backend status, timeout or missing or stale product can exit 1.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"operation": "string", "backend_source": "string", "command": "string", "dry_run": "boolean", "returncode": "number_or_null"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "filter": {
+          "revision": 1,
+          "backend": "Optional local STILTS executable or Java with a STILTS or TOPCAT archive.",
+          "inputs": [
+            {"argument": "input", "format": "Table", "detail": "Readable input table in a supported STILTS format."},
+            {"argument": "--cmd", "detail": "Repeatable STILTS tpipe expression in evaluation order."},
+            {"argument": "--ifmt", "detail": "Override the input table format."},
+            {"argument": "--ofmt", "detail": "Override the output table format."},
+            {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+            {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+            {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+            {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+            {"argument": "--dry-run", "detail": "Record the command for review. A dry run produces a plan without a new backend result."},
+            {"argument": "--timeout-sec", "unit": "seconds", "detail": "Maximum wait for a backend run."}
+          ],
+          "outputs": [
+            {"argument": "output", "format": "Table", "detail": "Destination table written by STILTS."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."},
+            {"argument": "--log-dir", "format": "Directory", "detail": "Command and captured stdout and stderr logs."}
+          ],
+          "warnings": "Review the expressions and retained columns before using this table.",
+          "failure": "Unavailable backends and unsafe arguments can exit 2. A nonzero backend status, timeout or missing or stale product can exit 1.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"operation": "string", "backend_source": "string", "command": "string", "dry_run": "boolean", "returncode": "number_or_null"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "crossmatch-sky": {
+          "revision": 1,
+          "backend": "Optional local STILTS executable or Java with a STILTS or TOPCAT archive.",
+          "inputs": [
+            {"argument": "left", "format": "Table", "detail": "First readable catalog."},
+            {"argument": "right", "format": "Table", "detail": "Second readable catalog."},
+            {"argument": "--left-ra", "unit": "degrees", "detail": "RA column or expression in the left table."},
+            {"argument": "--left-dec", "unit": "degrees", "detail": "Dec column or expression in the left table."},
+            {"argument": "--right-ra", "unit": "degrees", "detail": "RA column or expression in the right table."},
+            {"argument": "--right-dec", "unit": "degrees", "detail": "Dec column or expression in the right table."},
+            {"argument": "--radius-arcsec", "unit": "arcseconds", "detail": "Maximum angular separation."},
+            {"argument": "--join", "detail": "Join policy for matching and unmatched rows."},
+            {"argument": "--find", "detail": "Policy for selecting matches."},
+            {"argument": "--ifmt1", "detail": "Override the first catalog format."},
+            {"argument": "--ifmt2", "detail": "Override the second catalog format."},
+            {"argument": "--ofmt", "detail": "Override the joined table format."},
+            {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+            {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+            {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+            {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+            {"argument": "--dry-run", "detail": "Record the command for review. A dry run produces a plan without a new backend result."},
+            {"argument": "--timeout-sec", "unit": "seconds", "detail": "Maximum wait for a backend run."}
+          ],
+          "outputs": [
+            {"argument": "output", "format": "Table", "detail": "Destination table written by STILTS."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."},
+            {"argument": "--log-dir", "format": "Directory", "detail": "Command and captured stdout and stderr logs."}
+          ],
+          "warnings": "Supply both catalogs in a common coordinate frame and appropriate epoch. Positional agreement alone does not establish a physical association.",
+          "failure": "Unavailable backends and unsafe arguments can exit 2. A nonzero backend status, timeout or missing or stale product can exit 1.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"operation": "string", "backend_source": "string", "command": "string", "dry_run": "boolean", "returncode": "number_or_null"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "votlint": {
+          "revision": 1,
+          "backend": "Optional local STILTS executable or Java with a STILTS or TOPCAT archive.",
+          "inputs": [
+            {"argument": "input", "format": "VOTable", "detail": "VOTable to check."},
+            {"argument": "--validate", "detail": "Enable validation checks."},
+            {"argument": "--no-validate", "detail": "Disable validation checks."},
+            {"argument": "--ucd", "detail": "Enable UCD checks."},
+            {"argument": "--no-ucd", "detail": "Disable UCD checks."},
+            {"argument": "--unit", "detail": "Select unit checking according to the STILTS options."},
+            {"argument": "--maxrepeat", "unit": "messages", "detail": "Maximum repeats of a diagnostic."},
+            {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+            {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+            {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+            {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+            {"argument": "--dry-run", "detail": "Record the command for review. A dry run produces a plan without a new backend result."},
+            {"argument": "--timeout-sec", "unit": "seconds", "detail": "Maximum wait for a backend run."}
+          ],
+          "outputs": [
+            {"argument": "report", "format": "Text", "detail": "Validation findings written by votlint."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."},
+            {"argument": "--log-dir", "format": "Directory", "detail": "Command and captured stdout and stderr logs."}
+          ],
+          "warnings": "Review the retained VOTable report before relying on its contents.",
+          "failure": "Unavailable backends and unsafe arguments can exit 2. A nonzero backend status, timeout or missing or stale product can exit 1.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"operation": "string", "backend_source": "string", "command": "string", "dry_run": "boolean", "returncode": "number_or_null"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        }
+      }
+    },
+    "apt_workbench": {
+      "revision": 1,
+      "default_subcommand": "preflight",
+      "backend": "Local discovery of the optional APT executable and saved preferences.",
+      "inputs": [
+        {"argument": "--apt-command", "detail": "Explicit APT batch executable or wrapper."},
+        {"argument": "--apt-preferences", "format": "APT.pref", "detail": "Saved APT preferences for the photometry settings."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."}
+      ],
+      "warnings": "Missing preferences can yield WARNING even when an APT command is found.",
+      "failure": "An unavailable command or unusable summary destination can exit 2.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"apt": "object", "preferences": "object", "blocking_findings": "array", "warning_findings": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      },
+      "subcommands": {
+        "preflight": {
+          "revision": 1,
+          "backend": "Local discovery of the optional APT executable and saved preferences.",
+          "inputs": [
+            {"argument": "--apt-command", "detail": "Explicit APT batch executable or wrapper."},
+            {"argument": "--apt-preferences", "format": "APT.pref", "detail": "Saved APT preferences for the photometry settings."}
+          ],
+          "outputs": [
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."}
+          ],
+          "warnings": "Missing preferences can yield WARNING even when an APT command is found.",
+          "failure": "An unavailable command or unusable summary destination can exit 2.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"apt": "object", "preferences": "object", "blocking_findings": "array", "warning_findings": "array"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "prepare-source-list": {
+          "revision": 1,
+          "backend": "Local Python table reader and APT source-list writer.",
+          "inputs": [
+            {"argument": "input_table", "format": "Table", "detail": "Readable table of image source positions."},
+            {"argument": "--x-col", "unit": "pixels", "detail": "Column containing image x positions in the APT coordinate convention."},
+            {"argument": "--y-col", "unit": "pixels", "detail": "Column containing image y positions in the APT coordinate convention."},
+            {"argument": "--id-col", "detail": "Optional identifier column."}
+          ],
+          "outputs": [
+            {"argument": "output_source_list", "format": "Text", "detail": "Whitespace source-list destination."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."}
+          ],
+          "warnings": "Check the pixel coordinate origin expected by the supplied APT workflow.",
+          "failure": "Invalid inputs or unsafe output paths can exit 2. Failed reads or writes can exit 1.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"row_count": "integer", "input_table": "string", "output_source_list": "string", "x_col": "string", "y_col": "string"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "run-batch": {
+          "revision": 1,
+          "backend": "Optional local Aperture Photometry Tool command configured with a saved preferences file.",
+          "inputs": [
+            {"argument": "--apt-command", "detail": "Explicit APT batch executable or wrapper."},
+            {"argument": "--apt-preferences", "format": "APT.pref", "detail": "Saved APT preferences for the photometry settings."},
+            {"argument": "--image", "format": "FITS", "detail": "Image to measure."},
+            {"argument": "--source-list", "format": "Text", "detail": "APT-compatible positions in image coordinates."},
+            {"argument": "--zero-point", "unit": "magnitudes", "detail": "Optional photometric magnitude zero point."},
+            {"argument": "--verbosity", "detail": "Backend diagnostic level."},
+            {"argument": "--dry-run", "detail": "Record the command for review. A dry run produces a plan without a new backend result."},
+            {"argument": "--timeout-sec", "unit": "seconds", "detail": "Maximum wait for a backend run."}
+          ],
+          "outputs": [
+            {"argument": "--output-table", "format": "APT table", "detail": "The table created or updated during this batch run."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."},
+            {"argument": "--log-dir", "format": "Directory", "detail": "Command and captured stdout and stderr logs."}
+          ],
+          "warnings": "Review the saved preferences and calibration before interpreting the measurements.",
+          "failure": "Missing prerequisites can exit 2. A failed backend, a timeout or a missing or unchanged table can exit 1.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"command": "string", "returncode": "number_or_null", "dry_run": "boolean"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        },
+        "parse-results": {
+          "revision": 1,
+          "backend": "Local Astropy table reader with APT text fallbacks.",
+          "inputs": [
+            {"argument": "input_table", "format": "APT table", "detail": "APT batch output to parse."},
+            {"argument": "--input-format", "detail": "Optional Astropy format override."}
+          ],
+          "outputs": [
+            {"argument": "output_table", "format": "Table", "detail": "Parsed table destination in the selected output format."},
+            {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."},
+            {"argument": "--manifest-json", "format": "JSON", "detail": "Input and output provenance for an executed workflow."}
+          ],
+          "warnings": "Interpret scientific quantities using the APT run and its saved preferences.",
+          "failure": "Malformed or unreadable tables and unsafe outputs can return a diagnostic with a nonzero exit.",
+          "summary": {
+            "version": "1.8",
+            "complete": {"row_count": "integer", "columns": "array", "input_table": "string", "output_table": "string"},
+            "rejected_container": "root",
+            "rejected": {"errors": "array", "qa": "object", "results": "object"}
+          }
+        }
+      }
+    },
+    "external_astro_tools_local_validation": {
+      "revision": 1,
+      "backend": "Local optional STILTS/APT adapters exercised on generated fixtures.",
+      "inputs": [
+        {"argument": "--tool", "detail": "Select all adapters, STILTS only or APT only."},
+        {"argument": "--timeout-sec", "unit": "seconds", "detail": "Maximum wait for a backend run."},
+        {"argument": "--require-stilts", "detail": "Make missing STILTS a controlled block."},
+        {"argument": "--require-apt", "detail": "Make missing APT batch readiness a controlled block."},
+        {"argument": "--include-apt-batch", "detail": "Opt in to an APT batch on generated fixtures using the saved preferences."},
+        {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+        {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS archive to run with Java."},
+        {"argument": "--topcat-command", "detail": "Explicit TOPCAT command supporting -stilts mode."},
+        {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT archive supporting -stilts mode."},
+        {"argument": "--java-command", "detail": "Explicit local Java executable."},
+        {"argument": "--apt-command", "detail": "Explicit APT batch executable or wrapper."},
+        {"argument": "--apt-preferences", "format": "APT.pref", "detail": "Saved APT preferences for the photometry settings."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Generated fixtures, dependency report and per-adapter evidence."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Structured result and diagnostics."}
+      ],
+      "warnings": "Missing optional backends can yield WARNING. APT uses command validation unless a batch is requested.",
+      "failure": "Unsafe destinations or missing required backends can exit 2. Failed validation can exit 1.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"tool_selection": "string", "include_apt_batch": "boolean", "capabilities": "object", "validations": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "external_astro_tools_preflight": {
+      "revision": 1,
+      "backend": "Local Python discovery of optional Java, STILTS, TOPCAT and APT commands or packages.",
+      "inputs": [
+        {"argument": "--java-command", "detail": "Explicit Java command for JAR routes."},
+        {"argument": "--stilts-command", "detail": "Explicit STILTS executable or wrapper."},
+        {"argument": "--stilts-jar", "format": "JAR", "detail": "Explicit STILTS Java archive."},
+        {"argument": "--topcat-command", "detail": "Explicit TOPCAT command."},
+        {"argument": "--topcat-jar", "format": "JAR", "detail": "Explicit TOPCAT Java archive."},
+        {"argument": "--apt-command", "detail": "Explicit APT command."},
+        {"argument": "--apt-preferences", "format": "APT.pref", "detail": "Saved preferences for reproducible APT batch mode."},
+        {"argument": "--require-stilts", "detail": "Require a launchable STILTS route."},
+        {"argument": "--require-apt", "detail": "Require APT batch mode with its saved preferences."},
+        {"argument": "--probe", "detail": "Run short help or version probes for detected commands."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Discovered backends, optional probe results, blocking findings and native alternatives."}
+      ],
+      "warnings": "Absent non-required backends can yield WARNING. Discovery without a probe verifies the selected path rather than executing a scientific job.",
+      "failure": "A missing required backend exits 2 with blocking findings. This command does not perform catalog matching or photometry.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"capabilities": "object", "blocking_findings": "array", "warning_findings": "array", "native_alternatives": "object"},
+        "rejected": {"capabilities": "object", "blocking_findings": "array", "native_alternatives": "object"}
+      }
+    },
+    "document_intake_workbench": {
+      "revision": 1,
+      "backend": "Core document readers. Deep PDF recovery and OCR depend on the installed format-specific tools.",
+      "inputs": [
+        {"argument": "inputs", "format": "Documents or directories", "detail": "One or more readable documents or roots containing mixed document sets."},
+        {"argument": "--deep-pdf", "detail": "Request PDF recovery and OCR alongside normal semantic inspection."},
+        {"argument": "--max-files", "unit": "files", "detail": "Maximum number of discovered documents to inspect."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Inventory CSV, report Markdown and per-document inspection products in a new directory."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Intake scope, document findings and partial or failed item evidence."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Discovered document inputs and completed output records."},
+        {"argument": "--run-dir", "format": "Directory", "detail": "App-ready bundle location with default summary and manifest destinations."}
+      ],
+      "warnings": "Unreadable items, unsupported explicit files and discovery limits can produce partial intake findings.",
+      "failure": "An invalid input set or unsafe output path exits non-zero. A rejected operation can retain a diagnostic instead of an inventory.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"intake": "object"},
+        "rejected": {"inputs": "array"}
+      }
+    },
+    "office_roundtrip.docx-style-inventory": {
+      "revision": 1,
+      "backend": "Core with python-docx. Uses explicit character styles on DOCX runs.",
+      "inputs": [
+        {"argument": "input", "format": "DOCX", "detail": "Readable document with explicit run formatting."},
+        {"argument": "--require-bold", "detail": "Select runs marked bold."},
+        {"argument": "--require-italic", "detail": "Select runs marked italic."},
+        {"argument": "--require-underline", "detail": "Select runs marked underlined."}
+      ],
+      "outputs": [
+        {"argument": "--output-csv", "format": "CSV", "detail": "Selected styled runs with location and style."},
+        {"argument": "--report-md", "format": "Markdown", "detail": "Readable style inventory and its limitations."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Style requirements and match inventory, or the inspection diagnostic."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source document and written reports."}
+      ],
+      "warnings": "Zero matches can produce WARNING. Verify that an exported DOCX retains explicit run styles.",
+      "failure": "An unreadable DOCX can exit 2 with a retained inspection error.",
+      "summary": {
+        "version": "2.0",
+        "complete": {"inventory": "object"},
+        "rejected": {"inventory": "object"}
+      }
+    },
+    "office_roundtrip.docx-styled-replace": {
+      "revision": 1,
+      "backend": "Core with python-docx. Replaces exact text within matching individual runs and reads back the result.",
+      "inputs": [
+        {"argument": "input", "format": "DOCX", "detail": "Readable source document preserved as input."},
+        {"argument": "--find", "detail": "Exact text to find within a single run."},
+        {"argument": "--replace", "detail": "Exact replacement text."},
+        {"argument": "--require-bold", "detail": "Only replace in runs marked bold."},
+        {"argument": "--require-italic", "detail": "Only replace in runs marked italic."},
+        {"argument": "--require-underline", "detail": "Only replace in runs marked underlined."},
+        {"argument": "--require-confirmation", "detail": "Require an externally recorded approval identifier before writing."},
+        {"argument": "--confirmation-id", "detail": "Opaque identifier for the reviewed approval."}
+      ],
+      "outputs": [
+        {"argument": "output", "format": "DOCX", "detail": "Edited copy at a path separate from the source."},
+        {"argument": "--diff-json", "format": "JSON", "detail": "Touched runs, text differences and style readback."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Replacement counts, confirmation record, readback and limitations."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source and written document and diff records."}
+      ],
+      "warnings": "Text split across runs may yield zero replacements. Review the diff and the copied document.",
+      "failure": "Missing required confirmation, invalid input or unsafe paths can exit 2. A missing confirmation prevents writing the edited copy.",
+      "summary": {
+        "version": "2.0",
+        "complete": {"replacement": "object"},
+        "rejected": {"replacement": "object"}
+      }
+    },
+    "latex_workbench.scaffold": {
+      "revision": 1,
+      "backend": "Local Python renders LaTeX templates without invoking a TeX engine.",
+      "inputs": [
+        {"argument": "--title", "detail": "Project title."},
+        {"argument": "--author", "detail": "Author text for the scaffold."},
+        {"argument": "--language", "detail": "Template language."},
+        {"argument": "--kind", "detail": "Supported LaTeX template family."},
+        {"argument": "--overwrite", "detail": "Explicit permission to replace scaffold-owned files in the output directory."}
+      ],
+      "outputs": [
+        {"argument": "output", "format": "Directory", "detail": "LaTeX project source such as main.tex and bibliography support."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Template context, created files and detected collisions."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Scaffold parameters and written files."}
+      ],
+      "warnings": "The scaffold is a starting point for the report. It requires later content review and compilation.",
+      "failure": "Existing scaffold files without overwrite permission exit 2 with collisions recorded.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"output_dir": "string", "created_files": "array", "overwrote_existing_files": "boolean"},
+        "rejected": {"output_dir": "string", "collisions": "array"}
+      }
+    },
+    "latex_workbench.review": {
+      "revision": 1,
+      "backend": "Local Python inspects LaTeX references, structure and portability without compiling.",
+      "inputs": [
+        {"argument": "path", "format": "TeX file or project", "detail": "Readable main TeX source or a directory containing a discoverable main document."}
+      ],
+      "outputs": [
+        {"argument": "--report-md", "format": "Markdown", "detail": "Review of structure, includes, figures and bibliography."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Main document, detected structure and portability findings."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Inspected input and written review records."}
+      ],
+      "warnings": "Missing references and portability issues require author review. Compilation is a separate capability.",
+      "failure": "Missing or unreadable project input can exit 2 with a review diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"main_tex": "string", "inspection": "object", "findings": "array"},
+        "rejected": {"main_tex": "string", "findings": "array"}
+      }
+    },
+    "scientific_writeup_review": {
+      "revision": 1,
+      "backend": "Local Python uses heuristic checks for scientific prose and follows supported TeX sources.",
+      "inputs": [
+        {"argument": "input", "format": "TeX, Markdown or text", "detail": "Readable draft with enough scientific text to review sections, claims and methods."}
+      ],
+      "outputs": [
+        {"argument": "--report-md", "format": "Markdown", "detail": "Author-facing review findings and checklist."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Sources, detected sections, metrics and review checklist."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Reviewed source records and completed outputs."}
+      ],
+      "warnings": "Methodology and claim checks are advisory. Review the draft and underlying evidence before acting on findings.",
+      "failure": "Missing or insufficient source text can exit 2 with a controlled diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"input_path": "string", "sections": "array", "metrics": "object", "checklist": "object"},
+        "rejected": {"input_path": "string", "sections": "array"}
+      }
+    },
+    "deliverable_factory.scaffold": {
+      "revision": 1,
+      "backend": "Local Python generates a reusable deliverable template.",
+      "inputs": [
+        {"argument": "--kind", "detail": "Supported report, status, handoff or other template family."},
+        {"argument": "--format", "format": "Markdown, LaTeX or HTML", "detail": "Requested source format."},
+        {"argument": "--title", "detail": "Title used in the generated file."},
+        {"argument": "--language", "detail": "English, Spanish or bilingual template text."},
+        {"argument": "--overwrite", "detail": "Explicit permission to replace an existing scaffold target."}
+      ],
+      "outputs": [
+        {"argument": "output_dir", "format": "Directory", "detail": "Contains the generated deliverable source."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Scaffold parameters and written target."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Selected format, target, created files and collisions."}
+      ],
+      "warnings": "Template fields require project-specific content before delivery.",
+      "failure": "An existing target without overwrite permission exits 2 with collision evidence.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"target": "string", "format": "string", "created_files": "array"},
+        "rejected": {"target": "string", "collisions": "array"}
+      }
+    },
+    "semantic_diff": {
+      "revision": 1,
+      "backend": "Core table readers and document excerpt extraction, with format-specific readers when installed.",
+      "inputs": [
+        {"argument": "baseline", "format": "Table or document", "detail": "Earlier version to compare."},
+        {"argument": "candidate", "format": "Table or document", "detail": "Later version for the same comparison."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Table changes or a bounded document text and metadata comparison."},
+        {"argument": "--output-json", "format": "JSON", "detail": "Optional alternate JSON destination."},
+        {"argument": "--output-md", "format": "Markdown", "detail": "Readable comparison report."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Both source versions and completed outputs."}
+      ],
+      "warnings": "Document comparisons use bounded extracted text. Inspect any reported completeness limits before drawing conclusions.",
+      "failure": "Missing or unreadable inputs can exit 2 with an error report.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"comparison_type": "string"},
+        "rejected": {"error": "string"}
+      }
+    },
+    "profile_table": {
+      "revision": 1,
+      "backend": "Core with pandas or Astropy. The optional Dask reader supports out-of-core profiling for compatible formats.",
+      "inputs": [
+        {"argument": "path", "format": "Table", "detail": "Readable table, such as CSV, TSV, ECSV, or a FITS table HDU."},
+        {"argument": "--format", "detail": "Explicit Astropy reader format when suffix-based detection is insufficient."},
+        {"argument": "--prefer", "detail": "Preferred compatible table reader."},
+        {"argument": "--hdu", "detail": "FITS table HDU by name or zero-based index when applicable."},
+        {"argument": "--head", "unit": "rows", "detail": "Maximum number of preview rows."},
+        {"argument": "--max-columns", "unit": "columns", "detail": "Maximum number of detailed column summaries."},
+        {"argument": "--lazy", "detail": "Prefer out-of-core reads where available."},
+        {"argument": "--lazy-threshold-mb", "unit": "MiB", "detail": "File-size threshold for automatic lazy profiling where supported."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Reader, row and column counts, column profiles and bounded preview."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source table and written summary records."},
+        {"argument": "--run-dir", "format": "Directory", "detail": "App-ready bundle location with default summary and manifest paths."}
+      ],
+      "warnings": "Missingness and duplicate evidence are diagnostics. Original units are preserved as metadata where available.",
+      "failure": "A missing or unreadable table can exit 2 with a failure report. A summary destination that aliases the input is rejected before a write.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"backend": "string", "rows": "integer", "columns": "integer", "column_summaries": "array"},
+        "rejected": {"error": "string", "partial_summary": "object"}
+      }
+    },
+    "inspect_data_container": {
+      "revision": 1,
+      "backend": "Core covers ZIP and other standard-library readers. Structured formats can require their optional Python readers.",
+      "inputs": [
+        {"argument": "path", "format": "Container", "detail": "Readable archive or supported HDF5, NetCDF, Zarr or other data container selected for inspection."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Detected reader, container structure and bounded inspection evidence."},
+        {"argument": "--output-json", "format": "JSON", "detail": "Alternate destination used when --summary-json is omitted."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input and written inspection output records."},
+        {"argument": "--run-dir", "format": "Directory", "detail": "App-ready bundle location with default summary and manifest paths."}
+      ],
+      "warnings": "Archive warnings or a raw-byte fallback can yield WARNING. Inspection does not extract the archive.",
+      "failure": "Missing input or a recognized format whose reader is unavailable can exit 2 with a blocked diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"method": "string", "path": "string"},
+        "rejected": {"path": "string", "error": "string"}
+      }
+    },
+    "physical_qa": {
+      "revision": 1,
+      "backend": "Core with NumPy and Astropy for FITS, and tabular readers for numeric columns.",
+      "inputs": [
+        {"argument": "input", "format": "FITS or table", "detail": "Readable input with available header or column metadata. Recognized names guide the bounded sanity checks."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Issue list and metrics for recognizable physical quantities, such as angular bounds, signs and sample order."}
+      ],
+      "warnings": "Suspicious values remain visible as warnings and are never corrected by the check. Interpret metrics using the input quantity and its declared unit.",
+      "failure": "A missing or unreadable dataset can exit 2 with a diagnostic. A path collision is refused before writing an output.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"path": "string", "kind": "string", "issue_count": "integer", "issues": "array", "metrics": "object"},
+        "rejected": {"path": "string", "issues": "array"}
+      }
+    },
+    "bootstrap_analysis_notebook": {
+      "revision": 1,
+      "backend": "Local Python generates notebook JSON. This command never executes the generated cells.",
+      "inputs": [
+        {"argument": "--title", "detail": "Notebook title."},
+        {"argument": "--domain", "detail": "General, applied or astronomy template."},
+        {"argument": "--language", "detail": "English, Spanish or bilingual scaffold text."},
+        {"argument": "--runtime-profile", "detail": "Local or Colab-style scaffold."},
+        {"argument": "--data-path", "detail": "Optional source reference for the data-loading cell. The scaffold does not rewrite the source."},
+        {"argument": "--output-dir-name", "detail": "Name of the analysis output directory referenced in generated cells."},
+        {"argument": "--overwrite", "detail": "Explicit permission to replace an existing notebook at the output path."}
+      ],
+      "outputs": [
+        {"argument": "output", "format": "IPYNB", "detail": "New notebook with setup, loading, analysis and export templates."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Scaffold settings, warnings and blocking findings."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Notebook creation settings and referenced data records."}
+      ],
+      "warnings": "An absolute, absent or nonportable data reference can yield WARNING while retaining a scaffold.",
+      "failure": "An existing notebook without explicit overwrite, or an invalid output, exits 2 with an explanation.",
+      "summary": {
+        "tool": "bootstrap_analysis_notebook.py",
+        "version": "1.8",
+        "complete": {"output": "string", "title": "string", "domain": "string", "language": "string", "runtime_profile": "string", "warnings": "array"},
+        "rejected": {"error": "string", "blockers": "array"}
+      }
+    },
+    "coursework_notebook_fidelity_check": {
+      "revision": 1,
+      "backend": "Local Python inspects notebook JSON and readable assignment references without executing cells.",
+      "inputs": [
+        {"argument": "notebook", "format": "IPYNB", "detail": "Readable coursework notebook to audit."},
+        {"argument": "--assignment-file", "detail": "Optional repeatable assignment or sidecar reference used to identify required materials."}
+      ],
+      "outputs": [
+        {"argument": "--report-md", "format": "Markdown", "detail": "Readable findings and final delivery checks."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Notebook metadata, detected input and answer signals, findings and checklist."}
+      ],
+      "warnings": "Heuristics flag missing answers, input requirements and portability risks for review.",
+      "failure": "A missing or unreadable notebook or assignment file can exit 2 with retained diagnostic details.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"notebook": "object", "signals": "object", "findings": "array", "final_delivery_checklist": "array"},
+        "rejected": {"blocked_reason": "string", "error_type": "string"}
+      }
+    },
+    "cross_domain_data_workbench": {
+      "revision": 1,
+      "backend": "Core table profiling. Optional query execution uses DuckDB when installed in the selected Python environment.",
+      "inputs": [
+        {"argument": "inputs", "format": "Tables or directories", "detail": "One or more table files or folders to discover supported datasets."},
+        {"argument": "--sql", "detail": "Optional SQL against discovered inputs through the dedicated query backend."},
+        {"argument": "--head", "unit": "rows per table", "detail": "Maximum preview rows per file profile."},
+        {"argument": "--max-files", "unit": "files", "detail": "Bound on the number of included table files."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Profiles, overview report and optional query products in a new output folder."},
+        {"argument": "--query-output", "format": "CSV, JSON or Parquet", "detail": "Optional output path for query results."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Discovered files, total rows, profile status, input issues and query state."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Discovered input and completed output records."},
+        {"argument": "--run-dir", "format": "Directory", "detail": "App-ready bundle location with default summary and manifest paths."}
+      ],
+      "warnings": "Partial profiling and unavailable or unsuccessful optional SQL are recorded in the result.",
+      "failure": "An unreadable input set, invalid output directory or output alias can exit 2. A rejected bundle is identified by its diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"file_count": "integer", "total_rows": "integer", "files": "array", "sql": "object"},
+        "rejected": {"sql": "object"}
+      }
+    },
+    "notebook_branch_compare": {
+      "revision": 1,
+      "backend": "Local Python inventories branch products and groups likely equivalents.",
+      "inputs": [
+        {"argument": "root", "format": "Directory", "detail": "Folder containing branch directories or products named with branch suffixes."},
+        {"argument": "--branch-token", "detail": "Additional repeatable branch or suffix token."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Contains branch_product_inventory.csv, branch_summary.csv, equivalent_products.csv and candidate_figures.md."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Branch inventory, equivalence groups, missing products, duplicates and candidate figures."}
+      ],
+      "warnings": "Missing and duplicate product groups require review. Grouping compares inventory evidence and names.",
+      "failure": "A missing root or a non-directory root can exit 2 with a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"product_count": "integer", "branch_count": "integer", "branch_summary": "array", "equivalent_products": "array"},
+        "rejected": {"blocked_reason": "string", "error_type": "string"}
+      }
+    },
+    "astrometry_net_workbench.preflight": {
+      "revision": 1,
+      "backend": "Local Astropy header and image inspection, with discovery of available astrometry backends.",
+      "inputs": [
+        {"argument": "path", "format": "FITS or image", "detail": "Local input to assess before deciding whether to reuse WCS or schedule a solve."},
+        {"argument": "--radius-deg", "unit": "degrees", "detail": "Override the suggested search radius."},
+        {"argument": "--scale-est", "unit": "arcseconds per pixel", "detail": "Optional prior estimate of pixel scale."},
+        {"argument": "--scale-err", "unit": "percent", "detail": "Relative uncertainty to apply to the estimated pixel scale."},
+        {"argument": "--scale-lower", "unit": "arcseconds per pixel", "detail": "Override the lower pixel-scale bound."},
+        {"argument": "--scale-upper", "unit": "arcseconds per pixel", "detail": "Override the upper pixel-scale bound."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "WCS and image evidence, backend readiness and suggested solve hints."},
+        {"argument": "--report-md", "format": "Markdown", "detail": "Readable preflight and recommended next action."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input and preflight output records."}
+      ],
+      "warnings": "Missing optional backends or incomplete metadata can yield WARNING. Candidate solve hints require review.",
+      "failure": "A missing or unreadable input can exit 2 with a retained preflight diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "tool": "astrometry_net_workbench",
+        "mode": "preflight",
+        "complete": {"input_exists": "boolean", "fit_assessment": "object", "dependency_preflight": "object", "suggested_solve_hints": "object"},
+        "rejected": {"input_path": "string", "blocked_reason": "string"}
+      }
+    },
+    "radial_velocity_workbench.inspect": {
+      "revision": 1,
+      "backend": "Local Python parser for Systemic-style radial-velocity data.",
+      "inputs": [
+        {"argument": "input_path", "format": "SYS, VELS or directory", "detail": "Dataset or Systemic system descriptor. Tabular times use Julian-day-like values in days. Declare VELS velocity units in metadata such as # value_units = km/s."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Inspection mode, dataset coverage and available time, velocity and uncertainty ranges."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Inspected inputs and written summary records."}
+      ],
+      "warnings": "Missing or invalid uncertainties and malformed samples remain visible for review. Inspect timescale and velocity-unit declarations before combining datasets.",
+      "failure": "Missing or unsupported inputs can exit 2 with a blocked diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"mode": "string", "inspected_input": "string"},
+        "rejected": {"input_path": "string", "blocked_reason": "string"}
+      }
+    },
+    "radial_velocity_workbench.validate-manifest": {
+      "revision": 1,
+      "backend": "Local Python validates the structure, completeness and supported domains of a manual session manifest.",
+      "inputs": [
+        {"argument": "session_manifest", "format": "JSON", "detail": "Manual radial-velocity session manifest created or prepared for the report workflow."},
+        {"argument": "--language", "detail": "Override the language of validation findings."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Completeness, missing figures or metrics, numeric and domain findings."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input session and validation output records."}
+      ],
+      "warnings": "An incomplete valid draft can produce WARNING. Validation does not fit a model or amend session files.",
+      "failure": "Unreadable or malformed manifests can exit 2. Invalid scientific domains can exit 1 with failed validation findings.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"command": "string", "findings": "array", "completeness": "object", "domain_errors": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "results": "object"}
+      }
+    },
+    "echelle_multispec_inventory": {
+      "revision": 1,
+      "backend": "Astropy FITS reading and local MULTISPE calibration parsing in the selected astronomy environment.",
+      "inputs": [
+        {"argument": "input", "format": "MULTISPE FITS or directory", "detail": "Readable spectrum or directory of spectral FITS files to inventory."},
+        {"argument": "--report-md", "detail": "Request the Markdown inventory report in the output directory."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Per-file and per-order inventory CSV files with recorded wavelength metadata."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Counts, supported wavelength coverage and per-file failures. Defaults to summary.json in the output directory."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Spectral input records, written inventory files and report."}
+      ],
+      "warnings": "Unsupported dispersion or incomplete metadata remains visible per file or order. Interpret wavelength coverage with the unit declared by the calibration.",
+      "failure": "Missing inputs or a collection with no usable inventory can exit 2 with a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"file_count": "integer", "order_count": "integer", "files": "array", "failed_files": "array"},
+        "rejected": {"file_count": "integer", "order_count": "integer", "failed_files": "array"}
+      }
+    },
+    "legacy_rv_coursework_workbench.analyze": {
+      "revision": 1,
+      "backend": "Local NumPy, Astropy and plotting support process preserved FXCOR products. The analysis does not execute IRAF.",
+      "inputs": [
+        {"argument": "inputs", "format": "CSV or JSON", "detail": "Parsed FXCOR measurements or a summary referencing parsed tables. Velocity and uncertainty columns are in km/s."},
+        {"argument": "--fits-root", "format": "Directory", "detail": "Root containing object and template FITS files for header-based context."},
+        {"argument": "--calibration-csv", "format": "CSV", "detail": "Optional calibration from FWHM in pixels to projected rotation in km/s."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "All and filtered order tables, per-case estimates, diagnostics and report."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Per-case radial velocities, projected rotation and explicit uncertainty and quality evidence."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input tables, calibration and output records."}
+      ],
+      "warnings": "Provisional corrections, unsupported cases and out-of-calibration values need review. The analysis records quality evidence alongside estimates.",
+      "failure": "Missing or invalid inputs exit non-zero with validation issues and an empty measurement set.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"rv_summaries": "array", "rv_diagnostics": "array", "vsini_rows": "array", "measurement_summary": "object"},
+        "rejected": {"input_validation_issues": "array", "measurement_summary": "object"}
+      }
+    },
+    "fxcor_iraf_workbench.prepare-session": {
+      "revision": 1,
+      "backend": "Local macOS Python prepares selected coursework files and can use local IRAF mkiraf to initialize login.cl.",
+      "inputs": [
+        {"argument": "practice_root", "format": "Directory", "detail": "Coursework root with reviewed FITS files in fits_p1. Cases are selected by known object and template filenames."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Separate ASCII-safe workspace containing copied FITS, fxcor_cases.json and a manual override CSV."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Detected practice assets, configured cases and readiness findings."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Original FITS records, derived copies and generated configuration."}
+      ],
+      "warnings": "Partial inputs or missing login setup can yield WARNING. Case preparation supplies configuration for later correlation.",
+      "failure": "An invalid path, lack of a recognized FITS pair or an existing managed workspace file can exit 2 before creating workspace products.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"practice_assets": "object", "case_count": "integer", "cases": "array", "blocking_findings": "array", "warning_findings": "array", "path_risk": "object"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "fxcor_iraf_workbench.run-auto": {
+      "revision": 1,
+      "backend": "Local IRAF cl with the NOAO FXCOR task on macOS, using the prepared copy and its local IRAF settings.",
+      "inputs": [
+        {"argument": "workspace", "format": "Directory or JSON", "detail": "Prepared workspace containing fxcor_cases.json, or its configuration file. Selected cases write inside the derived workspace."},
+        {"argument": "--case-id", "detail": "Optional repeatable selection of configured case IDs. Omit to use all configured cases."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Per-case status and diagnostics. Parsed rows include shifts in pixels, velocities and errors in km/s, and dispersion in km/s per pixel."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Configuration and retained CL scripts, logs, txtonly outputs and parsed CSV records."}
+      ],
+      "warnings": "A nonzero native return code with usable rows may yield WARNING. Orders, CCF peak choices and physical interpretation still require review.",
+      "failure": "Missing IRAF, invalid cases, earlier case products or unusable txtonly output can return exit 2 and a controlled diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"case_runs": "array", "blocking_findings": "array", "warning_findings": "array", "path_risk": "object"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "teareduce_router": {
+      "revision": 1,
+      "backend": "Local Python classification using text and filename hints. Routing is advisory and starts no notebook or scientific backend.",
+      "inputs": [
+        {"argument": "--intent", "detail": "Optional task description used to identify native or TEAREDUCE-specific signals."},
+        {"argument": "inputs", "format": "Path hints", "detail": "Optional filenames or paths. The router inspects route cues in the names without opening their contents."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Recommended backend, dimensionless heuristic confidence, detected signals, and advisory next steps."}
+      ],
+      "warnings": "Low confidence, mixed signals or an external TEAREDUCE route can yield WARNING. A recommendation carries no execution or package-availability evidence.",
+      "failure": "An invalid summary target or overlap with a supplied path can exit 2 and emit a diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"recommended_backend": "string", "route_status": "string", "confidence": "number", "inputs": "array", "signals": "object", "warning_findings": "array", "suggested_entrypoint": "string", "supporting_scripts": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "legacy_spectroscopy_envcheck": {
+      "revision": 1,
+      "backend": "Local macOS environment and file discovery. Checks for IRAF commands, iSTARMOD files, FITS inputs and calibration without running those tools.",
+      "inputs": [
+        {"argument": "root", "format": "Directory", "detail": "Practice root. Detection looks for FITS under fits_p1 and optional calibration, documentation and iSTARMOD material."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Detected assets, tool availability, path risk and readiness findings."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Practice root and retained diagnostic records."}
+      ],
+      "warnings": "A warning can flag paths with spaces or non-ASCII characters, absent optional assets or a different interpreter. Discovery does not verify a usable IRAF or iSTARMOD run.",
+      "failure": "An invalid practice root, missing required assets or unavailable IRAF route can exit 2 with a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"practice_root": "string", "legacy_safe_workspace_needed": "boolean", "iraf_ready": "boolean", "istarmod_local_ready": "boolean", "detected_practice_assets": "object", "legacy_tools": "object", "warning_findings": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "legacy_external_reference_check": {
+      "revision": 1,
+      "backend": "Local comparison against fixed coursework reference parameters. Optional GZ Leo FITS uses timing metadata for orbital phase.",
+      "inputs": [
+        {"argument": "--rv-summary", "format": "JSON", "detail": "Legacy radial velocity and rotation summary, with velocities in km/s."},
+        {"argument": "--gzleo-fits", "format": "FITS", "detail": "Optional GZ Leo spectrum with timing metadata for a dimensionless orbital phase."},
+        {"argument": "--li-summary", "format": "JSON", "detail": "Optional Li I equivalent-width summary. Reference equivalent widths are in milliangstroms."},
+        {"argument": "--istarmod-summary", "format": "JSON", "detail": "Optional retained iSTARMOD execution summary for comparison diagnostics."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Contains external_reference_check.md and the default external_reference_check.json."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Available comparisons, explicit missing evidence, warnings and suggestions for manual review."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input summary and FITS records, and written comparison products."}
+      ],
+      "warnings": "Unmatched observations, missing timing or unavailable measurements may yield WARNING. Reference agreement and suggested component swaps need scientific review.",
+      "failure": "An unreadable required summary or unusable output path can exit 2 with a diagnostic.",
+      "summary": {
+        "tool": "legacy_external_reference_check.check",
+        "version": "1.8",
+        "complete": {"pw_and": "object", "gz_leo": "object", "reference_matches": "object", "warnings": "array", "component_swap_suspected": "boolean", "ccf_window_suggestion": "object"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "istarmod_workbench.inspect-tree": {
+      "revision": 1,
+      "backend": "Local Python file inventory. No iSTARMOD code or embedded interpreter is started.",
+      "inputs": [
+        {"argument": "path", "format": "Directory", "detail": "iSTARMOD tree to inspect for .sm recipes, calibration, runtime files, previous products and RV cache."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Detected recipes, runtime candidates, previous outputs and warnings."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Inspected tree and retained summary records."}
+      ],
+      "warnings": "Incomplete trees, prior outputs and cached RV values can yield WARNING. Detection does not verify scientific results or runtime compatibility.",
+      "failure": "An invalid tree or unsafe destinations can exit 2 with a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"tree_root": "string", "sm_files": "array", "sm_count": "integer", "embedded_python_candidates": "array", "old_output_count": "integer", "rvvalues_count": "integer"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "istarmod_workbench.prepare-copy": {
+      "revision": 1,
+      "backend": "Local Python copies eligible files. No third-party code or recipes are executed.",
+      "inputs": [
+        {"argument": "path", "format": "Directory", "detail": "Source iSTARMOD tree. Files inside it remain unchanged."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "New or empty destination outside the source. It holds a derived tree and .istarmod_prepare.json."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Copied and skipped counts and categories, with source recipe and prior-output counts."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source and derived tree records with the copy preparation summary."}
+      ],
+      "warnings": "Embedded runtimes, cache entries, previous outputs and symbolic links may be excluded. Preparation does not validate or execute a subtraction.",
+      "failure": "Invalid source or unsuitable destination can exit 2 with a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"source_root": "string", "copied_file_count": "integer", "skipped_count": "integer", "skipped_by_reason": "object", "source_sm_count": "integer", "source_rvvalues_count": "integer"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "legacy_spectroscopy_report_builder.scaffold": {
+      "revision": 1,
+      "backend": "Local Python writes a Spanish LaTeX scaffold. Compilation is a separate command.",
+      "inputs": [
+        {"argument": "--title", "detail": "Report title to insert into the generated TeX."},
+        {"argument": "--author", "detail": "Author text to insert into the generated TeX."}
+      ],
+      "outputs": [
+        {"argument": "output_dir", "format": "Directory", "detail": "Destination for main.tex, nine section files and the figures and tables directories."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Project destination, files created and section count."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Generated project record."}
+      ],
+      "warnings": "Sections start as placeholders for measurements and review evidence.",
+      "failure": "An existing scaffold or unusable output path can exit 2 with a diagnostic before changing the project.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"output_dir": "string", "section_count": "integer", "created_files": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "legacy_spectroscopy_report_builder.populate": {
+      "revision": 1,
+      "backend": "Local Python assembles generated LaTeX sections from workflow summaries and available artifacts.",
+      "inputs": [
+        {"argument": "project_dir", "format": "Directory", "detail": "Generated report copy to update. The selected sections in this project are rewritten."},
+        {"argument": "--envcheck", "format": "JSON", "detail": "Optional legacy readiness and detected practice assets."},
+        {"argument": "--inventory-summary", "format": "JSON", "detail": "Optional MULTISPEC inventory metadata and tables."},
+        {"argument": "--fxcor-summary", "format": "JSON", "detail": "Optional repeatable FXCOR summary with case and order evidence."},
+        {"argument": "--rv-summary", "format": "JSON", "detail": "Optional legacy RV and projected rotation summary. Velocities are reported in km/s and FWHM in pixels."},
+        {"argument": "--istarmod-summary", "format": "JSON", "detail": "Optional iSTARMOD preparation or execution evidence. A preparation summary yields preparation status only."},
+        {"argument": "--li-summary", "format": "JSON", "detail": "Optional repeatable Li I equivalent-width summary. Equivalent widths are reported in milliangstroms."},
+        {"argument": "--external-reference-summary", "format": "JSON", "detail": "Optional fixed literature comparison with review findings."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Actual updated section names and generated artifacts."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Workflow summary inputs, project and written section and artifact records."}
+      ],
+      "warnings": "Omitted or absent optional summaries leave their sections pending. Missing measurements remain explicitly unavailable. Review provisional velocities against the source summaries.",
+      "failure": "A missing scaffold, malformed JSON or invalid auxiliary destination can exit 2 with a structured diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"populated_sections": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "rgb_visual_fits_export": {
+      "revision": 1,
+      "backend": "Pillow decodes rendered RGB PNG data and Astropy writes FITS display products.",
+      "inputs": [
+        {"argument": "input_png", "format": "PNG", "detail": "Rendered RGB image to export as normalized display intensity."},
+        {"argument": "--previous-png", "format": "PNG", "detail": "Optional earlier image for side-by-side comparison."},
+        {"argument": "--object-name", "detail": "Optional object name for FITS metadata."},
+        {"argument": "--reason", "detail": "Short reason for the export."},
+        {"argument": "--previous-label", "detail": "Label for the previous comparison image."},
+        {"argument": "--new-label", "detail": "Label for the new comparison image."},
+        {"argument": "--force", "detail": "Explicit permission to overwrite managed destination files."}
+      ],
+      "outputs": [
+        {"argument": "output_fits", "format": "FITS", "unit": "normalized display intensity", "detail": "RGB cube and three channel extensions for visualization."},
+        {"argument": "--comparison-png", "format": "PNG", "detail": "Side-by-side comparison destination when a previous PNG is supplied."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Export provenance. Defaults to a sidecar beside the output FITS."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Channel layout, units and display-only calibration scope."}
+      ],
+      "warnings": "Use the output for display. Extract photometry from calibrated source data.",
+      "failure": "Missing inputs or unsafe output paths can exit 2. The diagnostic is carried by the top-level error and QA fields.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"rgb_cube_shape": "array", "bunit": "string", "calibration_scope": "string", "channel_extensions": "array"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object"}
+      }
+    },
+    "fits_rgb_batch": {
+      "revision": 1,
+      "backend": "Local NumPy, Astropy, Matplotlib and SciPy. Optional reprojection or phase-correlation packages support additional alignment modes.",
+      "inputs": [
+        {"argument": "--input-root", "format": "Directory of FITS", "detail": "Source image tree with object and filter metadata for grouping."},
+        {"argument": "--max-files", "unit": "files", "detail": "Optional bound on the number of source files inspected."},
+        {"argument": "--run-id", "detail": "Recorded run identifier. Defaults to a UTC timestamp."},
+        {"argument": "--alignment-mode", "detail": "Select automatic, WCS, phase correlation or no alignment. Use none only when the input grids are already comparable."},
+        {"argument": "--stretch-percentiles", "unit": "percentiles", "detail": "Lower and upper display normalization percentiles."},
+        {"argument": "--qa-residual-threshold", "unit": "pixels", "detail": "Warn above this residual between channel peaks."},
+        {"argument": "--no-stacks", "detail": "Omit intermediate stacks while retaining visual previews and reports."},
+        {"argument": "--clean-derived", "detail": "Quarantine outputs owned by an earlier batch manifest in the same output directory."},
+        {"argument": "--force", "detail": "Allow writing into a non-empty output directory."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Visual PNGs, inventory and group CSVs, alignment QA, run summary, manifest and optional derived stacks."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Counts, RGB modes, parameters, package versions and group reports."}
+      ],
+      "warnings": "A warning can accompany partial or absent visual output. Check group results, calibration assumptions and alignment QA before sharing a preview.",
+      "failure": "An invalid input root, unavailable required packages or unsafe output path can exit 2 with a retained diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"counts": "object", "modes": "object", "reports": "object", "group_reports": "array", "package_versions": "object"},
+        "rejected": {"blocking_reason": "string", "input_root": "string", "output_dir": "string"}
+      }
+    },
+    "spectra_ascii_coursework_workbench": {
+      "revision": 1,
+      "backend": "Local ASCII profile and plotting tools. Jupyter or TeX dependencies apply only to the corresponding optional steps.",
+      "inputs": [
+        {"argument": "spectra", "format": "ASCII wavelength and flux columns", "detail": "Reduced spectra. Use consistent source wavelength and flux units across the supplied files."},
+        {"argument": "--notebook", "format": "IPYNB", "detail": "Optional inspected notebook for the coursework bundle."},
+        {"argument": "--execute-notebook", "detail": "Execute a copy of the explicitly selected, reviewed notebook."},
+        {"argument": "--kernel-name", "detail": "Kernel selected for optional notebook execution."},
+        {"argument": "--timeout-sec", "unit": "seconds", "detail": "Timeout passed to the notebook execution backend."},
+        {"argument": "--report-title", "detail": "Title used in the optional report project."},
+        {"argument": "--report-author", "detail": "Author label used in the optional report project."},
+        {"argument": "--skip-report-project", "detail": "Omit the TeX report project."},
+        {"argument": "--compile-report", "detail": "Attempt to compile the generated project using a locally available TeX toolchain."},
+        {"argument": "--stage-extra", "format": "File or directory", "detail": "Repeatable extra source staged for copied execution."},
+        {"argument": "--line-window", "unit": "same wavelength unit as input", "detail": "Repeatable label and lower and upper wavelength limits for a heuristic feature summary."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Spectral inventory, raw and normalized plots, reports and optional notebook or TeX artifacts."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Spectral profiles, product paths and optional step results."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input spectra, optional notebook and retained product records."}
+      ],
+      "warnings": "Window-level feature labels are heuristic. Review continuum and sampling before interpreting a spectrum.",
+      "failure": "Unreadable spectra or invalid options can exit 2 with a blocked diagnostic. Review optional step outcomes before treating the bundle as complete.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"spectra": "array", "spectrum_bundle": "object", "bundle_report_md": "string"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "results": "object"}
+      }
+    },
+    "timeseries_forecasting_workbench": {
+      "revision": 1,
+      "backend": "Pandas validates the selected series and Python writes an unexecuted notebook. Notebook execution requires the selected runtime's forecasting stack.",
+      "inputs": [
+        {"argument": "--title", "detail": "Title of the generated notebook."},
+        {"argument": "--language", "detail": "Language of the generated narrative."},
+        {"argument": "--runtime-profile", "detail": "Prepare the notebook for local or Colab execution."},
+        {"argument": "--data-path", "format": "CSV, TSV or Excel", "detail": "Optional data source for preflight and later notebook execution."},
+        {"argument": "--date-column", "detail": "Name of the time column."},
+        {"argument": "--value-column", "unit": "as supplied", "detail": "Name of the numeric target column."},
+        {"argument": "--frequency", "detail": "Pandas frequency for the notebook's regular time index."},
+        {"argument": "--test-horizon", "unit": "observations", "detail": "Number of trailing observations held out in the notebook."},
+        {"argument": "--notebook-name", "format": "IPYNB filename", "detail": "Name of the generated file within the output directory."},
+        {"argument": "--overwrite", "detail": "Replace an existing generated notebook at the selected destination."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Generated forecasting notebook."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Notebook path, runtime, holdout horizon and optional source validation."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Optional source record with hash when available, plus generated notebook and summary records."}
+      ],
+      "warnings": "Generation leaves cells unexecuted. Review data cleaning, leakage, model adequacy and uncertainty separately.",
+      "failure": "Invalid time settings, unreadable local data or unsafe output destinations can exit 2 with a retained diagnostic or stdout when the file destination is unsafe.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"notebook_path": "string", "runtime_profile": "string", "frequency": "string", "test_horizon": "integer", "validation_warnings": "array"},
+        "rejected": {"blocked_reason": "string", "error_type": "string", "notebook_name": "string"}
+      }
+    },
+    "duckdb_workbench": {
+      "revision": 1,
+      "backend": "Local DuckDB and pandas from the Full profile.",
+      "inputs": [
+        {"argument": "inputs", "format": "CSV, TSV, Parquet, JSON or supported Excel", "detail": "Input paths registered in order as source0, source1 and so on."},
+        {"argument": "--sql", "format": "SQL", "detail": "Reviewed local query against the registered sources."},
+        {"argument": "--preview-rows", "unit": "rows", "detail": "Upper bound on the number of rows shown in the summary preview."}
+      ],
+      "outputs": [
+        {"argument": "--output", "format": "CSV, Parquet or JSON", "detail": "Optional persisted result table."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Bindings, projected columns, row count and preview."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source and output file records plus the query parameters."}
+      ],
+      "warnings": "Only positional aliases are guaranteed. A successful preview without a saved table can report WARNING.",
+      "failure": "A missing package, unreadable source, query error or unsafe result destination can exit 2 with a controlled diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"aliases": "object", "result_rows": "integer", "result_columns": "array", "preview": "array"},
+        "rejected": {"blocked_reason": "string", "bindings": "array", "aliases": "object"}
+      }
+    },
+    "notebook_workbench.execute-copy": {
+      "revision": 1,
+      "backend": "Local Jupyter kernel and notebook execution stack from the Full profile.",
+      "inputs": [
+        {"argument": "path", "format": "IPYNB", "detail": "Notebook selected for execution as a copy."},
+        {"argument": "--kernel-name", "detail": "Installed Jupyter kernel name."},
+        {"argument": "--timeout-sec", "unit": "seconds", "detail": "Execution timeout passed to the notebook backend."},
+        {"argument": "--trust-notebook-code", "detail": "Explicit approval to run reviewed notebook code."},
+        {"argument": "--stage-extra", "format": "File or directory", "detail": "Repeatable source copied into the workspace."},
+        {"argument": "--append-code", "format": "Python", "detail": "Reviewed code appended to the execution copy."},
+        {"argument": "--append-code-file", "format": "File", "detail": "File containing reviewed code to append."},
+        {"argument": "--append-markdown", "format": "Markdown", "detail": "Narrative cell appended to the output copy."},
+        {"argument": "--cell-range", "detail": "Select a range of cells for copied execution."},
+        {"argument": "--run-from-source-dir", "detail": "Use the notebook's source directory as execution cwd."},
+        {"argument": "--cwd", "format": "Directory", "detail": "Explicit working directory for code execution."},
+        {"argument": "--replace-text", "detail": "Replace selected text in copied cells before execution."},
+        {"argument": "--input-value", "detail": "Supply a reviewed response for a notebook input prompt."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Executed notebook copy and staged workspace files."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Run outcome, execution mode and retained diagnostics."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source notebook, produced files and selected execution metadata."}
+      ],
+      "warnings": "Notebook cells run arbitrary code in the selected kernel. Review the code, staged inputs and working directory before approval.",
+      "failure": "Untrusted code is blocked before execution with a diagnostic on stdout. Inspect the retained run record when a kernel or cell fails.",
+      "summary": {
+        "version": "1.8",
+        "tool": "notebook_workbench",
+        "complete": {"run": "object"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "results": "object"}
+      }
+    },
+    "keynote_export": {
+      "revision": 1,
+      "backend": "Local Keynote and AppleScript on macOS. Export opens a copied deck and closes it without saving.",
+      "inputs": [
+        {"argument": "presentation_path", "format": "KEY, PPTX or PPTM", "detail": "Readable presentation copy. A Keynote input can be a file or a package directory."},
+        {"argument": "--preflight-only", "detail": "Check native backend availability without starting export."},
+        {"argument": "--require-confirmation", "detail": "Require an externally recorded confirmation before export."},
+        {"argument": "--confirmation-id", "detail": "Opaque identifier of the external confirmation."}
+      ],
+      "outputs": [
+        {"argument": "pdf_path", "format": "PDF", "detail": "Fresh destination outside the copied input. Preflight creates no PDF."},
+        {"argument": "--log-txt", "format": "Text", "detail": "Native preflight or export log."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Availability, paths, confirmation and result or rejection details."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Copied deck and native export products, with confirmation provenance when supplied."}
+      ],
+      "warnings": "Review the rendered PDF for fidelity. A passing preflight establishes local prerequisites.",
+      "failure": "Unavailable dependencies, required confirmation, invalid paths or a failed export can return BLOCKED_CONTROLADO. Preflight may report that status with exit 0.",
+      "summary": {
+        "version": "2.0",
+        "complete": {"input": "string", "output": "string", "capabilities": "object", "confirmation": "object", "status": "string"},
+        "rejected_container": "root",
+        "rejected": {"errors": "array", "qa": "object", "results": "object"}
+      }
+    },
+    "presentation_workbench.inspect": {
+      "revision": 1,
+      "backend": "Local Python presentation inspection. PPTX structure uses python-pptx. Optional preview export uses a selected compatible renderer.",
+      "inputs": [
+        {"argument": "input", "format": "PPTX, PPTM or Keynote package", "detail": "Deck to inspect without editing."},
+        {"argument": "--backend", "detail": "Select automatic discovery, LibreOffice or Keynote for optional PDF export."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Recorded structure, available rendering backends, QA and editability indicators."},
+        {"argument": "--export-preview-pdf", "format": "PDF", "detail": "Optional preview export from a readable PPTX or PPTM deck."}
+      ],
+      "warnings": "Missing renderers or limited layout evidence can yield WARNING. Review rendered slides separately before delivery.",
+      "failure": "An unreadable deck or unsafe destination can exit 2. A collision with the source produces its diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"inspection": "object"},
+        "rejected_container": "root",
+        "rejected": {"results": "object", "qa": "object"}
+      }
+    },
+    "presentation_workbench.existing-deck-style-audit": {
+      "revision": 1,
+      "backend": "Local Python presentation inspection and optional rendering through a compatible selected backend.",
+      "inputs": [
+        {"argument": "input", "format": "PPTX, PPTM or Keynote package", "detail": "Reference deck to inspect and derive layouts from."},
+        {"argument": "--reference-slides", "unit": "one-based slide indices", "detail": "Optional comma-separated selection with ranges."},
+        {"argument": "--backend", "detail": "Select automatic discovery, LibreOffice or Keynote for optional preview rendering."},
+        {"argument": "--rule", "detail": "Repeatable user constraint to record with the derived materials."}
+      ],
+      "outputs": [
+        {"argument": "output_dir", "format": "Directory", "detail": "Audit report, constraints, templates, content layers, asset manifest and optional visual preview."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Deck inspection, style observations and preview availability."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Source deck, selected references and derived files."}
+      ],
+      "warnings": "A style audit describes available evidence and does not approve the scientific content of figures.",
+      "failure": "Unreadable input, invalid slide indices or an unsafe output destination can exit 2 with a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"inspection": "object", "reference_preview": "object", "scientific_asset_manifest_status": "object"},
+        "rejected_container": "root",
+        "rejected": {"results": "object", "qa": "object"}
+      }
+    },
+    "iwork_workbench": {
+      "revision": 1,
+      "backend": "Package inspection through Python ZIP handling and Pillow. Native preview and optional OCR depend on local helpers.",
+      "inputs": [
+        {"argument": "input", "format": "ZIP-based Pages, Numbers or Keynote document", "detail": "Readable package to inventory without editing."},
+        {"argument": "--enable-ocr", "detail": "Request OCR of suitable extracted preview assets if available."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Extracted members, member inventory and report."},
+        {"argument": "--output-json", "format": "JSON", "detail": "Package summary. The default destination is summary.json in the output directory."},
+        {"argument": "--contact-sheet", "format": "PNG", "detail": "Optional destination for a contact sheet of available assets."},
+        {"argument": "--html-report", "format": "HTML", "detail": "Optional HTML summary."},
+        {"argument": "--native-preview", "format": "PNG", "detail": "Optional Quick Look image destination."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input record and produced inventory, preview and report files."}
+      ],
+      "warnings": "Embedded assets and optional native previews provide partial evidence of layout. The inspection cannot establish an editable roundtrip.",
+      "failure": "A missing, unsupported or unreadable ZIP package can exit 2. A source collision produces its diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"package_type": "string", "member_count": "integer", "preview_files": "array", "image_asset_count": "integer", "exported_assets": "array"},
+        "rejected_container": "root",
+        "rejected": {"results": "object", "qa": "object"}
+      }
+    },
+    "quicklook_bridge": {
+      "revision": 1,
+      "backend": "Native macOS Quick Look when available, with local format-specific fallbacks.",
+      "inputs": [
+        {"argument": "input", "format": "Supported local file", "detail": "Document or image to preview."},
+        {"argument": "--size", "unit": "pixels", "detail": "Requested thumbnail size for native rendering."},
+        {"argument": "--timeout-sec", "unit": "seconds", "detail": "Time limit for the native Quick Look request."},
+        {"argument": "--preflight-only", "detail": "Report route availability without generating the preview."}
+      ],
+      "outputs": [
+        {"argument": "--output", "format": "PNG", "detail": "Destination for the generated preview."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Backend availability, selected rendering method or diagnostic."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input and preview records when rendering completes."}
+      ],
+      "warnings": "A fallback preview can have different rendering limits. Preview output provides visual evidence only.",
+      "failure": "Missing inputs, unsafe destinations or unavailable preview methods can exit 2. With preflight only, inspect the reported status even if the command exits zero.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"input": "string", "output": "string", "capabilities": "object"},
+        "rejected_container": "root",
+        "rejected": {"results": "object", "qa": "object"}
+      }
+    },
+    "latex_workbench.compile": {
+      "revision": 1,
+      "backend": "Local latexmk or pdflatex. The command stages a project copy before compilation.",
+      "inputs": [
+        {"argument": "path", "format": "TEX file or LaTeX project directory", "detail": "Reviewed source project to compile from a separate copy."},
+        {"argument": "--latexmk-path", "format": "Executable path", "detail": "Optional latexmk executable. The default resolution can use pdflatex as fallback."},
+        {"argument": "--passes", "unit": "passes", "detail": "Requested number of passes when using the pdflatex fallback."},
+        {"argument": "--overwrite", "detail": "Allow replacing existing compilation outputs at the explicit destinations."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Destination outside the source project for a successfully compiled PDF."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Optional compile outcome, engine, pass count and successfully produced PDF reference."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Main source, retained outputs and compiler evidence."}
+      ],
+      "warnings": "A compiled PDF establishes a build result. Review its typesetting, references and scientific content separately.",
+      "failure": "Unsafe output paths exit 2 with a diagnostic on stdout. A compiler failure exits nonzero and preserves its evidence without publishing a PDF.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"main_tex": "string", "engine": "string", "attempted": "boolean", "compile_success": "boolean", "pass_count": "integer", "compiled_pdf": "string"},
+        "rejected_container": "root",
+        "rejected": {"results": "object", "qa": "object"}
+      }
+    },
+    "capability_probe_matrix": {
+      "revision": 1,
+      "backend": "Local Full Python environment makes synthetic fixtures and probes registry entries whose smoke tier is none.",
+      "inputs": [
+        {"argument": "--registry", "format": "YAML", "detail": "Registry to select probe entries from."},
+        {"argument": "--include-maintainer-help", "detail": "Include maintainer entries. Specified maintainer commands get help-only probes."},
+        {"argument": "--timeout-sec", "unit": "seconds", "detail": "Time limit for each child probe."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Matrix CSV, child run details JSON and applicable probe artifacts."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Rows and counts by probe outcome."}
+      ],
+      "warnings": "Optional backends can be unavailable. A missing probe or guarded rejection has distinct evidence from a successful probe.",
+      "failure": "An invalid registry, runtime or failing probe can exit 1. Unsafe output paths exit 2 with a diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"entry_count": "integer", "counts_by_probe_status": "object", "rows": "array"},
+        "rejected": {"entry_count": "integer", "counts_by_probe_status": "object", "rows": "array"}
+      }
+    },
+    "portable_smoke_test": {
+      "revision": 1,
+      "backend": "Local Core or Full Python environment runs representative commands on packaged and generated samples.",
+      "inputs": [
+        {"argument": "--examples-dir", "format": "Directory", "detail": "Optional override for the packaged samples root."},
+        {"argument": "--profile", "detail": "Core or Full test selection. Full checks additional prerequisites and coverage."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Derived workflow products and registry coverage evidence."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Profile, per-feature runs and enforced coverage."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Examples source and generated artifact records."}
+      ],
+      "warnings": "A passing suite covers its declared profile and fixture set. Check the coverage report before making claims about optional workflows.",
+      "failure": "Failed features or missing required coverage exit 1. Overlap with the examples tree exits 2 with a diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"profile": "string", "feature_runs": "object", "public_surface_coverage": "object", "overall_status": "string"},
+        "rejected": {"profile": "string", "feature_runs": "object", "public_surface_coverage": "object", "overall_status": "string"}
+      }
+    },
+    "validate_skill_samples": {
+      "revision": 1,
+      "backend": "Dedicated Full Python environment for maintainer regression checks. Optional format-specific checks depend on the input samples and locally available tools.",
+      "inputs": [
+        {"argument": "roots", "format": "Directories", "detail": "Explicit sample trees to inspect. Use copies for validation runs."},
+        {"argument": "--max-per-ext", "unit": "files per extension", "detail": "Maximum representative samples of each supported extension."},
+        {"argument": "--validation-profile", "detail": "Quick adds common regressions and portable Core smoke. Deep also runs broader checks selected by sample format."},
+        {"argument": "--include-system-iwork-samples", "detail": "Explicit opt-in to supplementing Numbers samples from the user's system Numbers directory."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "JSON and Markdown validation reports, with generated workflow products in feature_runs/."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Structured outcome, sample errors, failed features and metrics."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Validation roots, parameters, and completed report records."}
+      ],
+      "warnings": "Zero supported samples yields WARNING when the feature checks pass. Optional workflows are covered only when their checks ran.",
+      "failure": "Sample or feature failures exit 1 and retain reports. Missing or invalid roots can exit 1 before reports are written. Output paths overlapping a sample tree exit 2 with a diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"roots": "array", "validation_profile": "string", "overall_status": "string", "failed_features": "array", "sample_errors": "array", "metrics": "object"},
+        "rejected": {"roots": "array", "validation_profile": "string", "overall_status": "string"}
+      }
+    },
+    "sync_public_surface_docs": {
+      "revision": 1,
+      "backend": "Local registry renderer and generated-section markers in the bundled skill documentation.",
+      "inputs": [
+        {"argument": "--registry", "format": "YAML", "detail": "Optional registry override."},
+        {"argument": "--check", "detail": "Compare generated sections without updating the documents."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Snapshot targets, drift and written targets. Without check, the generated sections can be rewritten."}
+      ],
+      "warnings": "Use check mode for an audit. Sync mode updates the named documentation sections.",
+      "failure": "Drift in check mode exits 1. A rejected path overlap exits 2 with a diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"check_mode": "boolean", "targets": "array", "drifted_targets": "array", "touched_targets": "array"},
+        "rejected": {"check_mode": "boolean", "targets": "array", "drifted_targets": "array", "touched_targets": "array"}
+      }
+    },
+    "skill_surface_audit": {
+      "revision": 1,
+      "backend": "Local audit of the selected mother skill registry, snapshot documents and script references.",
+      "inputs": [
+        {"argument": "--root", "format": "Directory", "detail": "Mother skill root to inspect."},
+        {"argument": "--skip-hygiene", "detail": "Omit the generated-residue inventory for runs that deliberately produce temporary files."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Registry statistics, snapshot drift, missing references and residue inventory."}
+      ],
+      "warnings": "Unregistered scripts are listed as inventory. Review their intended scope before treating their presence as a defect.",
+      "failure": "An invalid root or high-severity finding can exit 1. A rejected output path can exit 2 with a diagnostic on stdout.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"root": "string", "registry": "object", "snapshot_drift": "array", "missing_doc_script_refs": "array", "hygiene_candidate_count": "integer"},
+        "rejected": {"root": "string", "snapshot_drift": "array", "missing_doc_script_refs": "array", "hygiene_candidate_count": "integer"}
+      }
+    },
+    "inspect_fits": {
+      "revision": 1,
+      "backend": "Core with Astropy and NumPy. PNG quicklook uses Matplotlib. The limited NumPy fallback inspects the primary image.",
+      "inputs": [
+        {"argument": "path", "format": "FITS", "detail": "Readable original or copied FITS file with one or more HDUs."},
+        {"argument": "--extension", "detail": "HDU name or zero-based index for preview and pixel lookup."},
+        {"argument": "--crop", "unit": "pixels", "detail": "Preview region as x0,y0,width,height. Its origin is zero-based."},
+        {"argument": "--pixel", "unit": "pixels", "detail": "Zero-based x,y in the original image. A cube uses its first plane. Values retain the declared BUNIT where available."},
+        {"argument": "--header-key", "detail": "Additional FITS keyword to retain. May be repeated."},
+        {"argument": "--sample-size", "unit": "elements", "detail": "Positive approximate sample size for image statistics."},
+        {"argument": "--max-columns", "unit": "columns", "detail": "Maximum table columns described per HDU."},
+        {"argument": "--preview-if-available", "detail": "Requires --preview. Retains a diagnostic and summary if the bounded quicklook is unavailable."},
+        {"argument": "--force-simple-fallback", "detail": "Use the limited primary-image reader. Full HDU, WCS and pixel lookup support require Astropy."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "HDU descriptions, sampled data statistics, headers and available WCS."},
+        {"argument": "--preview", "format": "PNG", "detail": "Display-only quicklook when the selected image can be rendered."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input and completed output records and processing parameters."}
+      ],
+      "warnings": "Unavailable bounded quicklooks and low finite-pixel coverage can produce WARNING with a retained summary.",
+      "failure": "Unavailable or unreadable input and invalid coordinates can exit 2 with a diagnostic summary when its destination is writable.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"path": "string", "hdus": "array"},
+        "rejected": {"path": "string", "issues": "array"}
+      }
+    },
+    "catalog_workbench.crossmatch-sky": {
+      "revision": 1,
+      "backend": "Core with Astropy, NumPy and SciPy for nearest-neighbour celestial matching.",
+      "inputs": [
+        {"argument": "left", "format": "Table", "detail": "Left catalog with at least one row and separate RA and Dec columns."},
+        {"argument": "right", "format": "Table", "detail": "Right catalog with the same coordinate frame and epoch as the left catalog. The guided form accepts text tables."},
+        {"argument": "--left-format", "detail": "Optional reader format for the left catalog."},
+        {"argument": "--right-format", "detail": "Optional reader format for the right catalog."},
+        {"argument": "--left-ra", "detail": "Name of the RA column in the left catalog."},
+        {"argument": "--left-dec", "detail": "Name of the left declination column."},
+        {"argument": "--right-ra", "detail": "Name of the RA column in the right catalog."},
+        {"argument": "--right-dec", "detail": "Name of the right declination column."},
+        {"argument": "--left-ra-unit", "unit": "deg, rad, or hourangle", "detail": "Angular unit for the left RA column."},
+        {"argument": "--right-ra-unit", "unit": "deg, rad, or hourangle", "detail": "Angular unit for the right RA column."},
+        {"argument": "--left-dec-unit", "unit": "deg or rad", "detail": "Angular unit for the left Dec column."},
+        {"argument": "--right-dec-unit", "unit": "deg or rad", "detail": "Angular unit for the right Dec column."},
+        {"argument": "--coordinate-frame", "detail": "ICRS for both inputs."},
+        {"argument": "--coordinate-epoch-jyear", "unit": "Julian year", "detail": "Positive common epoch if supplied. Required by the guided form. Positions are used as supplied."},
+        {"argument": "--radius-arcsec", "unit": "arcseconds", "detail": "Finite positive search radius up to 648000 arcseconds."}
+      ],
+      "outputs": [
+        {"argument": "output", "format": "Table", "detail": "Nearest accepted right-side match per left row, with match_sep_arcsec. The guided form writes ECSV."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Input and match counts, mapping and angular separation QA."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Both catalog input records, completed outputs and matching parameters."}
+      ],
+      "warnings": "Empty matches, a search radius above one degree, and repeated use of one right row can yield WARNING.",
+      "failure": "Invalid input, coordinate metadata, or an unwritable destination can exit 2. Output aliases of inputs are rejected on standard output before writing any files.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"operation": "string", "matched_rows": "integer", "unmatched_left_rows": "integer", "radius_arcsec": "number"},
+        "rejected": {"operation": "string", "message": "string"}
+      }
+    },
+    "photometry_noise_budget": {
+      "revision": 1,
+      "backend": "Python numerical model. No catalog, aperture image or external detector backend is required.",
+      "inputs": [
+        {"argument": "--units", "unit": "electrons or ADU", "detail": "Common unit of source, sky and dark counts."},
+        {"argument": "--source", "unit": "counts per frame", "detail": "Finite non-negative net source signal within the aperture."},
+        {"argument": "--sky-per-pixel", "unit": "counts per pixel per frame", "detail": "Finite non-negative background sky level."},
+        {"argument": "--dark-per-pixel", "unit": "counts per pixel per frame", "detail": "Finite non-negative integrated dark contribution."},
+        {"argument": "--gain", "unit": "electrons per ADU", "detail": "Positive detector gain when using ADU."},
+        {"argument": "--read-noise", "unit": "electrons RMS per pixel per frame", "detail": "Finite non-negative read noise in either input count unit mode."},
+        {"argument": "--n-pixels", "unit": "pixels", "detail": "Positive effective aperture area. Fractional pixels are supported."},
+        {"argument": "--sky-estimate-pixels", "unit": "pixels", "detail": "Positive effective background sample area for the background-estimation variance term."},
+        {"argument": "--n-frames", "unit": "frames", "detail": "Positive integer count of combined frames."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Variance components in electrons squared, total noise in electrons and dimensionless SNR."},
+        {"argument": "--output-json", "format": "JSON", "detail": "Legacy summary destination used when --summary-json is absent."},
+        {"argument": "--report-md", "format": "Markdown", "detail": "Noise budget, assumptions and QA in a readable report."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Parameter and output records for the completed calculation."}
+      ],
+      "warnings": "Omitting background estimation or producing zero variance can yield WARNING. SNR is null when total noise is zero.",
+      "failure": "Invalid values or numerical overflow exit 2. The diagnostic retains empty measurements and the reason.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"variance_terms_e2": "object", "total_noise_e": "number", "snr": "number_or_null", "measurement_summary": "object"},
+        "rejected": {"blocked_reason": "string", "measurement_summary": "object"}
+      }
+    },
+    "astrometry_net_workbench.verify-existing-wcs": {
+      "revision": 1,
+      "backend": "The Full profile provides the supported Astropy and plotting stack. Local verification uses the existing FITS WCS and does not call an astrometric solver.",
+      "inputs": [
+        {"argument": "path", "format": "FITS", "detail": "Readable FITS with an existing celestial WCS. Image data in the selected HDU enables visual QA."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Contains existing_wcs_quicklook.png when the selected WCS has a renderable image plane."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Center and corner sky positions in degrees, optional offset in arcseconds, and WCS round-trip residuals in pixels."},
+        {"argument": "--report-md", "format": "Markdown", "detail": "Existing WCS verification, caveats and reported diagnostics."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "FITS input and completed verification output records."}
+      ],
+      "warnings": "Header-only WCS or failed inverse round trips can yield WARNING. The check measures internal consistency without an independent catalog accuracy estimate.",
+      "failure": "A missing or unreadable file or absent celestial WCS can exit 2 with a diagnostic and empty measurements.",
+      "summary": {
+        "tool": "astrometry_net_workbench",
+        "mode": "verify-existing-wcs",
+        "version": "1.8",
+        "complete": {"wcs_center": "object", "wcs_hdu_index": "integer", "field_corners": "array", "center_offset_arcsec": "number_or_null", "pixel_round_trip": "object", "measurement_summary": "object"},
+        "rejected": {"blocked_reason": "string", "measurement_summary": "object"}
+      }
+    },
+    "sb2_double_gaussian_workbench.fit": {
+      "revision": 1,
+      "backend": "Dedicated datanalysis environment with NumPy, SciPy and Matplotlib. Fits two Gaussians per cross-correlation trace.",
+      "inputs": [
+        {"argument": "inputs", "format": "CSV", "detail": "One or more CCF tables with velocity_kms and ccf_value columns. Case and aperture metadata keep observations distinct."},
+        {"argument": "--fxcor-csv", "format": "CSV", "detail": "Optional parsed FXCOR results for a loose comparison. May be repeated."},
+        {"argument": "--case-id", "detail": "Override the case identifier for a set of orders belonging to the same observation."},
+        {"argument": "--min-separation", "unit": "km/s", "detail": "Finite positive minimum accepted separation of the fitted components."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Contains sb2_double_gaussian_orders.csv, summary.md and available PNG fit figures in figures/."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Per-order acceptance, velocities and uncertainties in km/s, and per-case component summaries."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "CCF and optional FXCOR input records and completed output records."}
+      ],
+      "warnings": "Failed or rejected individual orders yield WARNING and retain their diagnostics. A rejected order contributes no fitted velocity to the accepted case summary.",
+      "failure": "Invalid CCF or options can exit 2 before writing fit tables or figures. The summary retains input-validation issues where writable.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"order_rows": "array", "accepted_count": "integer", "rejected_count": "integer", "case_summaries": "array", "measurement_summary": "object"},
+        "rejected": {"input_validation_issues": "array", "measurement_summary": "object"}
+      }
+    },
+    "li6708_equivalent_width_workbench.measure": {
+      "revision": 1,
+      "backend": "Dedicated datanalysis environment with NumPy, Astropy and Matplotlib for local continuum fitting, integration and plotting.",
+      "inputs": [
+        {"argument": "fits_path", "format": "MULTISPE FITS or ASCII", "detail": "Spectrum in angstroms. ASCII uses wavelength and flux in the first two numeric columns."},
+        {"argument": "--order", "unit": "one-based index", "detail": "Echelle aperture containing the line. Omitting it permits automatic order selection."},
+        {"argument": "--line-center", "unit": "angstroms", "detail": "Rest wavelength around which to measure the line."},
+        {"argument": "--line-label", "detail": "Label for the measurement and plot."},
+        {"argument": "--target-name", "detail": "Optional target identifier."},
+        {"argument": "--continuum-window", "unit": "angstroms", "detail": "Two endpoints of a continuum interval. May be repeated."},
+        {"argument": "--integration-window", "unit": "angstroms", "detail": "Two endpoints of the equivalent-width integral."},
+        {"argument": "--continuum-degree", "detail": "Polynomial degree for the local continuum."},
+        {"argument": "--literature-ew-ma", "unit": "milliangstroms", "detail": "Optional reference equivalent width supplied by the user."},
+        {"argument": "--skip-systematic-grid", "detail": "Skip the window-perturbation grid. The grid uncertainty stays null and the noise proxy remains separate."}
+      ],
+      "outputs": [
+        {"argument": "--output-dir", "format": "Directory", "detail": "Contains li6708_summary.csv, li6708_summary.md, the line plot and the default summary JSON on a completed measurement."},
+        {"argument": "--summary-json", "format": "JSON", "detail": "Equivalent width in angstroms and milliangstroms, integration settings, separate uncertainty diagnostics and QA. Overrides the default summary location."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Spectrum and completed output records with measurement parameters."}
+      ],
+      "warnings": "Review the continuum placement and sampling. The window-grid scatter and the random-like noise proxy measure different effects.",
+      "failure": "Unsupported wavelength units or inadequate line or continuum data can exit 2 with diagnostic JSON and no completed measurement.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"ew_angstrom": "number", "ew_milliangstrom": "number", "uncertainty_milliangstrom": "number_or_null", "measurement_summary": "object"},
+        "rejected": {"error": "string", "measurement_summary": "object"}
+      }
+    },
+    "photometric_solution": {
+      "revision": 1,
+      "backend": "Core in the dedicated datanalysis environment. NumPy and pandas fit the model, with Astropy table support and Matplotlib for the residual plot.",
+      "inputs": [
+        {"argument": "input_table", "format": "Table", "detail": "Standard-star table such as CSV, TSV, ECSV or FITS. Use one consistent magnitude system and passband per fit."},
+        {"argument": "--inst-mag-col", "unit": "mag", "detail": "Instrumental magnitude column."},
+        {"argument": "--std-mag-col", "unit": "mag", "detail": "Catalog or standard magnitude column."},
+        {"argument": "--airmass-col", "unit": "dimensionless", "detail": "Airmass column for fitting extinction."},
+        {"argument": "--color-col", "unit": "mag", "detail": "Color index column for the optional color term."},
+        {"argument": "--error-col", "unit": "mag", "detail": "Positive uncertainty on the standard minus instrumental magnitude difference for weighted fitting."},
+        {"argument": "--include-color-term", "detail": "Fit a linear color coefficient when the color column is supplied."}
+      ],
+      "outputs": [
+        {"argument": "--summary-json", "format": "JSON", "detail": "Coefficients, method, uncertainties or null, residuals and QA."},
+        {"argument": "--output-json", "format": "JSON", "detail": "Optional additional copy of the same summary."},
+        {"argument": "--coefficients-csv", "format": "CSV", "detail": "Fitted coefficients with their units and uncertainties."},
+        {"argument": "--residual-csv", "format": "CSV", "detail": "Per-standard fit diagnostics and residuals in mag."},
+        {"argument": "--residual-plot", "format": "PNG", "detail": "Residual diagnostic plot."},
+        {"argument": "--report-md", "format": "Markdown", "detail": "Method, fit diagnostics and quality flags."},
+        {"argument": "--manifest-json", "format": "JSON", "detail": "Input and completed output records for the solution."}
+      ],
+      "warnings": "Sparse coverage, high residual scatter or uncertain coefficients can produce WARNING. The extinction sign follows the standard-minus-instrumental convention.",
+      "failure": "Unreadable, insufficient or rank-deficient standards can exit 2 with an empty coefficient set and a diagnostic.",
+      "summary": {
+        "version": "1.8",
+        "complete": {"parameters": "object", "row_count": "integer", "fitted_model": "string", "rms_residual_mag": "number", "measurement_summary": "object"},
+        "rejected": {"parameters": "object", "error": "string", "measurement_summary": "object"}
+      }
+    }
+  }
+}

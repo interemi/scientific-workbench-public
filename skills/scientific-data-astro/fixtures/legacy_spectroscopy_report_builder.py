@@ -16,6 +16,7 @@ from _internal.runtime_common import configure_runtime
 
 
 SCAFFOLD_TOOL = "legacy_spectroscopy_report_builder.scaffold"
+POPULATE_TOOL = "legacy_spectroscopy_report_builder.populate"
 
 SECTION_FILES = [
     ("01_objetivo_materiales.tex", "Objetivo y materiales"),
@@ -31,7 +32,7 @@ SECTION_FILES = [
 
 
 class InputValidationError(Exception):
-    """Raised when scaffold paths are unsafe to write."""
+    """Raised when a report request fails validation before writing."""
 
     def __init__(self, issues: list[dict]):
         super().__init__("; ".join(item["detail"] for item in issues))
@@ -170,8 +171,12 @@ def validate_scaffold_request(project_dir: Path, args) -> list[dict]:
                     "argument": "output_dir",
                 }
             )
+    return issues + validate_report_output_paths(project_dir, args)
+
+
+def validate_report_output_paths(project_dir: Path, args) -> list[dict]:
     reserved = scaffold_reserved_paths(project_dir)
-    issues.extend(validate_auxiliary_output_path(args.summary_json, "--summary-json", reserved))
+    issues = validate_auxiliary_output_path(args.summary_json, "--summary-json", reserved)
     issues.extend(validate_auxiliary_output_path(args.manifest_json, "--manifest-json", reserved))
     if args.summary_json and args.manifest_json:
         summary_path = Path(args.summary_json).expanduser().resolve(strict=False)
@@ -208,7 +213,7 @@ def scaffold_payload(project_dir: Path, *, status: str, notes: list[str], artifa
     )
 
 
-def emit_scaffold_payload(payload: dict, args, *, skip_summary_json: bool = False) -> None:
+def emit_report_payload(payload: dict, args, *, skip_summary_json: bool = False) -> None:
     rendered = json.dumps(payload, indent=2, ensure_ascii=True)
     print(rendered)
     if args.summary_json and not skip_summary_json:
@@ -326,10 +331,10 @@ def cmd_scaffold(args):
             "created_files": [str(path) for path in scaffold_owned_files(project_dir)],
         },
     )
-    emit_scaffold_payload(payload, args)
+    emit_report_payload(payload, args)
     if args.manifest_json:
         write_manifest(
-            args.manifest_json,
+            Path(args.manifest_json).expanduser(),
             inputs=[],
             outputs=[project_dir],
             parameters={"tool": SCAFFOLD_TOOL},
@@ -360,7 +365,7 @@ def emit_blocked_scaffold(args, error: InputValidationError) -> int:
         findings=error.issues,
     )
     skip_summary = any(item.get("argument") == "--summary-json" for item in error.issues)
-    emit_scaffold_payload(payload, args, skip_summary_json=skip_summary)
+    emit_report_payload(payload, args, skip_summary_json=skip_summary)
     return 2
 
 
@@ -370,7 +375,16 @@ def load_json(path: str | None) -> dict:
     candidate = Path(path).expanduser().resolve()
     if not candidate.exists():
         return {}
-    return json.loads(candidate.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(candidate.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("the JSON root must be an object")
+    except (OSError, ValueError) as error:
+        raise InputValidationError([{
+            "title": "Invalid source summary",
+            "detail": f"Could not read the summary {public_path(candidate)}: {error}",
+        }]) from error
+    return payload
 
 
 def read_csv_rows(path: str | None) -> list[dict]:
@@ -413,7 +427,7 @@ def write_simple_table(path: Path, headers: list[str], rows: list[list[str]]) ->
 
 def populate_env_section(project_dir: Path, env_payload: dict) -> str:
     if not env_payload:
-        return "Pendiente de poblar con legacy_spectroscopy_envcheck.py."
+        return r"Pendiente de poblar con \texttt{legacy\_spectroscopy\_envcheck.py}."
     results = env_payload.get("results", {})
     tools = results.get("legacy_tools", {})
     assets = results.get("detected_practice_assets", {})
@@ -516,8 +530,12 @@ def populate_rv_sections(project_dir: Path, fxcor_payloads: list[dict], rv_paylo
                 if item.get("physical_robustness"):
                     states.append(f"robustez={item['physical_robustness']}")
                 state_text = f" Estado: {', '.join(states)}." if states else ""
+                fwhm = item.get("fwhm_pix")
+                rotation = item.get("vsini_interp_kms")
+                fwhm_text = f"{tex_escape(str(fwhm))} pix" if fwhm is not None else "no disponible"
+                rotation_text = f"{tex_escape(str(rotation))} km/s" if rotation is not None else "no disponible"
                 vsini_text.append(
-                    rf"\item {tex_escape(item['label'])}: FWHM={tex_escape(str(item['fwhm_pix']))} pix, $v \sin i$={tex_escape(str(item['vsini_interp_kms']))} km/s.{tex_escape(flag_text)}{tex_escape(state_text)}"
+                    rf"\item {tex_escape(item['label'])}: FWHM={fwhm_text}, $v \sin i$={rotation_text}.{tex_escape(flag_text)}{tex_escape(state_text)}"
                 )
             vsini_text.append(r"\end{itemize}")
         calibration_plot = copy_artifact_if_exists(rv_payload.get("artifacts", {}).get("calibration_plot"), project_dir / "figures")
@@ -540,9 +558,20 @@ def populate_istarmod_section(project_dir: Path, payload: dict) -> tuple[str, li
     if not payload:
         return "Pendiente de poblar con \\texttt{istarmod\\_workbench.py}.", artifacts
     results = payload.get("results", {})
+    status = tex_escape(str(payload.get("status", "pendiente")))
+    if payload.get("tool") == "istarmod_workbench.prepare-copy":
+        preparation = [f"Estado de la preparación de la copia: \\texttt{{{status}}}."]
+        if type(results.get("copied_file_count")) is int:
+            preparation.append(f"Archivos copiados: {results['copied_file_count']}.")
+        preparation.append("Pendiente de incorporar el resultado de una ejecución en la copia.")
+        return "\n".join(preparation), artifacts
+    sm_file = results.get("sm_file")
+    returncode = results.get("returncode")
+    if not sm_file or type(returncode) is not int:
+        return "Pendiente de incorporar un resultado de ejecución con el archivo .sm y el código de salida.", artifacts
     lines = [
-        f"Estado de la corrida: \\texttt{{{tex_escape(payload.get('status', 'warning'))}}}.",
-        f"Archivo .sm usado: \\texttt{{{tex_escape(results.get('sm_file', 'pendiente'))}}}.",
+        f"Estado de la corrida: \\texttt{{{status}}}. Código de salida: {returncode}.",
+        f"Archivo .sm usado: \\texttt{{{tex_escape(sm_file)}}}.",
         "",
         "Esta seccion documenta la validacion tecnica del arbol derivado y no debe confundirse con una interpretacion cientifica cerrada sin revisar el perfil residual y la medida de EW.",
     ]
@@ -577,7 +606,8 @@ def populate_equivalent_width_section(project_dir: Path, payloads: list[dict]) -
                 rf"\item {tex_escape(str(label))}, orden {tex_escape(str(order))}: EW = {float(ew_ma):.1f} $\pm$ {float(uncertainty_ma):.1f} m\AA."
             )
         elif ew_ma is not None:
-            lines.append(rf"\item {tex_escape(str(label))}, orden {tex_escape(str(order))}: EW = {float(ew_ma):.1f} m\AA.")
+            availability = " Incertidumbre combinada no disponible." if "uncertainty_milliangstrom" in results else ""
+            lines.append(rf"\item {tex_escape(str(label))}, orden {tex_escape(str(order))}: EW = {float(ew_ma):.1f} m\AA.{availability}")
         else:
             lines.append(rf"\item {tex_escape(str(label))}: medición pendiente de revisar.")
         notes = payload.get("notes") or []
@@ -665,8 +695,15 @@ def populate_external_reference_discussion(payload: dict) -> str:
 def cmd_populate(args):
     configure_runtime("legacy_spectroscopy_report_builder_populate")
     project_dir = Path(args.project_dir).expanduser().resolve()
-    if not (project_dir / "main.tex").exists():
-        raise SystemExit("El directorio indicado no parece un scaffold de legacy_spectroscopy_report_builder.")
+    issues = validate_report_output_paths(project_dir, args)
+    if not (project_dir / "main.tex").is_file():
+        issues.append({
+            "title": "Missing report scaffold",
+            "detail": f"The project directory must contain the generated main.tex: {public_path(project_dir)}",
+            "argument": "project_dir",
+        })
+    if issues:
+        raise InputValidationError(issues)
 
     env_payload = load_json(args.envcheck)
     inventory_payload = load_json(args.inventory_summary)
@@ -677,20 +714,20 @@ def cmd_populate(args):
     external_reference_payload = load_json(args.external_reference_summary)
 
     generated_artifacts = []
-    write_text(project_dir / "sections" / "02_entorno_trazabilidad.tex", populate_env_section(project_dir, env_payload))
+    sections = {"02_entorno_trazabilidad.tex": populate_env_section(project_dir, env_payload)}
     inventory_text, inventory_artifacts = populate_inventory_section(project_dir, inventory_payload)
     generated_artifacts.extend(inventory_artifacts)
-    write_text(project_dir / "sections" / "03_inventario_multispec.tex", inventory_text)
+    sections["03_inventario_multispec.tex"] = inventory_text
     rv_text, vsini_text, rv_artifacts = populate_rv_sections(project_dir, fxcor_payloads, rv_payload)
     generated_artifacts.extend(rv_artifacts)
-    write_text(project_dir / "sections" / "04_velocidad_radial.tex", rv_text)
-    write_text(project_dir / "sections" / "05_vsini.tex", vsini_text)
+    sections["04_velocidad_radial.tex"] = rv_text
+    sections["05_vsini.tex"] = vsini_text
     istarmod_text, ist_artifacts = populate_istarmod_section(project_dir, istarmod_payload)
     generated_artifacts.extend(ist_artifacts)
-    write_text(project_dir / "sections" / "06_istarmod.tex", istarmod_text)
+    sections["06_istarmod.tex"] = istarmod_text
     ew_text, ew_artifacts = populate_equivalent_width_section(project_dir, li_payloads)
     generated_artifacts.extend(ew_artifacts)
-    write_text(project_dir / "sections" / "07_anchuras_equivalentes.tex", ew_text)
+    sections["07_anchuras_equivalentes.tex"] = ew_text
 
     if env_payload:
         practice_assets = env_payload.get("results", {}).get("detected_practice_assets", {})
@@ -700,31 +737,48 @@ def cmd_populate(args):
             f"calibración externa \\texttt{{{tex_escape(str(practice_assets.get('calibration_csv', 'pendiente')))}}} e "
             f"iSTARMOD local \\texttt{{{tex_escape(str(practice_assets.get('istarmod_root', 'pendiente')))}}}."
         )
-        write_text(project_dir / "sections" / "01_objetivo_materiales.tex", objective_text)
+        sections["01_objetivo_materiales.tex"] = objective_text
 
     if rv_payload or istarmod_payload or external_reference_payload:
-        write_text(project_dir / "sections" / "08_discusion.tex", populate_external_reference_discussion(external_reference_payload))
-    write_text(
-        project_dir / "sections" / "09_apendices.tex",
-        "Incluye aquí los comandos usados, logs relevantes, decisiones manuales sobre la CCF y cualquier comparación con literatura que no quepa en el cuerpo principal.",
+        sections["08_discusion.tex"] = populate_external_reference_discussion(external_reference_payload)
+    sections["09_apendices.tex"] = (
+        "Incluye aquí los comandos usados, logs relevantes, decisiones manuales sobre la CCF y cualquier "
+        "comparación con literatura que no quepa en el cuerpo principal."
     )
+    for filename, text in sections.items():
+        write_text(project_dir / "sections" / filename, text)
 
     payload = standard_tool_payload(
-        "legacy_spectroscopy_report_builder.populate",
+        POPULATE_TOOL,
         status="ok",
         notes=["Proyecto de memoria actualizado con las salidas reales disponibles."],
         artifacts={"project_dir": str(project_dir), "generated_artifacts": generated_artifacts},
-        results={"populated_sections": [item[0] for item in SECTION_FILES]},
+        results={"populated_sections": sorted(sections)},
     )
-    rendered = json.dumps(payload, indent=2, ensure_ascii=True)
-    print(rendered)
-    if args.summary_json:
-        Path(args.summary_json).write_text(rendered + "\n", encoding="utf-8")
+    emit_report_payload(payload, args)
     if args.manifest_json:
         inputs = [Path(item).expanduser().resolve() for item in [args.envcheck, args.inventory_summary, args.rv_summary, args.istarmod_summary, args.external_reference_summary] if item]
         inputs.extend(Path(item).expanduser().resolve() for item in args.fxcor_summary)
         inputs.extend(Path(item).expanduser().resolve() for item in args.li_summary)
-        write_manifest(args.manifest_json, inputs=inputs, outputs=[project_dir], parameters={"tool": "legacy_spectroscopy_report_builder.populate"}, command=" ".join(sys.argv), notes=payload["notes"])
+        write_manifest(
+            Path(args.manifest_json).expanduser(), inputs=inputs,
+            outputs=[project_dir, *(project_dir / "sections" / filename for filename in sorted(sections)),
+                     *generated_artifacts, *([Path(args.summary_json).expanduser()] if args.summary_json else [])],
+            parameters={"tool": POPULATE_TOOL}, command=" ".join(sys.argv), notes=payload["notes"],
+        )
+    return 0
+
+
+def emit_blocked_populate(args, error: InputValidationError) -> int:
+    payload = standard_tool_payload(
+        POPULATE_TOOL, status="blocked",
+        notes=["Choose a generated report project and readable source summaries."],
+        results={"input_validation_issues": error.issues, "populated_sections": []},
+        qa=standard_qa_payload(status="blocked", findings=error.issues),
+    )
+    skip_summary = any("--summary-json" in issue.get("argument", "") for issue in error.issues)
+    emit_report_payload(payload, args, skip_summary_json=skip_summary)
+    return 2
 
 
 def main():
@@ -735,8 +789,10 @@ def main():
         except InputValidationError as error:
             return emit_blocked_scaffold(args, error)
     elif args.command == "populate":
-        cmd_populate(args)
-        return 0
+        try:
+            return cmd_populate(args)
+        except InputValidationError as error:
+            return emit_blocked_populate(args, error)
     return 0
 
 

@@ -157,23 +157,67 @@ final class WorkbenchStore: ObservableObject {
   @Published var radialVelocityReview: RadialVelocityTableReview?
   @Published var radialVelocityReviewError: String?
   @Published var isReviewingRadialVelocityInput = false
-  @Published var radialVelocityTimeColumn: Int?
-  @Published var radialVelocityValueColumn: Int?
-  @Published var radialVelocityUncertaintyColumn: Int?
-  @Published var radialVelocityTimeSystem: RadialVelocityTimeSystem = .jd
-  @Published var radialVelocityUnit: RadialVelocityUnit = .kilometersPerSecond
+  @Published var radialVelocityTimeColumn: Int? {
+    didSet {
+      guard oldValue != radialVelocityTimeColumn else { return }
+      let column = radialVelocityReview?.column(at: radialVelocityTimeColumn)
+      radialVelocityTimeSystem = column?.declaredTimeSystem
+      radialVelocityTimeScale = column?.declaredTimeScale
+    }
+  }
+  @Published var radialVelocityValueColumn: Int? {
+    didSet {
+      guard oldValue != radialVelocityValueColumn else { return }
+      radialVelocityUnit = radialVelocityReview?.column(at: radialVelocityValueColumn)?.declaredVelocityUnit
+    }
+  }
+  @Published var radialVelocityUncertaintyColumn: Int? {
+    didSet {
+      guard oldValue != radialVelocityUncertaintyColumn else { return }
+      radialVelocityUncertaintyUnit = radialVelocityReview?.column(at: radialVelocityUncertaintyColumn)?.declaredVelocityUnit
+    }
+  }
+  @Published var radialVelocityTimeSystem: RadialVelocityTimeSystem?
+  @Published var radialVelocityTimeScale: RadialVelocityTimeScale?
+  @Published var radialVelocityUnit: RadialVelocityUnit?
+  @Published var radialVelocityUncertaintyUnit: RadialVelocityUnit?
   @Published var photometricCalibrationReview: PhotometricCalibrationReview?
   @Published var photometricCalibrationError: String?
   @Published var isReviewingPhotometricCalibration = false
-  @Published var photometricInstrumentalColumn: Int?
-  @Published var photometricCatalogColumn: Int?
-  @Published var photometricAirmassColumn: Int?
+  @Published var photometricInstrumentalColumn: Int? {
+    didSet { if oldValue != photometricInstrumentalColumn { photometricInputUnitsConfirmed = false } }
+  }
+  @Published var photometricCatalogColumn: Int? {
+    didSet {
+      guard oldValue != photometricCatalogColumn else { return }
+      photometricInputUnitsConfirmed = false
+      photometricMagnitudeSystem = photometricCalibrationReview?.column(at: photometricCatalogColumn)?.declaredMagnitudeSystem
+      photometricCustomMagnitudeSystem = ""
+    }
+  }
+  @Published var photometricAirmassColumn: Int? {
+    didSet { if oldValue != photometricAirmassColumn { photometricInputUnitsConfirmed = false } }
+  }
   @Published var photometricFilterColumn: Int?
   @Published var photometricFilterValue: String?
   @Published var photometricFilterValues: [String] = []
-  @Published var photometricUncertaintyColumn: Int?
-  @Published var photometricColorColumn: Int?
-  @Published var photometricIncludeColorTerm = false
+  @Published var photometricUncertaintyColumn: Int? {
+    didSet {
+      guard oldValue != photometricUncertaintyColumn else { return }
+      photometricOffsetUncertaintyUnit = photometricCalibrationReview?.column(at: photometricUncertaintyColumn)?.declaredOffsetUncertaintyUnit
+    }
+  }
+  @Published var photometricColorColumn: Int? {
+    didSet { if oldValue != photometricColorColumn { photometricInputUnitsConfirmed = false } }
+  }
+  @Published var photometricIncludeColorTerm = false {
+    didSet { if oldValue != photometricIncludeColorTerm { photometricInputUnitsConfirmed = false } }
+  }
+  @Published var photometricInputUnitsConfirmed = false
+  @Published var photometricMagnitudeSystem: PhotometricMagnitudeSystem?
+  @Published var photometricCustomMagnitudeSystem = ""
+  @Published var photometricSinglePassband = ""
+  @Published var photometricOffsetUncertaintyUnit: PhotometricMagnitudeUnit?
   @Published var documentStyleReview: DOCXStyleReview?
   @Published var documentStyleError: String?
   @Published var isReviewingDocumentStyles = false
@@ -231,6 +275,16 @@ final class WorkbenchStore: ObservableObject {
   private var forceLocalPlanner = false
   private var enableRestrictedStepsForLaunchAutomation = false
   private var rememberedCloudConsentScopes: Set<CloudConsentSessionScope> = []
+  private var activePlanningEvidence: WorkflowPlanningEvidence?
+
+  struct CloudSubmissionApproval {
+    let request: CloudConsentRequest
+    let scope: WorkflowPlanningEvidence.Consent.Scope
+
+    var evidence: WorkflowPlanningEvidence.Consent {
+      .init(scope: scope, attachmentContext: request.attachmentContextMode, categories: request.categories)
+    }
+  }
   private var outputRootRiskApprovalFingerprint: String?
   private var ollamaPullTask: Task<OllamaCommandResult, Error>?
   private var ollamaSetupCheck: (id: UUID, endpoint: String?, model: String, task: Task<Void, Never>)?
@@ -482,6 +536,7 @@ final class WorkbenchStore: ObservableObject {
     inputPaths = []
     agentPrompt = ""
     agentPlan = nil
+    activePlanningEvidence = nil
     agentPlanStepExecutions = [:]
     lastWorkflowSummaryPath = nil
     workflowExecutionIdentity = nil
@@ -527,6 +582,7 @@ final class WorkbenchStore: ObservableObject {
     inputPaths = restoredInputs
     agentPrompt = checkpoint.prompt
     agentPlan = checkpoint.plan.map { sanitizedAgentPlanForCurrentRegistry($0).plan }
+    activePlanningEvidence = backup.planningEvidence
     let eligibleStepIDs = Set(agentPlan?.steps.filter(\.isEnabled).map(\.id) ?? [])
     agentPlanStepExecutions = restoredInputs == checkpoint.inputPaths
       ? Dictionary(uniqueKeysWithValues: checkpoint.stepExecutions.filter {
@@ -570,7 +626,9 @@ final class WorkbenchStore: ObservableObject {
       argumentDrafts: capabilityArgumentDrafts, messages: agentChatMessages)
     do {
       let url = try WorkflowDraftArchiveService().write(checkpoint: checkpoint, redact: redactSecrets)
-      return WorkflowDraftBackup(checkpoint: checkpoint, archivePath: url.path)
+      return WorkflowDraftBackup(
+        checkpoint: checkpoint, archivePath: url.path, planningEvidence: agentPlan.flatMap(planningEvidence(for:))
+      )
     } catch {
       workflowNavigationNotice = "Could not archive the draft: \(redactSecrets(error.localizedDescription)). No context was cleared."
       return nil
@@ -660,7 +718,9 @@ final class WorkbenchStore: ObservableObject {
       velocityColumn: radialVelocityValueColumn,
       uncertaintyColumn: radialVelocityUncertaintyColumn,
       timeSystem: radialVelocityTimeSystem,
-      velocityUnit: radialVelocityUnit
+      timeScale: radialVelocityTimeScale,
+      velocityUnit: radialVelocityUnit,
+      uncertaintyUnit: radialVelocityUncertaintyUnit
     )
   }
 
@@ -669,6 +729,13 @@ final class WorkbenchStore: ObservableObject {
     return photometricCalibrationService.validate(
       review: photometricCalibrationReview,
       selection: photometricCalibrationSelection
+    )
+  }
+
+  var photometricNeedsInputUnitConfirmation: Bool {
+    guard let photometricCalibrationReview else { return false }
+    return photometricCalibrationService.needsInputUnitConfirmation(
+      review: photometricCalibrationReview, selection: photometricCalibrationSelection
     )
   }
 
@@ -681,7 +748,12 @@ final class WorkbenchStore: ObservableObject {
       filterValue: photometricFilterValue,
       uncertaintyColumn: photometricUncertaintyColumn,
       colorColumn: photometricColorColumn,
-      includeColorTerm: photometricIncludeColorTerm
+      includeColorTerm: photometricIncludeColorTerm,
+      inputUnitsConfirmed: photometricInputUnitsConfirmed,
+      magnitudeSystem: photometricMagnitudeSystem,
+      customMagnitudeSystem: photometricCustomMagnitudeSystem,
+      singlePassband: photometricSinglePassband,
+      offsetUncertaintyUnit: photometricOffsetUncertaintyUnit
     )
   }
 
@@ -864,11 +936,17 @@ final class WorkbenchStore: ObservableObject {
     invalidateAIConnectionStatus(for: provider)
   }
 
-  private func replaceAgentPlan(_ plan: AgentPlan) {
+  private func replaceAgentPlan(_ plan: AgentPlan, planningEvidence: WorkflowPlanningEvidence? = nil) {
     agentPlan = plan
+    activePlanningEvidence = planningEvidence
     agentPlanStepExecutions = [:]
     workflowExecutionIdentity = nil
     lastWorkflowSummaryPath = nil
+  }
+
+  private func planningEvidence(for plan: AgentPlan) -> WorkflowPlanningEvidence? {
+    guard let evidence = activePlanningEvidence, evidence.applies(to: plan) else { return nil }
+    return evidence.sanitized(secrets: configuredSecrets)
   }
 
   func updateAgentPlanTitle(_ title: String) {
@@ -1115,6 +1193,32 @@ final class WorkbenchStore: ObservableObject {
     }
   }
 
+  func exportPortableRun(
+    _ job: JobRecord, selection: PortableRunPackageService.Selection, destination: URL
+  ) async throws -> PortableRunPackageService.Review {
+    let secrets = configuredSecrets
+    let operation = Task.detached(priority: .userInitiated) {
+      try PortableRunPackageService().export(job: job, selection: selection, to: destination, secrets: secrets)
+    }
+    return try await withTaskCancellationHandler {
+      try await operation.value
+    } onCancel: {
+      operation.cancel()
+    }
+  }
+
+  func exportTechnicalRunReport(_ job: JobRecord, question: String, parent: URL) async throws -> URL {
+    let secrets = configuredSecrets
+    let operation = Task.detached(priority: .userInitiated) {
+      try TechnicalRunReportService().export(job: job, question: question, parent: parent, secrets: secrets)
+    }
+    return try await withTaskCancellationHandler {
+      try await operation.value
+    } onCancel: {
+      operation.cancel()
+    }
+  }
+
   @discardableResult
   func importAgentPlan(from path: String) -> AgentPlan? {
     guard canChangeWorkflowContext else {
@@ -1226,6 +1330,65 @@ final class WorkbenchStore: ObservableObject {
       agentStatusMessage = "Could not retry \(job.capabilityLabel)."
     }
     return agentStatusMessage
+  }
+
+  func verifyJob(_ job: JobRecord) async -> RunVerificationReport? {
+    guard let current = jobs.first(where: { $0.id == job.id }), !hasActiveOperation else { return nil }
+    let settings = runVerificationSettings
+    let task = Task.detached(priority: .userInitiated) {
+      await RunVerificationService().verify(job: current, settings: settings)
+    }
+    let report = await withTaskCancellationHandler {
+      await task.value
+    } onCancel: {
+      task.cancel()
+    }
+    guard !Task.isCancelled, settings == runVerificationSettings,
+          jobs.first(where: { $0.id == job.id }) == current else { return nil }
+    return report
+  }
+
+  func replayJob(_ job: JobRecord) async -> String? {
+    guard let original = jobs.first(where: { $0.id == job.id }), !hasActiveOperation, !isPreparingToQuit else {
+      return "Wait for active work to finish and open a fresh verification."
+    }
+    let settings = runVerificationSettings
+    let destination = runDirectoryFactory.makePath(
+      root: legacyWorkspacePolicy.runRoot(for: original.capabilityID, preferredOutputRoot: settings.outputRoot),
+      capabilityID: original.capabilityID + "-replay"
+    )
+    let task = Task.detached(priority: .userInitiated) {
+      try await RunReplayService().prepare(job: original, settings: settings, destination: destination)
+    }
+    do {
+      let plan = try await withTaskCancellationHandler {
+        try await task.value
+      } onCancel: {
+        task.cancel()
+      }
+      guard !Task.isCancelled, settings == runVerificationSettings,
+            jobs.first(where: { $0.id == original.id }) == original, !hasActiveOperation else {
+        return "The job or execution settings changed. Open a fresh verification."
+      }
+      let replayed = await run(
+        capability: plan.capability, rawArguments: plan.rawArguments, inputPathsOverride: plan.inputPaths,
+        runDirectoryOverride: plan.directory.path, prepareGuidedArtifactsDirectory: true,
+        appliedApproval: plan.approvals.first, replay: plan
+      )
+      return replayed == nil ? agentStatusMessage : nil
+    } catch let reason as RunReplayService.Unavailable {
+      return reason.localizedDescription
+    } catch is CancellationError {
+      return "Replay was cancelled."
+    } catch {
+      return "Could not safely prepare the replay folder or command."
+    }
+  }
+
+  private var runVerificationSettings: RunVerificationService.Settings {
+    .init(skillRoot: skillRootPath, pythonExecutable: pythonExecutable,
+          timeoutSeconds: externalProcessTimeoutSeconds, outputRoot: outputRootPath,
+          secrets: configuredSecrets)
   }
 
   func testAIConnection(_ provider: AIProvider? = nil) async {
@@ -1839,8 +2002,8 @@ final class WorkbenchStore: ObservableObject {
       var arguments = [
         staged.stagedPath,
         runURL.appendingPathComponent("artifacts/edited_copy.docx").path,
-        "--find", docxFindText,
-        "--replace", docxReplacementText,
+        "--find=\(docxFindText)",
+        "--replace=\(docxReplacementText)",
         "--require-confirmation",
         "--confirmation-id", "scientific-workbench:\(UUID().uuidString)",
         "--diff-json", runURL.appendingPathComponent("previews/style_diff.json").path,
@@ -1852,7 +2015,8 @@ final class WorkbenchStore: ObservableObject {
         capability: capability,
         rawArguments: arguments.map(ShellWords.quote).joined(separator: " "),
         inputPathsOverride: [staged.stagedPath],
-        runDirectoryOverride: runDirectory
+        runDirectoryOverride: runDirectory,
+        appliedApproval: .reviewedDOCXReplacement
       )
       guard documentWorkflowService.originalIsUnchanged(staged) else {
         documentStyleError = DocumentWorkflowError.originalChanged.localizedDescription
@@ -1970,7 +2134,8 @@ final class WorkbenchStore: ObservableObject {
         capability: capability,
         rawArguments: arguments.map(ShellWords.quote).joined(separator: " "),
         inputPathsOverride: [staged.stagedPath],
-        runDirectoryOverride: runDirectory
+        runDirectoryOverride: runDirectory,
+        appliedApproval: .confirmedKeynoteExport
       )
       guard documentWorkflowService.originalIsUnchanged(staged) else {
         keynoteWorkflowError = DocumentWorkflowError.originalChanged.localizedDescription
@@ -2004,8 +2169,10 @@ final class WorkbenchStore: ObservableObject {
       radialVelocityTimeColumn = review.recommendedTimeColumn
       radialVelocityValueColumn = review.recommendedVelocityColumn
       radialVelocityUncertaintyColumn = review.recommendedUncertaintyColumn
-      radialVelocityTimeSystem = review.inferredTimeSystem ?? .jd
-      radialVelocityUnit = review.inferredVelocityUnit ?? .kilometersPerSecond
+      radialVelocityTimeSystem = review.column(at: radialVelocityTimeColumn)?.declaredTimeSystem
+      radialVelocityTimeScale = review.column(at: radialVelocityTimeColumn)?.declaredTimeScale
+      radialVelocityUnit = review.column(at: radialVelocityValueColumn)?.declaredVelocityUnit
+      radialVelocityUncertaintyUnit = review.column(at: radialVelocityUncertaintyColumn)?.declaredVelocityUnit
     } catch {
       radialVelocityReview = nil
       radialVelocityReviewError = error.localizedDescription
@@ -2073,6 +2240,11 @@ final class WorkbenchStore: ObservableObject {
       photometricUncertaintyColumn = review.recommendedUncertaintyColumn
       photometricColorColumn = review.recommendedColorColumn
       photometricIncludeColorTerm = false
+      photometricInputUnitsConfirmed = false
+      photometricMagnitudeSystem = review.column(at: photometricCatalogColumn)?.declaredMagnitudeSystem
+      photometricCustomMagnitudeSystem = ""
+      photometricSinglePassband = ""
+      photometricOffsetUncertaintyUnit = review.column(at: photometricUncertaintyColumn)?.declaredOffsetUncertaintyUnit
       refreshPhotometricFilterValues()
     } catch {
       photometricCalibrationReview = nil
@@ -2132,7 +2304,8 @@ final class WorkbenchStore: ObservableObject {
         rawArguments: "",
         inputPathsOverride: [staged.tablePath],
         selectJobs: selectJobs,
-        runDirectoryOverride: runDirectory
+        runDirectoryOverride: runDirectory,
+        appliedApproval: .capabilityAccess
       )
     } catch {
       photometricCalibrationError = error.localizedDescription
@@ -2213,6 +2386,28 @@ final class WorkbenchStore: ObservableObject {
     openOptionalCapability("cross_domain_data_workbench")
   }
 
+  func fitsFollowUpCapability(for job: JobRecord) -> CapabilityEntry? {
+    guard job.capabilityID == "inspect_fits", job.status == .succeeded else { return nil }
+    return capabilities.first { $0.id == "inspect_fits" }
+  }
+
+  func runFITSFollowUp(
+    from job: JobRecord, summary: FITSInspectionSummary, hdu: Int, action: FITSInspectionAction
+  ) async -> JobRecord? {
+    guard let capability = fitsFollowUpCapability(for: job),
+          let input = summary.attachedSource(in: job),
+          action.isPixelLookup ? capability.supportsFITSPixelLookup : capability.supportsBoundedFITSPreview else {
+      return nil
+    }
+    return await runGuided(
+      capability: capability, inputPathsOverride: job.requestInputPaths, selectJobs: false
+    ) { run in
+      [input, "--extension", String(hdu),
+       "--summary-json", run.appendingPathComponent("summary.json").path,
+       "--manifest-json", run.appendingPathComponent("manifest.json").path] + action.arguments(in: run)
+    }
+  }
+
   func relatedFirstRunJobs(to job: JobRecord) -> [JobRecord] {
     let relatedCapabilities: Set<String> = [
       "document_intake_workbench", "cross_domain_data_workbench"
@@ -2270,7 +2465,9 @@ final class WorkbenchStore: ObservableObject {
   }
 
   @discardableResult
-  func planAgentWorkflow(prompt promptOverride: String? = nil) async -> AgentPlan? {
+  func planAgentWorkflow(
+    prompt promptOverride: String? = nil, approval: CloudSubmissionApproval? = nil
+  ) async -> AgentPlan? {
     guard !isRunningAgentWorkflow, !isPlanningAgentWorkflow else {
       agentStatusMessage = "Finish or cancel the active workflow operation before planning another workflow."
       return nil
@@ -2288,18 +2485,25 @@ final class WorkbenchStore: ObservableObject {
     if !forceLocalPlanner {
       loadSavedSecretIfNeeded(for: aiProvider)
     }
+    let cloudRequest = cloudConsentRequest(for: .workflow, prompt: prompt)
+    if let cloudRequest, cloudRequest.fingerprint != approval?.request.fingerprint {
+      agentStatusMessage = "Review the cloud provider and data scope in Chat before planning."
+      return nil
+    }
     persistSettings()
     isPlanningAgentWorkflow = true
-    let plan: AgentPlan
+    let secretsAtPlanning = configuredSecrets
+    let outcome: AgentPlanningResult
     if forceLocalPlanner {
       agentStatusMessage = "Planning with deterministic local planner."
-      plan = await agentPlanner.deterministicPlan(
+      let plan = await agentPlanner.deterministicPlan(
         prompt: prompt,
         inputPaths: inputPaths,
         capabilities: capabilities,
         skillRoot: skillRootPath,
         pythonExecutable: pythonExecutable
       )
+      outcome = AgentPlanningResult(plan: plan)
     } else {
       agentStatusMessage = selectedAIIsConfigured
         ? "Planning with \(aiProvider.title)."
@@ -2307,7 +2511,7 @@ final class WorkbenchStore: ObservableObject {
       let outboundPrompt = aiProvider.requiresAPIKey && selectedAIIsConfigured
         ? redactingConfiguredCloudSecrets(in: prompt)
         : prompt
-      plan = await agentPlanner.plan(
+      outcome = await agentPlanner.plan(
         prompt: outboundPrompt,
         inputPaths: inputPaths,
         capabilities: capabilities,
@@ -2320,8 +2524,14 @@ final class WorkbenchStore: ObservableObject {
         pythonExecutable: pythonExecutable
       )
     }
-    let safePlan = launchAutomationPlanWithRestrictedStepsEnabledIfNeeded(redactedPlan(plan))
-    replaceAgentPlan(safePlan)
+    let safePlan = launchAutomationPlanWithRestrictedStepsEnabledIfNeeded(redactedPlan(outcome.plan))
+    let evidence = outcome.modelAttempt.map { attempt in
+      WorkflowPlanningEvidence(
+        plan: safePlan, attempt: attempt, consent: cloudRequest == nil ? nil : approval?.evidence,
+        secrets: secretsAtPlanning + configuredSecrets
+      )
+    }
+    replaceAgentPlan(safePlan, planningEvidence: evidence)
     agentStatusMessage = "Planned \(safePlan.steps.count) step\(safePlan.steps.count == 1 ? "" : "s") using \(safePlan.source.title)."
     persistAgentState()
     isPlanningAgentWorkflow = false
@@ -2340,13 +2550,17 @@ final class WorkbenchStore: ObservableObject {
     if !forceLocalPlanner {
       loadSavedSecretIfNeeded(for: aiProvider)
     }
-    if let request = cloudConsentRequest(for: resolvedMode, prompt: prompt), requiresCloudConsent(request) {
+    let request = cloudConsentRequest(for: resolvedMode, prompt: prompt)
+    if let request, requiresCloudConsent(request) {
       pendingCloudConsentRequest = request
       agentStatusMessage = "Review what will be sent to \(request.provider.title) before continuing."
       return
     }
 
-    await performAgentSubmission(prompt: prompt, resolvedMode: resolvedMode)
+    await performAgentSubmission(
+      prompt: prompt, resolvedMode: resolvedMode,
+      approval: request.map { CloudSubmissionApproval(request: $0, scope: .sessionReused) }
+    )
   }
 
   func confirmPendingCloudRequest(
@@ -2396,7 +2610,10 @@ final class WorkbenchStore: ObservableObject {
     pendingCloudConsentRequest = nil
     await performAgentSubmission(
       prompt: currentPrompt,
-      resolvedMode: currentResolvedMode
+      resolvedMode: currentResolvedMode,
+      approval: CloudSubmissionApproval(
+        request: refreshedRequest, scope: approvalScope == .appSession ? .sessionGranted : .requestOnly
+      )
     )
   }
 
@@ -2412,7 +2629,9 @@ final class WorkbenchStore: ObservableObject {
     agentStatusMessage = message
   }
 
-  private func performAgentSubmission(prompt: String, resolvedMode: AgentRunMode) async {
+  private func performAgentSubmission(
+    prompt: String, resolvedMode: AgentRunMode, approval: CloudSubmissionApproval?
+  ) async {
     isSubmittingAgentPrompt = true
     defer { isSubmittingAgentPrompt = false }
 
@@ -2426,7 +2645,7 @@ final class WorkbenchStore: ObservableObject {
       let response = await answerChatPrompt(prompt)
       agentChatMessages.append(AgentChatMessage(role: .assistant, text: response))
     case .workflow:
-      guard let plan = await planAgentWorkflow(prompt: prompt) else {
+      guard let plan = await planAgentWorkflow(prompt: prompt, approval: approval) else {
         agentChatMessages.append(AgentChatMessage(role: .assistant, text: agentStatusMessage))
         return
       }
@@ -2522,6 +2741,7 @@ final class WorkbenchStore: ObservableObject {
 
     let workflowInputPaths = inputPaths
     let workflowOutputRootPath = outputRootPath
+    let workflowPlanningEvidence = planningEvidence(for: plan)
     if !resumeFromPreviousSuccesses {
       agentPlanStepExecutions = [:]
       persistAgentState()
@@ -2567,7 +2787,10 @@ final class WorkbenchStore: ObservableObject {
             runDirectoryOverride: request.runDirectory,
             allowDuringAgentWorkflow: true,
             outputRootPathOverride: workflowOutputRootPath,
-            workflowExecutionID: executionIdentity.id
+            workflowExecutionID: executionIdentity.id,
+            appliedApproval: request.restrictedLocalAutomationApproved ? .restrictedLocalAutomation : nil,
+            declaredPlanSource: plan.source,
+            planningEvidence: workflowPlanningEvidence
           )
         },
         recordStepExecution: { stepID, execution in
@@ -2651,7 +2874,11 @@ final class WorkbenchStore: ObservableObject {
     allowDuringAgentWorkflow: Bool = false,
     prepareGuidedArtifactsDirectory: Bool = false,
     outputRootPathOverride: String? = nil,
-    workflowExecutionID: UUID? = nil
+    workflowExecutionID: UUID? = nil,
+    appliedApproval: RunApproval? = nil,
+    declaredPlanSource: AgentPlanSource? = nil,
+    planningEvidence: WorkflowPlanningEvidence? = nil,
+    replay: RunReplayService.Plan? = nil
   ) async -> JobRecord? {
     if let jobHistoryRestore {
       let inputSelection = inputPathsOverride ?? inputPaths
@@ -2681,7 +2908,17 @@ final class WorkbenchStore: ObservableObject {
     let requestInputPaths = inputPathsOverride ?? inputPaths
     let requestOutputRootPath = outputRootPathOverride ?? outputRootPath
     guard ensureOutputRootWriteApproved(inputPaths: requestInputPaths, outputRootPathOverride: requestOutputRootPath) else { return nil }
+    let outputRootConfirmationUsed: Bool
+    if case .requiresConfirmation = filesystemSafetyPolicy.assessOutputRoot(requestOutputRootPath, inputPaths: requestInputPaths) {
+      outputRootConfirmationUsed = true
+    } else {
+      outputRootConfirmationUsed = false
+    }
     let runDirectory = runDirectoryOverride ?? makeRunDirectory(for: capability, outputRootPathOverride: requestOutputRootPath)
+    if let replay, !replay.ownsDirectory() || replay.directory.path != runDirectory {
+      agentStatusMessage = "The reserved replay folder changed."
+      return nil
+    }
     let allowedRunRoot = legacyWorkspacePolicy.runRoot(
       for: capability.id,
       preferredOutputRoot: requestOutputRootPath
@@ -2717,6 +2954,7 @@ final class WorkbenchStore: ObservableObject {
     }
 
     let completion: JobRunBundleService.Completion
+    var provenance: RunProvenanceService.Start?
     do {
       if isCancellationRequested || Task.isCancelled { throw CancellationError() }
       try FileManager.default.createDirectory(
@@ -2742,16 +2980,42 @@ final class WorkbenchStore: ObservableObject {
         outputDirectory: runDirectory,
         rawArguments: effectiveRawArguments
       )
-      let command = try builder.build(
+      var command = try builder.build(
         capability: capability,
         request: request,
         skillRoot: requestSkillRoot
       )
-
+      provenance = await RunProvenanceService().captureStart(
+        request: request, capability: capability, skillRoot: requestSkillRoot,
+        outputRootConfirmationUsed: outputRootConfirmationUsed, secrets: configuredSecrets, command: command,
+        appliedApproval: appliedApproval, declaredPlanSource: declaredPlanSource, planningEvidence: planningEvidence
+      )
+      if isCancellationRequested || Task.isCancelled { throw CancellationError() }
       job.status = .running
       job.command = redactSecrets(command.pretty)
       job.startedAt = Date()
       await replace(job)
+
+      if let replay {
+        let launchCommand = command
+        let review = Task.detached(priority: .userInitiated) {
+          try await replay.checkBeforeLaunch(launchCommand)
+        }
+        try await withTaskCancellationHandler {
+          try await review.value
+        } onCancel: {
+          review.cancel()
+        }
+        guard runVerificationSettings == replay.settings,
+              jobs.first(where: { $0.id == replay.original.id }) == replay.original,
+              replay.ownsDirectory() else {
+          throw RunReplayService.Unavailable.reason("The original job, replay folder, or settings changed before launch.")
+        }
+      }
+      if let request = provenance?.runtimeChannel.request {
+        command.environmentOverrides[RunRuntimeEvidence.environmentKey] = request
+      }
+      if isCancellationRequested || Task.isCancelled { throw CancellationError() }
 
       let result = try await runner.run(
         command,
@@ -2779,7 +3043,31 @@ final class WorkbenchStore: ObservableObject {
     }
     isFinalizingJobEvidence = true
     defer { isFinalizingJobEvidence = false }
-    job = await runBundleService.finalize(job, completion: completion, secrets: configuredSecrets)
+    if let replay, !replay.ownsDirectory() {
+      job.status = .blocked
+      job.message = "The reserved replay folder changed before evidence could be retained."
+      job.finishedAt = Date()
+      await replace(job)
+      return job
+    }
+    job = await runBundleService.finalize(
+      job, completion: completion, secrets: configuredSecrets, provenance: provenance
+    )
+    if let replay {
+      let completedJob = job
+      let comparison = await Task.detached(priority: .utility) {
+        try? RunReplayComparison.retain(replay, for: completedJob)
+      }.value
+      if let (report, artifact) = comparison {
+        job.artifacts.append(artifact)
+        agentStatusMessage = report.outcome.title
+        if report.outcome != .matches {
+          job.warnings.append(report.outcome.title)
+        }
+      } else {
+        job.warnings.append("The app could not retain the replay comparison.")
+      }
+    }
     await replace(job)
     if ownsCancellationState {
       isCancellationRequested = false
@@ -2792,6 +3080,7 @@ final class WorkbenchStore: ObservableObject {
     capability: CapabilityEntry,
     inputPathsOverride: [String]? = nil,
     selectJobs: Bool = true,
+    appliedApproval: RunApproval? = nil,
     arguments: (URL) -> [String]
   ) async -> JobRecord? {
     let runDirectory = makeRunDirectory(for: capability)
@@ -2805,7 +3094,8 @@ final class WorkbenchStore: ObservableObject {
       inputPathsOverride: inputPathsOverride,
       selectJobs: selectJobs,
       runDirectoryOverride: runDirectory,
-      prepareGuidedArtifactsDirectory: true
+      prepareGuidedArtifactsDirectory: true,
+      appliedApproval: appliedApproval
     )
   }
 
@@ -2843,6 +3133,70 @@ final class WorkbenchStore: ObservableObject {
   func previewRedactor() -> @Sendable (String) -> String {
     let secrets = configuredSecrets
     return { SecretsRedactor.redact($0, secrets: secrets) }
+  }
+
+  func prepareMeasurementSynthesis(
+    artifact: Artifact, jobID: UUID, tableScope: TableSynthesisScope? = nil
+  ) async throws -> MeasurementSynthesisReview {
+    guard let job = selectedMeasurementJob(artifact, jobID: jobID) else {
+      throw MeasurementSynthesisError.reviewChanged
+    }
+    loadSavedSecretIfNeeded(for: aiProvider)
+    guard selectedAIIsConfigured else { throw MeasurementSynthesisError.missingConfiguration }
+    let destination = measurementSynthesisDestination
+    let secrets = configuredSecrets
+    let redact = previewRedactor()
+    let review = try await Task.detached(priority: .userInitiated) {
+      try await MeasurementSynthesisService().review(
+        artifact: artifact, job: job, destination: destination, tableScope: tableScope, redact: redact
+      )
+    }.value
+    try Task.checkCancellation()
+    guard measurementSynthesisDestination == destination, configuredSecrets == secrets,
+          selectedMeasurementJob(artifact, jobID: jobID)?.runDirectory == job.runDirectory else {
+      throw MeasurementSynthesisError.reviewChanged
+    }
+    return review
+  }
+
+  func confirmMeasurementSynthesis(
+    _ review: MeasurementSynthesisReview
+  ) async throws -> [MeasurementSynthesisReview.Fact] {
+    let verified = try await revalidateMeasurementSynthesisReview(review)
+    try Task.checkCancellation()
+    guard measurementSynthesisDestination == review.destination,
+          selectedMeasurementJob(review.artifact, jobID: review.jobID) != nil else {
+      throw MeasurementSynthesisError.reviewChanged
+    }
+    let selected = try await MeasurementSynthesisService().synthesize(
+      from: verified, apiKey: selectedAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines), client: cloudAIClient
+    )
+    _ = try await revalidateMeasurementSynthesisReview(review)
+    return selected
+  }
+
+  private var measurementSynthesisDestination: MeasurementSynthesisReview.Destination {
+    .init(provider: aiProvider, model: selectedAIModel.trimmingCharacters(in: .whitespacesAndNewlines),
+          baseURL: selectedAIBaseURL)
+  }
+
+  private func selectedMeasurementJob(_ artifact: Artifact, jobID: UUID) -> JobRecord? {
+    guard let job = selectedJob, job.id == jobID,
+          selectedResultArtifactID(for: job) == artifact.id, job.artifacts.contains(artifact) else { return nil }
+    return job
+  }
+
+  private func revalidateMeasurementSynthesisReview(
+    _ review: MeasurementSynthesisReview
+  ) async throws -> MeasurementSynthesisReview {
+    let current = try await prepareMeasurementSynthesis(
+      artifact: review.artifact, jobID: review.jobID, tableScope: review.tableScope
+    )
+    guard current.destination == review.destination, current.source == review.source,
+          current.sha256 == review.sha256, current.userMessage == review.userMessage else {
+      throw MeasurementSynthesisError.reviewChanged
+    }
+    return current
   }
 
   func refreshRunBundle(for job: JobRecord) async {
@@ -3102,9 +3456,11 @@ final class WorkbenchStore: ObservableObject {
       lastWorkflowSummaryPath = snapshot.lastWorkflowSummaryPath
       if shouldRestoreAgentPlan(snapshot.agentPlan, stepExecutions: restoredStepExecutions) {
         agentPlan = snapshot.agentPlan
+        activePlanningEvidence = snapshot.planningEvidence
         agentPlanStepExecutions = restoredStepExecutions
       } else {
         agentPlan = nil
+        activePlanningEvidence = nil
         agentPlanStepExecutions = [:]
         if snapshot.agentPlan != nil {
           agentStatusMessage = "Ready. Previous workflow finished; open the latest summary if you need its results."
@@ -3188,6 +3544,7 @@ final class WorkbenchStore: ObservableObject {
       )
       try agentStateStore.persist(snapshot: cleanSnapshot, to: url)
       agentPlan = nil
+      activePlanningEvidence = nil
       agentPlanStepExecutions = [:]
       lastWorkflowSummaryPath = nil
       agentStatusMessage = cleanSnapshot.agentStatusMessage
@@ -3286,7 +3643,8 @@ final class WorkbenchStore: ObservableObject {
         agentPlan: agentPlan.map { redactedPlan($0) },
         stepExecutions: Array(agentPlanStepExecutions.values),
         lastWorkflowSummaryPath: lastWorkflowSummaryPath,
-        agentStatusMessage: redactSecrets(agentStatusMessage)
+        agentStatusMessage: redactSecrets(agentStatusMessage),
+        planningEvidence: agentPlan.flatMap(planningEvidence(for:))
         ),
         to: url
       )

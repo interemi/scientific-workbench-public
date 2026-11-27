@@ -12,7 +12,9 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "script"))
+import check_workflow_requirements
 from check_distribution_snapshot import ROOT, ROOTS, verify
+from check_workflow_requirements import load_registry_helper
 from setup_environment import installation_environment, main, validate_destination
 
 
@@ -59,6 +61,72 @@ class DistributionSafetyTests(unittest.TestCase):
         (self.file.parent / "extra.py").write_text("unreviewed")
         with self.assertRaises(ValueError):
             verify(self.root)
+
+    def test_registry_schema_accepts_legacy_and_version_one(self):
+        helper = load_registry_helper()
+        stub = self.root / "registry.yaml"
+        terminal = self.root / "terminal.yaml"
+        stub.write_text("canonical_registry: terminal.yaml\nrelease: v2.8\n", encoding="utf-8")
+        entries = "entries:\n  - id: alpha\n    script: scripts/alpha.py\n"
+        for parser in [None, helper.yaml]:
+            with patch.object(helper, "yaml", parser):
+                for declaration in ["", "registry_schema_version: 1 # comment\n"]:
+                    terminal.write_text(declaration + entries, encoding="utf-8")
+                    rows = helper.load_public_surface_registry(stub, family_root=self.root)
+                    self.assertEqual([row["id"] for row in rows], ["alpha"])
+
+    def test_registry_schema_rejects_incompatible_or_ambiguous_versions(self):
+        helper = load_registry_helper()
+        stub = self.root / "registry.yaml"
+        terminal = self.root / "terminal.yaml"
+        stub.write_text("canonical_registry: terminal.yaml\n", encoding="utf-8")
+        entries = "entries:\n  - id: alpha\n"
+        declarations = {
+            "registry_schema_version: 2\n": r"requires schema version 2",
+            "registry_schema_version: 1\nregistry_schema_version: 1\n": r"unquoted positive integer",
+            "registry_schema_version: 01\n": r"unquoted positive integer",
+            "registry_schema_version: \"1\"\n": r"unquoted positive integer",
+            "  registry_schema_version: 1\n": r"unquoted top-level key",
+            "'registry_schema_version': 1\n": r"unquoted top-level key",
+        }
+        for parser in [None, helper.yaml]:
+            with patch.object(helper, "yaml", parser):
+                for declaration, error in declarations.items():
+                    with self.subTest(declaration=declaration, pyyaml=parser is not None):
+                        terminal.write_text(declaration + entries, encoding="utf-8")
+                        with self.assertRaisesRegex(ValueError, error):
+                            helper.load_public_surface_registry(stub, family_root=self.root)
+
+    def test_catalog_regeneration_preserves_authored_text(self):
+        checker = check_workflow_requirements
+        source = (
+            f"Title and links\n\n{checker.CATALOG_START}\nold generated table\n"
+            f"{checker.CATALOG_END}\n\nNotes and examples\n"
+        )
+        entries = [
+            {"id": "alpha", "visible_block": "core / routing", "kind": "golden_path", "short_description": "Inspect files."},
+            {"id": "gate", "visible_block": "core / routing", "kind": "maintainer_only", "short_description": "Validate."},
+        ]
+        result = checker.render_catalog(source, entries)
+        self.assertTrue(result.startswith(f"Title and links\n\n{checker.CATALOG_START}\n"))
+        self.assertTrue(result.endswith(f"{checker.CATALOG_END}\n\nNotes and examples\n"))
+        self.assertIn("## Core and routing: 1 capability", result)
+        self.assertIn("| `alpha` | Inspect files. |", result)
+        self.assertNotIn("`gate`", result)
+        self.assertEqual(checker.render_catalog(result, entries), result)
+
+    def test_workflow_gate_rejects_drift_in_a_catalog_description(self):
+        checker = check_workflow_requirements
+        catalog = checker.CAPABILITY_CATALOG_DOC.read_text(encoding="utf-8")
+        before, marker, body = catalog.partition(checker.CATALOG_START)
+        self.assertTrue(marker)
+        description = checker.load_registry()[0]["short_description"]
+        self.assertIn(description, body)
+        drifted = self.root / "catalog.md"
+        drifted.write_text(before + marker + body.replace(description, "Stale description.", 1), encoding="utf-8")
+        with patch.object(checker, "CAPABILITY_CATALOG_DOC", drifted):
+            with self.assertRaisesRegex(SystemExit, "public capability catalog differs from the registry"):
+                checker.main([])
 
     def test_existing_environment_is_preserved(self):
         destination = self.root / "existing/datanalysis"

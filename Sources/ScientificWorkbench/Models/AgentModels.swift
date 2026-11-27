@@ -119,7 +119,7 @@ enum CloudRequestPurpose: String, Hashable, Sendable {
   }
 }
 
-enum CloudDataCategory: String, Identifiable, Hashable, Sendable {
+enum CloudDataCategory: String, Identifiable, Codable, Hashable, Sendable {
   case currentMessage
   case recentConversation
   case attachmentCount

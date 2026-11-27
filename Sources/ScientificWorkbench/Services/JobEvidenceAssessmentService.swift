@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 enum EvidenceLevel: String, Sendable {
@@ -23,7 +22,6 @@ struct JobEvidenceAssessment: Sendable {
 /// Reads retained run evidence without changing the persisted job or its artifacts.
 struct JobEvidenceAssessmentService: Sendable {
   private let maximumSidecarBytes = 1_000_000
-  private let maximumVerifiedOutputBytes: Int64 = 64 * 1_024 * 1_024
 
   func assess(job: JobRecord) -> JobEvidenceAssessment {
     let root = URL(fileURLWithPath: job.runDirectory, isDirectory: true)
@@ -137,13 +135,13 @@ struct JobEvidenceAssessmentService: Sendable {
         return EvidenceStage(title: title, level: .incomplete,
                              detail: "A declared output has no usable SHA-256 in the manifest.")
       }
-      guard fileSize <= maximumVerifiedOutputBytes - verifiedBytes else {
+      guard fileSize <= RunFileFingerprint.defaultReadBudget - verifiedBytes else {
         return EvidenceStage(title: title, level: .incomplete,
                              detail: "Outputs exceed the 64 MiB on-demand verification limit; inspect the retained manifest separately.")
       }
       verifiedBytes += Int64(fileSize)
-      guard let (actualHash, bytesRead) = try? sha256(url, maximumBytes: Int64(fileSize)),
-            bytesRead == Int64(fileSize) else {
+      let outputDigest = RunFileFingerprint.read(url, maximumBytes: Int64(fileSize))
+      guard let actualHash = outputDigest.sha256, outputDigest.byteCount == Int64(fileSize) else {
         return EvidenceStage(title: title, level: .incomplete,
                              detail: "A declared output could not be read within its recorded size for SHA-256 verification.")
       }
@@ -218,16 +216,4 @@ struct JobEvidenceAssessmentService: Sendable {
     return data
   }
 
-  private func sha256(_ url: URL, maximumBytes: Int64) throws -> (String, Int64)? {
-    let file = try FileHandle(forReadingFrom: url)
-    defer { try? file.close() }
-    var hasher = SHA256()
-    var bytesRead: Int64 = 0
-    while let chunk = try file.read(upToCount: 65_536), !chunk.isEmpty {
-      guard Int64(chunk.count) <= maximumBytes - bytesRead else { return nil }
-      hasher.update(data: chunk)
-      bytesRead += Int64(chunk.count)
-    }
-    return (hasher.finalize().map { String(format: "%02x", $0) }.joined(), bytesRead)
-  }
 }

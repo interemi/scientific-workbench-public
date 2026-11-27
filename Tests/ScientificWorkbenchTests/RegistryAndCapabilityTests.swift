@@ -81,13 +81,60 @@ extension ScientificWorkbenchTests {
   }
 
   @Test
+  func bundledRegistryLoadsScientificInputAndOutputContracts() throws {
+    let checkout = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent().deletingLastPathComponent()
+    let mother = checkout.appendingPathComponent("skills/scientific-data-analysis").path
+    let entries = try CapabilityRegistryLoader().load(skillRoot: mother)
+    #expect(entries.count == 61)
+    #expect(entries.allSatisfy { $0.ioContract != nil })
+    let stilts = try #require(entries.first { $0.id == "stilts_workbench" }?.ioContract)
+    let stiltsModes = try #require(stilts.subcommands)
+    #expect(stilts.defaultSubcommand == "preflight")
+    #expect(Set(stiltsModes.keys) == ["preflight", "convert", "filter", "crossmatch-sky", "votlint"])
+    #expect(stilts.inputs == stiltsModes["preflight"]?.inputs)
+    #expect(stiltsModes["crossmatch-sky"]?.inputs.first { $0.argument == "--radius-arcsec" }?.unit == "arcseconds")
+    let apt = try #require(entries.first { $0.id == "apt_workbench" }?.ioContract)
+    let aptModes = try #require(apt.subcommands)
+    #expect(apt.defaultSubcommand == "preflight")
+    #expect(Set(aptModes.keys) == ["preflight", "prepare-source-list", "run-batch", "parse-results"])
+    #expect(aptModes["run-batch"]?.outputs.contains { $0.argument == "--output-table" } == true)
+    let noise = try #require(entries.first { $0.id == "photometry_noise_budget" }?.ioContract)
+    #expect(noise.revision == 1)
+    #expect(noise.inputs.first { $0.argument == "--gain" }?.unit == "electrons per ADU")
+    #expect(noise.outputs.first { $0.argument == "--manifest-json" }?.format == "JSON")
+    #expect(noise.summary.complete["variance_terms_e2"] == "object")
+    #expect(entries.first { $0.id == "inspect_fits" }?.ioContract?.summary.version == "1.8")
+    let wcs = try #require(entries.first { $0.id == "astrometry_net_workbench.verify-existing-wcs" }?.ioContract)
+    #expect(wcs.summary.tool == "astrometry_net_workbench")
+    #expect(wcs.summary.mode == "verify-existing-wcs")
+    let discovery = try #require(entries.first { $0.id == "datanalysis_env.status" }?.ioContract)
+    #expect(discovery.inputs.isEmpty)
+    #expect(discovery.summary.container == "root")
+    #expect(discovery.summary.complete["found"] == "boolean")
+    let profile = try #require(entries.first { $0.id == "profile_table" }?.ioContract)
+    #expect(profile.inputs.first { $0.argument == "--lazy-threshold-mb" }?.unit == "MiB")
+    let scaffold = try #require(entries.first { $0.id == "bootstrap_analysis_notebook" }?.ioContract)
+    #expect(scaffold.summary.tool == "bootstrap_analysis_notebook.py")
+    #expect(scaffold.outputs.first { $0.argument == "output" }?.format == "IPYNB")
+    let styledReplace = try #require(entries.first { $0.id == "office_roundtrip.docx-styled-replace" }?.ioContract)
+    #expect(styledReplace.inputs.contains { $0.argument == "--confirmation-id" })
+    #expect(styledReplace.outputs.first { $0.argument == "output" }?.format == "DOCX")
+    #expect(styledReplace.summary.version == "2.0")
+    let visualExport = try #require(entries.first { $0.id == "rgb_visual_fits_export" }?.ioContract)
+    #expect(visualExport.summary.rejectedContainer == "root")
+    #expect(visualExport.outputs.first { $0.argument == "output_fits" }?.unit == "normalized display intensity")
+  }
+
+  @Test
   func registryLoaderResolvesCanonicalRegistryRecursively() throws {
     let root = try makeScenarioFixture(
       name: "canonical-registry",
       files: [
-        "public_surface_registry.yaml": "canonical_registry: nested/stub.yaml\n",
-        "nested/stub.yaml": "canonical_registry: canonical/public_surface_registry.yaml\n",
+        "public_surface_registry.yaml": "canonical_registry: nested/stub.yaml\nrelease: v2.8\n",
+        "nested/stub.yaml": "canonical_registry: canonical/public_surface_registry.yaml\nrelease: v9.9\n",
         "nested/canonical/public_surface_registry.yaml": """
+        registry_schema_version: 1 # versioned canonical snapshot
         entries:
           - id: sample.tool
             label: sample.py tool
@@ -107,13 +154,69 @@ extension ScientificWorkbenchTests {
     defer { try? FileManager.default.removeItem(at: root) }
     let catalog = SkillRootCatalog(roots: [.init(role: .mother, url: root)])
 
-    let entries = try CapabilityRegistryLoader().load(catalog: catalog)
+    let loader = CapabilityRegistryLoader()
+    let entries = try loader.load(catalog: catalog)
+    let mother = try #require(catalog.root(for: .mother))
+    let resolution = try loader.resolveRegistry(for: mother)
 
     #expect(entries.map(\.id) == ["sample.tool"])
     #expect(entries[0].owningSkillRoot == root.path)
     #expect(entries[0].owningSkillRole == SkillRootRole.mother.rawValue)
     #expect(entries[0].registrySourcePath?.hasSuffix("nested/canonical/public_surface_registry.yaml") == true)
     #expect(entries[0].registryFingerprint?.isEmpty == false)
+    #expect(entries[0].registryDeclaredRelease == "v2.8")
+    #expect(entries[0].ioContract == nil)
+    #expect(resolution.schemaVersion == 1)
+    #expect(resolution.declaredRelease == "v2.8")
+    #expect(resolution.fingerprint == entries[0].registryFingerprint)
+  }
+
+  @Test
+  func registryLoaderAcceptsLegacyAndRejectsFutureCanonicalSchema() throws {
+    let fixture = try makeModularRegistryFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+    let loader = CapabilityRegistryLoader()
+    let mother = try #require(fixture.catalog.root(for: .mother))
+    #expect(try loader.resolveRegistry(for: mother).schemaVersion == 1)
+    #expect(try loader.load(catalog: fixture.catalog).count == 5)
+
+    let terminal = fixture.astro.appendingPathComponent(".cache/public_surface_registry.yaml")
+    try ("registry_schema_version: 2\n" + modularRegistryYAML).write(
+      to: terminal, atomically: true, encoding: .utf8
+    )
+    do {
+      _ = try loader.load(catalog: fixture.catalog)
+      Issue.record("The loader accepted a future schema on an installed child.")
+    } catch let error as RegistryError {
+      guard case let .unsupportedRegistrySchema(path, value, supported) = error else {
+        Issue.record("Unexpected registry error: \(error)")
+        return
+      }
+      #expect(path.hasSuffix("scientific-data-astro/.cache/public_surface_registry.yaml"))
+      #expect(value == "2")
+      #expect(supported == 1)
+    }
+  }
+
+  @Test
+  func registryParserRejectsAmbiguousSchemaDeclarations() throws {
+    let loader = CapabilityRegistryLoader()
+    for header in [
+      "registry_schema_version: 1\nregistry_schema_version: 1\n",
+      "registry_schema_version: \"1\"\n",
+      "registry_schema_version: 01\n",
+      "  registry_schema_version: 1\n",
+    ] {
+      do {
+        _ = try loader.parse(header + modularRegistryYAML)
+        Issue.record("The parser accepted an invalid schema declaration.")
+      } catch let error as RegistryError {
+        guard case .invalidRegistrySchemaDeclaration = error else {
+          Issue.record("Unexpected registry error: \(error)")
+          continue
+        }
+      }
+    }
   }
 
   @Test

@@ -4,6 +4,54 @@ import Testing
 
 extension ScientificWorkbenchTests {
   @Test
+  func bundledGuidedDefaultsProduceCommandArguments() throws {
+    let checkout = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent().deletingLastPathComponent()
+    let mother = checkout.appendingPathComponent("skills/scientific-data-analysis").path
+    let entries = try CapabilityRegistryLoader().load(skillRoot: mother).userFacing
+    let fixture = try makeScenarioFixture(
+      name: "guided-cli-contracts",
+      files: [
+        "first table.csv": "inst_mag,std_mag,airmass,color_index,offset_err\n1,2,1.1,0.1,0.03\n",
+        "second table.csv": "x,y\n1,2\n",
+      ]
+    )
+    defer { try? FileManager.default.removeItem(at: fixture) }
+
+    let first = fixture.appendingPathComponent("first table.csv").path
+    let second = fixture.appendingPathComponent("second table.csv").path
+    let builder = CapabilityCommandBuilder(pythonExecutable: "/usr/bin/python3")
+    let invocations = try entries.compactMap { entry -> GuidedCLIInvocation? in
+      let inputs: [String]
+      switch entry.guidedRunRequirement {
+      case .noInput: inputs = []
+      case .singleInput: inputs = [first]
+      case .twoInputs, .multipleInputs: inputs = [first, second]
+      case .rawArguments: return nil
+      }
+      // This operation constructs arguments in the dedicated document-edit route.
+      guard entry.id != "office_roundtrip.docx-styled-replace" else { return nil }
+      let request = RunRequest(
+        capabilityID: entry.id,
+        inputPaths: inputs,
+        outputDirectory: fixture.appendingPathComponent("fresh run").path,
+        rawArguments: ""
+      )
+      let command = try builder.build(capability: entry, request: request, skillRoot: mother)
+      let workingDirectory = try #require(command.workingDirectory)
+      #expect(Array(command.arguments.dropFirst().prefix(2)) == ["run-tool", entry.scriptStem])
+      return GuidedCLIInvocation(
+        id: entry.id,
+        skill: URL(fileURLWithPath: workingDirectory).lastPathComponent,
+        argv: Array(command.arguments.dropFirst(3))
+      )
+    }
+    #expect(invocations.count == entries.filter(\.supportsGuidedRun).count - 1)
+
+    try GuidedCLIInvocation.retain(invocations, as: "guided-defaults.json")
+  }
+
+  @Test
   func shellWordsSplitAndQuote() throws {
     let words = try ShellWords.split(#""/tmp/a file.csv" --flag 'two words'"#)
     #expect(words == ["/tmp/a file.csv", "--flag", "two words"])
@@ -89,6 +137,76 @@ extension ScientificWorkbenchTests {
         ),
         skillRoot: skillRoot.path
       )
+    }
+  }
+
+  @Test
+  func lithiumCommandUsesPWAndLabelOnlyForItsCourseworkSpectrum() throws {
+    let root = try makeScenarioFixture(
+      name: "lithium-command-target",
+      files: [
+        "scripts/datanalysis_env.py": "# runtime wrapper\n",
+        "scripts/li6708_equivalent_width_workbench.py": "# wrapper\n",
+        "target-spectrum.dat": "6707 1\n",
+        "practice/fits_p1/npwand_n3.fits": "coursework fixture\n",
+      ]
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+    let entry = CapabilityEntry(
+      id: "li6708_equivalent_width_workbench.measure",
+      label: "Li I equivalent width", script: "scripts/li6708_equivalent_width_workbench.py",
+      visibleBlock: "astronomy observational", kind: "specialized", supportLevel: "narrow",
+      platform: "portable", requiresDatanalysis: true, preflightMode: "none",
+      smokeTier: "core", shortDescription: "Measure equivalent width."
+    )
+    let builder = CapabilityCommandBuilder(pythonExecutable: "/usr/bin/python3")
+    for (input, useCourseworkTarget) in [("target-spectrum.dat", false), ("practice", true)] {
+      let run = root.appendingPathComponent("run-\(input)")
+      let command = try builder.build(
+        capability: entry,
+        request: RunRequest(capabilityID: entry.id, inputPaths: [root.appendingPathComponent(input).path],
+                            outputDirectory: run.path, rawArguments: ""),
+        skillRoot: root.path
+      )
+      #expect(command.arguments.contains("--target-name") == useCourseworkTarget)
+      #expect(command.arguments.contains("PW And") == useCourseworkTarget)
+    }
+  }
+
+  @Test
+  func compileRequestsASummaryOnlyFromSupportingSkills() throws {
+    let root = try makeScenarioFixture(
+      name: "latex-compile-contract",
+      files: ["scripts/datanalysis_env.py": "# wrapper\n", "main.tex": "\\documentclass{article}\n"]
+    )
+    defer { try? FileManager.default.removeItem(at: root) }
+    let contract = CapabilityIOContract(
+      revision: 1, backend: "LaTeX", inputs: [],
+      outputs: [.init(argument: "--summary-json", format: "JSON", unit: nil, detail: "Compile outcome.")],
+      warnings: "", failure: "",
+      summary: .init(container: nil, rejectedContainer: nil, tool: nil, mode: nil,
+                     version: "1.8", complete: [:], rejected: [:]),
+      defaultSubcommand: nil, subcommands: nil
+    )
+    let resultDirectory = root.appendingPathComponent("results")
+    let builder = CapabilityCommandBuilder(pythonExecutable: "/usr/bin/python3")
+    for metadata in [nil, contract] as [CapabilityIOContract?] {
+      let capability = CapabilityEntry(
+        id: "latex_workbench.compile", label: "latex_workbench.py compile", script: "scripts/latex_workbench.py",
+        visibleBlock: "documents + reporting", kind: "supporting_tool", supportLevel: "stable",
+        platform: "portable", requiresDatanalysis: false, preflightMode: "none", smokeTier: "full",
+        shortDescription: "Compile a report.", ioContract: metadata
+      )
+      let request = RunRequest(
+        capabilityID: capability.id, inputPaths: [root.appendingPathComponent("main.tex").path],
+        outputDirectory: resultDirectory.path, rawArguments: ""
+      )
+      let command = try builder.build(capability: capability, request: request, skillRoot: root.path)
+      #expect(command.arguments.contains("--manifest-json"))
+      #expect(command.arguments.contains("--summary-json") == (metadata != nil))
+      if metadata != nil {
+        #expect(command.arguments.suffix(2) == ["--summary-json", resultDirectory.appendingPathComponent("summary.json").path])
+      }
     }
   }
 
@@ -260,7 +378,7 @@ extension ScientificWorkbenchTests {
     #expect(command.arguments.contains { canonicalPath($0) == canonicalPath(fitsRoot.path) })
     #expect(command.arguments.contains("--output-dir"))
     #expect(command.arguments.contains { canonicalPath($0) == canonicalPath(runURL.appendingPathComponent("artifacts").path) })
-    #expect(command.arguments.contains("--clean-derived"))
+    #expect(!command.arguments.contains("--clean-derived"))
     #expect(command.arguments.contains("--summary-json"))
     #expect(!command.arguments.contains("--manifest-json"))
   }

@@ -130,15 +130,20 @@ struct CapabilityCommandBuilder {
         "--summary-json", summary,
         "--manifest-json", manifest
       ]
-      if FirstRunExampleService.isGeneratedFITS(at: input) {
+      let isSynthetic = FirstRunExampleService.isGeneratedFITS(at: input)
+      if isSynthetic || capability.supportsBoundedFITSPreview {
+        let previewName = isSynthetic ? "previews/synthetic_wcs.png" : "previews/fits_quicklook.png"
         arguments += [
-          "--preview", runURL.appendingPathComponent("previews/synthetic_wcs.png").path,
+          "--preview", runURL.appendingPathComponent(previewName).path,
           "--header-key", "CUNIT1",
           "--header-key", "CUNIT2",
           "--header-key", "RADESYS",
           "--header-key", "CDELT1",
           "--header-key", "CDELT2",
         ]
+      }
+      if capability.supportsBoundedFITSPreview {
+        arguments.append("--preview-if-available")
       }
       return arguments
     case "document_intake_workbench":
@@ -159,7 +164,6 @@ struct CapabilityCommandBuilder {
       return [
         "--input-root", try preferredFITSRoot(request),
         "--output-dir", artifacts,
-        "--clean-derived",
         "--summary-json", summary
       ]
     case "rgb_visual_fits_export":
@@ -253,11 +257,15 @@ struct CapabilityCommandBuilder {
         "--manifest-json", manifest,
       ]
     case "latex_workbench.compile":
-      return [
+      var compileArguments = [
         try firstInput(request),
         "--output-dir", runURL.appendingPathComponent("artifacts/latex_compile").path,
         "--manifest-json", manifest,
       ]
+      if capability.ioContract?.outputs.contains(where: { $0.argument == "--summary-json" }) == true {
+        compileArguments += ["--summary-json", summary]
+      }
+      return compileArguments
     case "notebook_branch_compare":
       return [
         try firstInput(request),
@@ -395,15 +403,16 @@ struct CapabilityCommandBuilder {
         "--manifest-json", manifest
       ]
     case "li6708_equivalent_width_workbench.measure":
+      let spectrum = try preferredPWAndFITS(request)
+      let isCourseworkPWAnd = URL(fileURLWithPath: spectrum).lastPathComponent.lowercased() == "npwand_n3.fits"
       return [
-        try preferredPWAndFITS(request),
+        spectrum,
         "--output-dir", artifacts,
         "--line-center", "6707.8",
         "--line-label", "Li I 6707.8",
-        "--target-name", "PW And",
         "--summary-json", summary,
         "--manifest-json", manifest
-      ]
+      ] + (isCourseworkPWAnd ? ["--target-name", "PW And"] : [])
     case "legacy_spectroscopy_report_builder.scaffold":
       return [
         runURL.appendingPathComponent("artifacts/legacy_report").path,

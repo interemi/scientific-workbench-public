@@ -387,19 +387,27 @@ def cmd_run_batch(args: argparse.Namespace) -> dict:
             include_environment=True,
         )
 
+    previous = output_path.stat() if output_path.is_file() else None
     completed = subprocess.run(command, text=True, capture_output=True, timeout=args.timeout_sec, check=False)
     log_artifacts = write_log_bundle(args.log_dir, command, completed.stdout, completed.stderr)
-    missing_outputs = [] if output_path.exists() else [public_path(output_path)]
+    current = output_path.stat() if output_path.is_file() else None
+    updated = current is not None and (
+        previous is None
+        or (previous.st_ino, previous.st_size, previous.st_mtime_ns)
+        != (current.st_ino, current.st_size, current.st_mtime_ns)
+    )
     run_findings = []
     if completed.returncode != 0:
         run_findings.append(f"APT exited with return code {completed.returncode}.")
-    if missing_outputs:
-        run_findings.append("Expected APT output table was not created: " + ", ".join(missing_outputs))
+    if current is None:
+        run_findings.append(f"Expected APT output table was not created: {public_path(output_path)}")
+    elif not updated:
+        run_findings.append(f"Expected APT output table was not updated: {public_path(output_path)}")
     status = "fail" if run_findings else "ok"
     artifacts = {
         "summary_json": args.summary_json,
         "manifest_json": args.manifest_json,
-        "output_table": output_path,
+        "output_table": output_path if updated else None,
         **log_artifacts,
     }
     payload = build_tool_payload(
@@ -413,18 +421,19 @@ def cmd_run_batch(args: argparse.Namespace) -> dict:
             "stdout_tail": tail(completed.stdout),
             "stderr_tail": tail(completed.stderr),
             "dry_run": False,
-            "output_table": {"path": public_path(output_path), "exists": output_path.exists()},
+            "output_table": {"path": public_path(output_path), "exists": current is not None, "updated": updated},
             "apt_preferences": public_path(pref_path),
         },
         qa=standard_qa_payload(
             status=status,
             findings=run_findings,
-            metrics={"returncode": completed.returncode, "output_exists": int(output_path.exists())},
+            metrics={"returncode": completed.returncode, "output_exists": int(current is not None),
+                     "output_updated": int(updated)},
         ),
         include_environment=True,
     )
     if args.manifest_json:
-        outputs = [output_path]
+        outputs = [output_path] if updated else []
         if args.summary_json:
             outputs.append(Path(args.summary_json))
         outputs.extend(Path(path) for path in log_artifacts.values())

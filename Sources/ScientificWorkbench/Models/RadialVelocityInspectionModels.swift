@@ -32,6 +32,18 @@ enum RadialVelocityUnit: String, CaseIterable, Identifiable, Sendable {
   var title: String { rawValue }
 }
 
+enum RadialVelocityTimeScale: String, CaseIterable, Identifiable, Sendable {
+  case utc = "UTC"
+  case tai = "TAI"
+  case tt = "TT"
+  case tdb = "TDB"
+  case ut1 = "UT1"
+  case tcg = "TCG"
+  case tcb = "TCB"
+
+  var id: String { rawValue }
+}
+
 struct RadialVelocityColumn: Identifiable, Hashable, Sendable {
   let index: Int
   let name: String
@@ -40,6 +52,10 @@ struct RadialVelocityColumn: Identifiable, Hashable, Sendable {
   let timeScore: Int
   let velocityScore: Int
   let uncertaintyScore: Int
+  let declaredTimeSystem: RadialVelocityTimeSystem?
+  let declaredTimeScale: RadialVelocityTimeScale?
+  let declaredVelocityUnit: RadialVelocityUnit?
+  let usesOffsetTime: Bool
 
   var id: Int { index }
 
@@ -63,14 +79,21 @@ struct RadialVelocityTableReview: Sendable {
   let inferredTimeSystem: RadialVelocityTimeSystem?
   let inferredVelocityUnit: RadialVelocityUnit?
   let usedPositionalColumns: Bool
+
+  func column(at index: Int?) -> RadialVelocityColumn? {
+    guard let index, columns.indices.contains(index) else { return nil }
+    return columns[index]
+  }
 }
 
 struct RadialVelocitySelection: Equatable, Sendable {
   var timeColumn: Int?
   var velocityColumn: Int?
   var uncertaintyColumn: Int?
-  var timeSystem: RadialVelocityTimeSystem
-  var velocityUnit: RadialVelocityUnit
+  var timeSystem: RadialVelocityTimeSystem?
+  var timeScale: RadialVelocityTimeScale? = nil
+  var velocityUnit: RadialVelocityUnit?
+  var uncertaintyUnit: RadialVelocityUnit? = nil
 }
 
 struct RadialVelocitySelectionValidation: Equatable, Sendable {

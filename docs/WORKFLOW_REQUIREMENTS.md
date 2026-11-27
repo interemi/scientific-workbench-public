@@ -11,6 +11,269 @@ For external tools and safe first checks, see
 
 ## Registry snapshot
 
+The bundled public surface registry declares `registry_schema_version: 1`.
+This field versions the registry format. The skill's `release` field versions
+the skill distribution, and a tool's `contract_version` versions its result
+envelope.
+
+Scientific Workbench and the Python router read older registries with an
+omitted schema field as version 1. An explicit version must be an unquoted
+positive integer at the top level. A duplicate, malformed, or unsupported
+version blocks registry loading and identifies the source file. Keep the
+skill roots together as a matched set when updating a bundled registry.
+An incompatible format change requires a new schema version and a documented
+migration or compatibility alias.
+
+When reproducing a guided command, keep free-text values that begin with a
+hyphen in the same argument as their option. For example, use
+`--find=-draft` or `'--title=-draft observations'`. Quote the complete argument
+when the value contains spaces. The app uses this syntax for replacement text,
+notebook and deliverable titles, forecasting fields, routing requests, and
+reviewed crossmatch column names.
+
+## Inspecting registered CLI arguments
+
+From the checkout root, set `SW_PY` to the Python interpreter for your
+[installed Core profile](../INSTALL.md). The exporter writes JSON to standard
+output. Omit `--capability` to inspect all 61 registered commands, including the
+six maintainer gates.
+
+```bash
+"$SW_PY" script/render_cli_contracts.py --capability catalog_workbench.crossmatch-sky
+```
+
+The version 1 export pairs each registry ID and owning script with the parser
+reached by its own help command. Each parser record includes its positional
+arguments, flags, arity, types, defaults, choices, accumulation behavior and
+subcommands. A value under `default_relative_to_checkout` resolves from the
+repository root. The portable validation workflow retains the full export as
+`cli-contracts.json` with its diagnostic evidence.
+
+Portable validation records commands generated from synthetic inputs by the
+Swift app's default builder, dedicated forms and reviewed document replacement.
+The exporter passes these arguments to the owning CLI parsers. It records
+accepted capability IDs in `validated_guided_invocations` and names the checked
+cases in `validated_guided_variants`. The CI check requires this evidence for
+all 55 user-facing capabilities. Portable workflow tests separately verify
+workflow execution and outputs.
+
+For STILTS and APT the I/O contract lists the arguments and results for each
+subcommand. Its top-level fields mirror the guided preflight so clients that
+read flat contracts can still show the default route.
+
+Retain an export from before a CLI change and compare it with the export from
+the proposed revision. Use the same command selection in both exports.
+
+```bash
+"$SW_PY" script/check_cli_contract_compatibility.py baseline.json candidate.json
+```
+
+Exit 0 means the declaration comparison found compatible changes. Exit 1 lists
+changes that require review, including removed commands or flags, new required
+inputs, narrowed choices, changed defaults, unit changes and removed or retyped
+result fields. Exit 2 indicates an unreadable or unsupported export. Preserve
+the old route or flag as a documented alias where possible. If a change breaks
+an established contract, raise its revision and document the migration, including
+what existing scripts and result readers need to change. Keep the comparison
+report with the release evidence. The comparison covers exported declarations
+and complements the run-based checks for actual behavior.
+
+The export describes argument syntax. Consult the
+[setup matrix](CAPABILITY_SETUP_MATRIX.md) and the command's emitted summary
+and manifest for scientific inputs, produced artifacts and run status.
+
+The capabilities with an I/O contract also show **Inputs and outputs** in the
+app and an `io_contract` in the export. Each revision defines the backend,
+argument roles, scientific units, written files, and required summary fields
+for completed and rejected runs. The known-answer gate checks those fields in
+scientific synthetic runs. Portable validation exercises environment reports,
+table profiling, container inspection, physical QA, notebook preparation and
+review, and document intake, editing and review. Summary fields are under
+`results` unless the contract sets `summary.container` to `root`. If
+`summary.rejected_container` is set, it locates the fields for rejected runs.
+A rejected command may write its diagnostic only to standard output when the
+requested path cannot safely be used. Older installed skill snapshots can
+still load the capability registry and run their supported routes.
+
+## Run fingerprints
+
+After preparing a command, Scientific Workbench fingerprints attached files
+before execution. At finalization it compares those files and fingerprints the
+products found inside the run folder. The app writes `run-provenance.json` with
+the job outcome, available app and capability identifiers, and numbered file
+references such as `input-1` and `output-1`. Tool-specific summaries and
+manifests stay in the run folder with their existing formats.
+
+The record includes the macOS version, app bundle version and build when
+available, the release declared by the selected skill's registry, and the
+tool contract version reported by a matching tool summary. The declared
+release is a label from the installed registry. Compare the registry and
+script hashes to identify the exact code, including local variations.
+
+The command record retains supported flags, typed numerical values and public
+choices for reviewed capability arguments. It refers to attached files and
+destinations inside the run folder by numbered references. An output that
+matches a destination file carries the same reference. Free text and
+unrecognized arguments appear as withheld. The record describes the command
+prepared by the app. The job outcome and tool summary report what happened.
+
+Each input or output pass reads at most 64 MiB of regular files. Directory
+contents, unreadable files and files beyond the budget have explicit states.
+`contentUnchanged` reports equality of two successful SHA-256 observations.
+The `limits` field identifies evidence still needed for reproduction. Each
+entry in `reproductionRequirements` explains what to check or obtain. For
+example, use the before-run hashes to match inputs, recover any withheld
+arguments locally, and identify any unrecorded application or backend version.
+Earlier records of schema 1 may only contain the `limits` codes.
+
+The bundled tools can also record the Python implementation, version and
+architecture at their entry point. The package inventory covers direct Core
+and Full requirements whose installed versions the interpreter can report in
+a public version format. It specifies what was installed in that Python
+environment. Consult the tool's own report for external backends and subprocesses.
+Older skill installations may omit this runtime observation, which the app
+reports as missing evidence.
+
+The provenance record retains a backend identifier when a reviewed tool
+summary reports execution. Supported reports include STILTS, APT, IRAF/FXCOR,
+LaTeX compilation, Keynote export, Quick Look, iWork and presentation previews.
+Preflight and dry-run results do not establish that a backend ran. The app
+also records approvals it applied for the output root, reviewed document
+actions, the capability access control and restricted local automation.
+An approved action can still fail, as shown by its job and tool outcomes.
+Workflow jobs retain the plan's declared source and any matching planning
+receipt. The receipt identifies the provider, the requested public model, the
+model reported by the provider when available, and whether the app used the
+response or fell back to a deterministic plan. It retains the applied approval
+scope and data categories for a reviewed cloud planning request. Prompts,
+attachment names, service URLs, credentials and private model identifiers are
+omitted. A receipt records past approval for that request.
+
+Workflow state schema 3 is the first version with a planning receipt. The app
+preserves the original state file before migrating schema 1 or 2. Earlier plans
+continue to load and report missing model or approval evidence where relevant.
+The portable plan format retains its existing schema.
+
+### Sharing the provenance record
+
+Open the job's Results, find `run-provenance.json` in the artifacts, and use
+**Reveal** to locate it in Finder. Copy that file by itself to share the
+record. Review its hashes, timestamps and identifiers for suitability. The
+recipient will need the inputs separately and may need to recover additional
+evidence listed in `reproductionRequirements`. Review the contents of other
+run-folder files individually before sharing them.
+
+### Measurements in workflow summaries
+
+The workflow summary links each measurement to its job, summary file and JSON
+field. It checks that the summary belongs to a successful linked job, matches
+an output SHA-256 recorded by the app and contains usable tool and QA results.
+The report keeps the method, assumptions, QA findings and uncertainties with
+the reported values. Unavailable, changed or invalid summaries produce an
+evidence status without numerical claims. Earlier jobs can still be browsed
+in Results. Their workflow summaries need a matching run provenance record
+to cite measurements.
+
+In Results, select a measurement summary and choose **Summarize evidence**.
+Review the exact measurement data and the destination before sending. The
+request includes up to twelve measurements and twelve diagnostics, plus the
+tool outcome. The app supplies the values, units, uncertainties and citations
+from the verified artifact after the model selects the highlights. A changed
+artifact, invalid selection or unavailable source produces an evidence status.
+
+For CSV, TSV and supported ECSV previews, choose **Summarize range** to review
+up to 24 cells on the current page. Record numbering follows the preview and
+includes any column header. The model receives the exact finite numeric text
+from the selected cells. The app displays highlights with their file, record
+and column. A full-file hash ties the chosen bytes to the recorded run, so a
+change beyond the selected range also invalidates the review.
+
+### Verifying a retained run
+
+In Jobs, open a completed job and choose **Verify Run**. The report compares
+recorded input and output fingerprints, app and macOS versions, the active
+skill registry and code hashes, and the typed command. A metadata probe uses
+the tool's configured Python launcher to compare the interpreter,
+architecture and direct package versions. The report identifies any
+differences and evidence gaps. Past approvals and external backends
+require separate review before a replay.
+
+With the current bundled skills, successful runs can also retain private
+fingerprints of the exact command and the selected Python installation.
+When present, **Verify Run** compares these fingerprints with the current
+command, launcher and process settings, Python binaries, and installed
+distribution metadata. Package source files and external executables are
+outside the inventory's coverage. The fingerprints stay in the local run
+directory, outside the shareable provenance record.
+
+**Replay in New Folder** is available for eligible saved runs of Table
+Profile, Inspect FITS, Photometric Solution, Li I equivalent width, and
+local sky crossmatch. Replay uses a new private run directory and copies
+the attached regular files after checking their original SHA-256 values.
+The app also rechecks the launcher, selected Python environment, and
+the approvals required by the original job. The replay action renews a
+recorded capability approval for the same inputs and settings. Special
+filesystem or automation approvals, external backends, untracked files,
+and gaps in the original evidence make the run ineligible.
+
+The new job contains **Replay comparison**, which links both job IDs and
+compares output files by relative path. For supported measurement fields
+in CSV and TSV outputs, the comparison permits the greater of an
+absolute tolerance of `1e-10` and a relative tolerance of `1e-10` times
+the larger absolute value. IDs, units, and other table fields must match
+exactly. Other outputs use SHA-256. Paths and timestamps can cause
+differences in logs and manifests. The comparison records these differences
+alongside the scientific products.
+
+### Sharing a portable run
+
+Open a successful job with retained provenance and choose **Portable ZIP**.
+The package includes a path-neutral summary, a manifest with SHA-256 for each
+member, instructions, and Python scripts for independent package and tool
+fingerprint checks. A recipient can obtain the scientific tool code and
+installation steps from the project source. The scripts included in the ZIP
+are for verification.
+
+Outputs and fixtures are opt-in. Supported outputs are verified CSV, TSV, and
+ECSV tables and PNG previews. Tables containing detected local paths,
+credentials, or prompt fields are rejected. PNGs are verified against the
+original output hash and encoded again without embedded source metadata.
+Review selected table values and image pixels before sharing. Only built-in
+synthetic fixtures that match an original input fingerprint can be included.
+Raw logs, full tool manifests, private replay receipts, prompts, arbitrary
+inputs, and original filenames stay local. The ZIP limit is 32 MiB with
+individual members limited to 8 MiB.
+
+Use **Jobs → Inspect Portable ZIP** to check the manifest and member hashes,
+read the summary, and see local dependency warnings. Inspection reads the
+Scientific Workbench format without extracting files, running scripts, or
+adding jobs to the local history. Hashes establish member integrity against
+the supplied manifest. Use an independently verified source when authorship
+or scientific validity matters.
+
+### Generating a technical report
+
+In Jobs, open a successful run with retained provenance and choose
+**Technical Report**. Enter the research question or technical objective
+and choose a parent folder. Scientific Workbench saves `report.md` and
+`report.pdf` in a new report directory. The report separates author input,
+recorded execution settings, verified results, generated template text, and
+limitations.
+
+The evidence index maps each `[A1]`-style citation to a file relative to the
+original run folder and its SHA-256. A changed or unavailable output cannot
+support a citation. Recognized table, FITS, and measurement summaries can
+supply documented quantities and units. For other workflows, follow the
+verified file references to review the recorded results.
+
+Use **Jobs → Regenerate Report PDF** to render a saved Markdown source into
+a new PDF. The regenerated PDF reproduces the source content and layout
+with the same rendering environment. The PDF container can carry a new
+creation timestamp. Regeneration renders the supplied source. Verify the
+cited files separately when reviewing the evidence.
+
+## Registry coverage
+
 The canonical registry contains 61 entries:
 
 | Surface | Count |
