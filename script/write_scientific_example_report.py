@@ -45,9 +45,9 @@ def write_report(output: Path, evidence: dict) -> dict:
         "synthetic-fits-wcs.png": (
             "fits/synthetic_wcs.png", "FITS/WCS quicklook with coordinate ticks. Display stretch only.",
         ),
-        "synthetic-li-equivalent-width.png": (
-            "lithium_with_grid/products/figures/li6708_equivalent_width.png",
-            "Li I equivalent width with the selected continuum and integration windows.",
+        "synthetic-photometric-residuals.png": (
+            "photometry_weighted/residuals.png",
+            "Weighted photometric residuals for the three synthetic standards.",
         ),
     }
     sections = []

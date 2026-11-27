@@ -537,13 +537,14 @@ def photometric_cases(root: Path, environment: dict[str, str]) -> dict:
         summary = case / "summary.json"
         manifest = case / "manifest.json"
         coefficients = case / "coefficients.csv"
+        residual_plot = case / "residuals.png"
         command = [
             sys.executable, str(ROOT / "skills/scientific-data-astro/scripts/photometric_solution.py"),
             str(source), "--include-color-term", "--color-col", "color", "--summary-json", str(summary),
             "--coefficients-csv", str(coefficients), "--manifest-json", str(manifest),
         ]
         if weighted:
-            command.extend(["--error-col", "error_mag"])
+            command.extend(["--error-col", "error_mag", "--residual-plot", str(residual_plot)])
         completed = run(command, case, environment)
         require(completed.returncode == 0, "photometric calibration failed; inspect retained logs")
         payload = read_json(summary)
@@ -567,7 +568,7 @@ def photometric_cases(root: Path, environment: dict[str, str]) -> dict:
             else:
                 require(measurement["uncertainty"] is None and row["uncertainty"] == "",
                         "unweighted fit invented uncertainty at zero residual degrees of freedom")
-        check_manifest(manifest, [source], [summary, coefficients])
+        check_manifest(manifest, [source], [summary, coefficients, residual_plot] if weighted else [summary, coefficients])
         results[case.name] = [measurement["uncertainty"] for measurement in measurements]
         measured_values[case.name] = [measurement["value"] for measurement in measurements]
     rejected_dir = root / "photometry_missing_column"
