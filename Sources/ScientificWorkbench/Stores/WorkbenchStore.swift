@@ -1193,6 +1193,20 @@ final class WorkbenchStore: ObservableObject {
     }
   }
 
+  func exportPortableRun(
+    _ job: JobRecord, selection: PortableRunPackageService.Selection, destination: URL
+  ) async throws -> PortableRunPackageService.Review {
+    let secrets = configuredSecrets
+    let operation = Task.detached(priority: .userInitiated) {
+      try PortableRunPackageService().export(job: job, selection: selection, to: destination, secrets: secrets)
+    }
+    return try await withTaskCancellationHandler {
+      try await operation.value
+    } onCancel: {
+      operation.cancel()
+    }
+  }
+
   @discardableResult
   func importAgentPlan(from path: String) -> AgentPlan? {
     guard canChangeWorkflowContext else {

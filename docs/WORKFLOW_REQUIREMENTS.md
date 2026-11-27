@@ -225,6 +225,32 @@ exactly. Other outputs use SHA-256. Paths and timestamps can cause
 differences in logs and manifests. The comparison records these differences
 alongside the scientific products.
 
+### Sharing a portable run
+
+Open a successful job with retained provenance and choose **Portable ZIP**.
+The package includes a path-neutral summary, a manifest with SHA-256 for each
+member, instructions, and Python scripts for independent package and tool
+fingerprint checks. A recipient can obtain the scientific tool code and
+installation steps from the project source. The scripts included in the ZIP
+are for verification.
+
+Outputs and fixtures are opt-in. Supported outputs are verified CSV, TSV, and
+ECSV tables and PNG previews. Tables containing detected local paths,
+credentials, or prompt fields are rejected. PNGs are verified against the
+original output hash and encoded again without embedded source metadata.
+Review selected table values and image pixels before sharing. Only built-in
+synthetic fixtures that match an original input fingerprint can be included.
+Raw logs, full tool manifests, private replay receipts, prompts, arbitrary
+inputs, and original filenames stay local. The ZIP limit is 32 MiB with
+individual members limited to 8 MiB.
+
+Use **Jobs → Inspect Portable ZIP** to check the manifest and member hashes,
+read the summary, and see local dependency warnings. Inspection reads the
+Scientific Workbench format without extracting files, running scripts, or
+adding jobs to the local history. Hashes establish member integrity against
+the supplied manifest. Use an independently verified source when authorship
+or scientific validity matters.
+
 ## Registry coverage
 
 The canonical registry contains 61 entries:

@@ -10,6 +10,7 @@ struct JobsView: View {
   @State private var searchIndex = RecentJobSearchIndex()
   @State private var searchResult: (request: SearchRequest, offsets: [Int])?
   @State private var pageIndex = 0
+  @State private var showsPortableInspection = false
 
   private var recentFilter: Binding<RecentJobFilter> { $store.recentJobFilter }
 
@@ -96,6 +97,9 @@ struct JobsView: View {
     .onChange(of: store.selectedJobID) {
       revealSelection(in: offsets)
     }
+    .sheet(isPresented: $showsPortableInspection) {
+      PortableRunInspectionSheet(store: store)
+    }
   }
 
   private var selectedJobOffset: Int? {
@@ -122,6 +126,8 @@ struct JobsView: View {
           .fontWeight(.semibold)
         Text("Queue, logs, and status")
           .foregroundStyle(.secondary)
+        Button("Inspect Portable ZIP", systemImage: "doc.zipper") { showsPortableInspection = true }
+          .accessibilityIdentifier("jobs.inspect-portable")
       }
       .padding(.horizontal, 16)
       .padding(.top, 18)
@@ -299,6 +305,7 @@ struct JobDetailView: View {
   @ObservedObject var store: WorkbenchStore
   let job: JobRecord
   @State private var showsVerification = false
+  @State private var showsPortableExport = false
 
   var body: some View {
     ScrollView {
@@ -376,6 +383,12 @@ struct JobDetailView: View {
             Label("Support Bundle", systemImage: "lifepreserver")
           }
           .help("Export a redacted diagnostic bundle for this job.")
+
+          if job.status == .succeeded {
+            Button("Portable ZIP", systemImage: "doc.zipper") { showsPortableExport = true }
+              .help("Choose which evidence to include in a portable run package.")
+              .accessibilityIdentifier("jobs.export-portable")
+          }
         }
 
         Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 10) {
@@ -445,6 +458,9 @@ struct JobDetailView: View {
     .sheet(isPresented: $showsVerification) {
       RunVerificationSheet(store: store, job: job)
         .id(job.id)
+    }
+    .sheet(isPresented: $showsPortableExport) {
+      PortableRunExportSheet(store: store, job: job)
     }
   }
 }
