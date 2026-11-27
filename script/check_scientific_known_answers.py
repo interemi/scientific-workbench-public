@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import redirect_stderr, redirect_stdout
+import csv
 import hashlib
 import json
 import math
@@ -21,6 +22,7 @@ import sys
 from unittest.mock import patch
 
 from capability_io_contracts import validate_summary_contract
+from write_scientific_example_report import write_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -101,16 +103,17 @@ def read_json(path: Path, *, capability: str | None = None) -> dict:
 
 def check_manifest(path: Path, inputs: list[Path], outputs: list[Path]) -> None:
     manifest = read_json(path)
-    recorded_inputs = manifest.get("inputs") or []
-    require(len(recorded_inputs) == len(inputs), "manifest input count differs")
-    for recorded, source in zip(recorded_inputs, inputs):
-        require(recorded.get("exists") is True, "manifest input is not present")
-        require(recorded.get("sha256") == sha256(source), "manifest input hash differs")
-    recorded_outputs = manifest.get("outputs") or []
-    require(len(recorded_outputs) == len(outputs), "manifest output count differs")
-    for recorded, artifact in zip(recorded_outputs, outputs):
-        require(recorded.get("exists") is True, "manifest output is not present")
-        require(recorded.get("sha256") == sha256(artifact), "manifest output hash differs")
+    for role, files in (("input", inputs), ("output", outputs)):
+        records = manifest.get(role + "s") or []
+        require(len(records) == len(files), f"manifest {role} count differs")
+        for recorded, file in zip(records, files, strict=True):
+            name = recorded.get("path")
+            require(isinstance(name, str) and Path(name).expanduser().is_absolute()
+                    and Path(name).expanduser().resolve() == file.resolve(),
+                    f"manifest {role} path differs for {file.name}")
+            require(recorded.get("exists") is True and file.is_file(), f"manifest {role} is not present: {file.name}")
+            require(recorded.get("size_bytes") == file.stat().st_size, f"manifest {role} size differs for {file.name}")
+            require(recorded.get("sha256") == sha256(file), f"manifest {role} hash differs for {file.name}")
 
 
 def check_fits_crop(source: Path, case: Path, original_wcs, environment: dict[str, str]) -> float:
@@ -222,6 +225,11 @@ def inspect_fits_case(root: Path, environment: dict[str, str]) -> dict:
     require(header.get("BUNIT") == "adu" and header.get("RADESYS") == "ICRS"
             and header.get("CUNIT1") == "deg" and header.get("CUNIT2") == "deg",
             "FITS backend lost declared units or frame")
+    signed_scales = [header.get("CDELT1"), header.get("CDELT2")]
+    require(all(type(scale) in (float, int) and math.isfinite(scale)
+                and abs(scale - reference) < 1e-12
+                for scale, reference in zip(signed_scales, (-1 / 3600, 1 / 3600), strict=True)),
+            "FITS backend signed WCS axes differ")
     require(backend_wcs.get("crval") == [150, -30] and backend_wcs.get("crpix") == [4.5, 4.5],
             "FITS backend WCS reference differs")
     require(backend_wcs.get("reference_frame") == "ICRS" and backend_wcs.get("axis_units") == ["deg", "deg"],
@@ -249,6 +257,8 @@ def inspect_fits_case(root: Path, environment: dict[str, str]) -> dict:
         "input_sha256": original_hash, "shape_pixels": [8, 8],
         "finite_pixels": 63, "nonfinite_pixels": 1,
         "reference_deg": [float(ra), float(dec)],
+        "reported_reference_deg": backend_wcs["crval"],
+        "reported_signed_scale_deg_per_pixel": signed_scales,
         "pixel_scale_arcsec": [float(scale) for scale in scales],
         "crop_origin_error_arcsec": crop_origin_error,
         "preview": "display_only",
@@ -510,8 +520,6 @@ def crossmatch_cases(root: Path, environment: dict[str, str]) -> dict:
 
 
 def photometric_cases(root: Path, environment: dict[str, str]) -> dict:
-    import csv
-
     source = root / "input" / "photometry_standards.csv"
     source.write_text(
         "inst_mag,std_mag,airmass,color,error_mag,catalog_magnitude_system,calibration_passband\n"
@@ -523,6 +531,7 @@ def photometric_cases(root: Path, environment: dict[str, str]) -> dict:
     # With this design, the coefficient variances are 2.5, 0.5 and 1.5 times sigma squared.
     expected_errors = [0.02 * math.sqrt(factor) for factor in (2.5, 0.5, 1.5)]
     results = {}
+    measured_values = {}
     for weighted in (False, True):
         case = root / ("photometry_weighted" if weighted else "photometry_unweighted")
         summary = case / "summary.json"
@@ -560,6 +569,7 @@ def photometric_cases(root: Path, environment: dict[str, str]) -> dict:
                         "unweighted fit invented uncertainty at zero residual degrees of freedom")
         check_manifest(manifest, [source], [summary, coefficients])
         results[case.name] = [measurement["uncertainty"] for measurement in measurements]
+        measured_values[case.name] = [measurement["value"] for measurement in measurements]
     rejected_dir = root / "photometry_missing_column"
     rejected_summary = rejected_dir / "summary.json"
     rejected_coefficients = rejected_dir / "coefficients.csv"
@@ -575,6 +585,7 @@ def photometric_cases(root: Path, environment: dict[str, str]) -> dict:
     require(sha256(source) == original, "photometry input changed")
     return {
         "input_sha256": original, "residual_degrees_of_freedom": 0, "coefficient_uncertainties": results,
+        "reference_coefficients": expected_values, "coefficient_values": measured_values,
         "missing_column_status": diagnostic["app_status"],
     }
 
@@ -649,7 +660,8 @@ def lithium_equivalent_width_cases(root: Path, environment: dict[str, str]) -> d
         ])
         checks[name] = {"ew_milliangstrom": ew["value"], "combined_uncertainty_milliangstrom": ew["uncertainty"]}
     require({item.name: sha256(item) for item in (source, wrong_unit)} == originals, "lithium inputs changed")
-    return {"input_sha256": originals, "noise_proxy_milliangstrom": expected_noise, "cases": checks}
+    return {"input_sha256": originals, "reference_ew_milliangstrom": expected_ew,
+            "noise_proxy_milliangstrom": expected_noise, "cases": checks}
 
 
 def sb2_cases(root: Path, environment: dict[str, str]) -> dict:
@@ -1390,6 +1402,7 @@ def main() -> int:
         evidence["spectroscopy_pipeline"] = spectroscopy_pipeline_cases(output, environment)
         evidence["aperture_photometry"] = aperture_photometry_cases(output, environment)
         evidence["additional_astro_contracts"] = additional_astro_contract_cases(output, environment)
+        evidence["example_report"] = write_report(output, evidence)
         evidence["status"] = "PASS"
     except Exception as error:
         evidence["failure"] = str(error)
