@@ -19,23 +19,32 @@ extension ScientificWorkbenchTests {
 
   @Test
   func processRunnerCancelsActiveProcess() async throws {
-    let runner = ProcessRunner()
+    let directory = try makeProcessTreeTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let readyMarker = directory.appendingPathComponent("ready.pid")
+    let runner = ProcessRunner(defaultTimeoutSeconds: 30)
     let command = ProcessCommand(
-      executable: "/bin/sleep",
-      arguments: ["5"],
+      executable: "/bin/sh",
+      arguments: [
+        "-c",
+        "printf '%s' \"$$\" > \"$1\"; exec /bin/sleep 30",
+        "process-runner-fixture",
+        readyMarker.path
+      ],
       workingDirectory: nil
     )
-    let startedAt = Date()
     let task = Task {
       try await runner.run(command)
     }
+    defer { task.cancel() }
 
-    try await Task.sleep(nanoseconds: 200_000_000)
+    let pid = try await waitForProcessPID(at: readyMarker)
+    try #require(processExists(pid))
     await runner.cancelAll()
     let result = try await task.value
 
-    #expect(result.exitCode != 0)
-    #expect(result.finishedAt.timeIntervalSince(startedAt) < 3)
+    #expect([SIGTERM, SIGINT, SIGKILL].contains(result.exitCode))
+    #expect(await processTreeExited([pid]))
   }
 
   @Test
