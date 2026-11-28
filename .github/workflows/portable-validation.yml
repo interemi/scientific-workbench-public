@@ -112,8 +112,8 @@ jobs:
           [[ -f "$installed_skills/scientific-data-maintainer/references/v2-3-mother-router-module-map.json" ]]
       - name: Run Swift tests with discovery checks
         env:
-          # Shared Intel runners have delayed independent test tasks beyond fixture deadlines.
-          SCIENTIFIC_WORKBENCH_SWIFT_TEST_SERIAL: ${{ matrix.architecture == 'x86_64' && '1' || '0' }}
+          # Shared macOS runners can delay subprocess fixtures when tests overlap.
+          SCIENTIFIC_WORKBENCH_SWIFT_TEST_SERIAL: '1'
         run: |
           SCIENTIFIC_WORKBENCH_GUIDED_CLI_EVIDENCE_DIR="$CI_EVIDENCE_DIR" \
             ./script/run_swift_tests.sh 2>&1 | tee "$CI_EVIDENCE_DIR/swift-tests.log"
